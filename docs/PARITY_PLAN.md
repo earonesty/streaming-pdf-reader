@@ -68,7 +68,7 @@ remote run does not complete a slice.
 
 ## Slice 0 — corpus and measurement foundation
 
-Status: in progress
+Status: complete
 
 - Generate a deterministic 120-fixture manifest from PDF.js `text` and `load`
   cases plus curated structural coverage.
@@ -135,7 +135,7 @@ Target: final completion contract.
 
 | Slice | Commit | Parity | Lines | Branches | Remote CI | Notes |
 |---|---|---:|---:|---:|---|---|
-| 0 | pending | 68/120 | 85.06% | 68.75% | pending | Corpus foundation |
+| 0 | `f3f4844` | 68/120 | 85.06% | 68.75% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32530052188) | Corpus foundation |
 | 1 | pending | — | — | — | pending | Xref and recovery |
 | 2 | pending | — | — | — | pending | Streams and filters |
 | 3 | pending | — | — | — | pending | Text and nested content |
