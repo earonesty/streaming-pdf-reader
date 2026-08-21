@@ -27,16 +27,23 @@ endobj
 endobj
 3 0 obj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Contents 4 0 R
-   /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+   /Resources << /XObject << /X 5 0 R >> >> >>
 endobj
 4 0 obj
 << /Length 999 >>
 stream
-BT /F1 12 Tf 10 20 Td (Recovered) Tj ET
+q 1 0 0 1 10 20 cm /X Do Q
+endstream
+endobj
+5 0 obj
+<< /Type /XObject /Subtype /Form /BBox [0 0 100 50] /Length 38
+   /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+stream
+BT /F1 12 Tf 0 0 Td (Recovered) Tj ET
 endstream
 endobj
 trailer
-<< /Root 1 0 R /Size 5 >>
+<< /Root 1 0 R /Size 6 >>
 %%EOF
 `);
     const reader = await openPdf(memorySource(bytes), {

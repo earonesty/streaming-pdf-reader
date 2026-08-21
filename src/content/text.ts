@@ -1,10 +1,22 @@
 import type { ParsedPage, PdfObjectReader } from "../syntax/document.js";
 import { ValueParser } from "../syntax/parser.js";
-import { isName, isStream, type PdfDict, type PdfString, type PdfValue } from "../syntax/values.js";
+import {
+  isName,
+  isRef,
+  isStream,
+  type PdfDict,
+  type PdfString,
+  type PdfValue,
+} from "../syntax/values.js";
 import type { TextSpan } from "../types.js";
 
 interface FontDecoder {
   decode(bytes: Uint8Array): string;
+}
+
+export interface UnicodeMap {
+  mapping: Map<number, string>;
+  codeBytes?: number | undefined;
 }
 
 interface TextState {
@@ -45,17 +57,62 @@ export async function extractPageText(
     ctmStack: [],
   };
 
-  for (const bytes of streams) interpret(bytes, state, fonts, spans, page);
-  return spans;
+  for (const bytes of streams) {
+    await interpret(reader, bytes, state, fonts, page.resources, spans, page, 0, new Set());
+  }
+  return reorderBidiLines(spans);
 }
 
-function interpret(
+export function reorderBidiLines(spans: TextSpan[]): TextSpan[] {
+  const output: TextSpan[] = [];
+  for (let start = 0; start < spans.length; ) {
+    let end = start + 1;
+    const y = spans[start]?.bounds.y ?? 0;
+    while (end < spans.length && Math.abs((spans[end]?.bounds.y ?? 0) - y) <= 0.25) end += 1;
+    const line = spans.slice(start, end);
+    const text = line.map((span) => span.text).join("");
+    const rtlCount = [...text].filter(isRtlCharacter).length;
+    const strongCount = [...text].filter(
+      (character) => isRtlCharacter(character) || /[A-Za-z]/.test(character),
+    ).length;
+    if (rtlCount > 0 && rtlCount * 2 >= strongCount) {
+      const left = Math.min(...line.map((span) => span.bounds.x));
+      const reordered = line.reverse().map((span) => ({
+        ...span,
+        text: [...span.text].some(isRtlCharacter) ? [...span.text].reverse().join("") : span.text,
+        bounds: { ...span.bounds },
+        direction: "rtl" as const,
+      }));
+      if (reordered[0]) reordered[0].bounds.x = left;
+      output.push(...reordered);
+    } else {
+      output.push(...line);
+    }
+    start = end;
+  }
+  return output;
+}
+
+function isRtlCharacter(character: string): boolean {
+  const code = character.codePointAt(0) ?? 0;
+  return (
+    (code >= 0x0590 && code <= 0x08ff) ||
+    (code >= 0xfb1d && code <= 0xfdff) ||
+    (code >= 0xfe70 && code <= 0xfeff)
+  );
+}
+
+async function interpret(
+  reader: PdfObjectReader,
   bytes: Uint8Array,
   state: TextState,
   fonts: Map<string, FontDecoder>,
+  resources: PdfDict | undefined,
   spans: TextSpan[],
   page: ParsedPage,
-): void {
+  depth: number,
+  activeForms: Set<number>,
+): Promise<void> {
   const parser = new ValueParser(bytes);
   const operands: PdfValue[] = [];
   while (parser.offset < bytes.length) {
@@ -66,19 +123,34 @@ function interpret(
       operands.push(value);
       continue;
     }
-    applyOperator(value, operands, state, fonts, spans, page);
+    await applyOperator(
+      value,
+      operands,
+      reader,
+      state,
+      fonts,
+      resources,
+      spans,
+      page,
+      depth,
+      activeForms,
+    );
     operands.length = 0;
   }
 }
 
-function applyOperator(
+async function applyOperator(
   operator: string,
   args: PdfValue[],
+  reader: PdfObjectReader,
   state: TextState,
   fonts: Map<string, FontDecoder>,
+  resources: PdfDict | undefined,
   spans: TextSpan[],
   page: ParsedPage,
-): void {
+  depth: number,
+  activeForms: Set<number>,
+): Promise<void> {
   switch (operator) {
     case "q":
       state.ctmStack.push([...state.ctm]);
@@ -174,7 +246,71 @@ function applyOperator(
       if (isPdfString(text)) showString(text, state, fonts, spans, page);
       return;
     }
+    case "Do": {
+      const name = args.at(-1);
+      if (!isName(name)) return;
+      if (depth >= reader.limits.maxFormDepth) return;
+      const xObjects = await reader.resolveDict(resources?.get("XObject"));
+      const xObject = xObjects?.get(name.value);
+      if (!xObject) return;
+      const objectNumber = isRef(xObject) ? xObject.object : undefined;
+      if (objectNumber !== undefined && activeForms.has(objectNumber)) return;
+      const resolved = await reader.resolve(xObject);
+      if (!isStream(resolved) || !isName(resolved.dict.get("Subtype"), "Form")) return;
+      const formResources = (await reader.resolveDict(resolved.dict.get("Resources"))) ?? resources;
+      const formFonts = await loadFonts(reader, formResources);
+      const matrix = pdfMatrix(resolved.dict.get("Matrix")) ?? identity;
+      const saved = cloneState(state);
+      state.ctm = multiply(state.ctm, matrix);
+      const nestedForms = new Set(activeForms);
+      if (objectNumber !== undefined) nestedForms.add(objectNumber);
+      try {
+        try {
+          await interpret(
+            reader,
+            await reader.decodeStream(resolved),
+            state,
+            formFonts,
+            formResources,
+            spans,
+            page,
+            depth + 1,
+            nestedForms,
+          );
+        } catch (error) {
+          if (!(error instanceof Error) || !/invalid PDF number/.test(error.message)) throw error;
+        }
+      } finally {
+        restoreState(state, saved);
+      }
+      return;
+    }
   }
+}
+
+function cloneState(state: TextState): TextState {
+  return {
+    ...state,
+    textMatrix: [...state.textMatrix],
+    lineMatrix: [...state.lineMatrix],
+    ctm: [...state.ctm],
+    ctmStack: state.ctmStack.map((matrix) => [...matrix]),
+  };
+}
+
+function restoreState(state: TextState, saved: TextState): void {
+  Object.assign(state, saved);
+}
+
+function pdfMatrix(value: PdfValue | undefined): Matrix | undefined {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 6 ||
+    value.some((item) => typeof item !== "number")
+  ) {
+    return undefined;
+  }
+  return value as Matrix;
 }
 
 function showString(
@@ -239,9 +375,11 @@ async function loadFonts(
     if (toUnicodeValue) {
       const toUnicode = await reader.resolve(toUnicodeValue);
       if (isStream(toUnicode)) {
-        const mapping = parseToUnicode(await reader.decodeStream(toUnicode));
-        const codeBytes = isName(font.get("Subtype"), "Type0") ? 2 : 1;
-        output.set(name, { decode: (bytes) => decodeWithMap(bytes, mapping, codeBytes) });
+        const unicodeMap = parseToUnicode(await reader.decodeStream(toUnicode));
+        const codeBytes = unicodeMap.codeBytes ?? (isName(font.get("Subtype"), "Type0") ? 2 : 1);
+        output.set(name, {
+          decode: (bytes) => decodeWithMap(bytes, unicodeMap.mapping, codeBytes),
+        });
         continue;
       }
     }
@@ -250,14 +388,16 @@ async function loadFonts(
   return output;
 }
 
-function parseToUnicode(bytes: Uint8Array): Map<number, string> {
+export function parseToUnicode(bytes: Uint8Array): UnicodeMap {
   const text = new TextDecoder("latin1").decode(bytes);
   const mapping = new Map<number, string>();
+  const sourceWidths: number[] = [];
   for (const block of text.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
     for (const match of (block[1] ?? "").matchAll(/<([0-9a-f]+)>\s*<([0-9a-f]+)>/gi)) {
       const source = match[1];
       const destination = match[2];
       if (source !== undefined && destination !== undefined) {
+        sourceWidths.push(Math.ceil(source.length / 2));
         mapping.set(Number.parseInt(source, 16), decodeUtf16Hex(destination));
       }
     }
@@ -272,13 +412,33 @@ function parseToUnicode(bytes: Uint8Array): Map<number, string> {
       if (startHex === undefined || endHex === undefined || destinationHex === undefined) continue;
       const start = Number.parseInt(startHex, 16);
       const end = Number.parseInt(endHex, 16);
-      const destination = Number.parseInt(destinationHex, 16);
+      sourceWidths.push(Math.ceil(startHex.length / 2));
       for (let code = start; code <= end; code += 1) {
-        mapping.set(code, String.fromCodePoint(destination + code - start));
+        mapping.set(code, decodeUtf16Hex(incrementHex(destinationHex, code - start)));
+      }
+    }
+    for (const match of (block[1] ?? "").matchAll(
+      /<([0-9a-f]+)>\s*<([0-9a-f]+)>\s*\[((?:\s*<[0-9a-f]+>\s*)+)\]/gi,
+    )) {
+      const startHex = match[1];
+      const endHex = match[2];
+      const destinations = [...(match[3] ?? "").matchAll(/<([0-9a-f]+)>/gi)];
+      if (startHex === undefined || endHex === undefined) continue;
+      const start = Number.parseInt(startHex, 16);
+      const end = Number.parseInt(endHex, 16);
+      sourceWidths.push(Math.ceil(startHex.length / 2));
+      for (let code = start; code <= end; code += 1) {
+        const destination = destinations[code - start]?.[1];
+        if (destination !== undefined) mapping.set(code, decodeUtf16Hex(destination));
       }
     }
   }
-  return mapping;
+  const widths = new Set(sourceWidths);
+  return { mapping, codeBytes: widths.size === 1 ? sourceWidths[0] : undefined };
+}
+
+function incrementHex(hex: string, amount: number): string {
+  return (BigInt(`0x${hex}`) + BigInt(amount)).toString(16).padStart(hex.length, "0");
 }
 
 function decodeWithMap(bytes: Uint8Array, mapping: Map<number, string>, codeBytes: number): string {

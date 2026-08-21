@@ -9,17 +9,68 @@ export async function decodeFlate(
   limit: number,
 ): Promise<Uint8Array> {
   const inflated = await inflate(bytes, limit);
+  return applyPredictor(inflated, parameters, limit);
+}
+
+export function decodeLzw(
+  bytes: Uint8Array,
+  parameters: PdfDict | undefined,
+  limit: number,
+): Uint8Array {
+  const earlyChange = integerParameter(parameters, "EarlyChange", 1);
+  if (earlyChange !== 0 && earlyChange !== 1) throw new Error("/EarlyChange must be 0 or 1");
+  const dictionary: Uint8Array[] = Array.from({ length: 256 }, (_, value) => Uint8Array.of(value));
+  let nextCode = 258;
+  let width = 9;
+  let bitOffset = 0;
+  let previous: Uint8Array | undefined;
+  const output: number[] = [];
+
+  while (bitOffset + width <= bytes.length * 8) {
+    const code = readBits(bytes, bitOffset, width);
+    bitOffset += width;
+    if (code === 256) {
+      dictionary.length = 256;
+      nextCode = 258;
+      width = 9;
+      previous = undefined;
+      continue;
+    }
+    if (code === 257) break;
+    const entry =
+      dictionary[code] ??
+      (code === nextCode && previous ? appendByte(previous, previous[0] ?? 0) : undefined);
+    if (!entry) throw new Error(`invalid LZW code ${code}`);
+    if (output.length + entry.length > limit) {
+      throw new Error(`decoded stream exceeds configured limit of ${limit} bytes`);
+    }
+    output.push(...entry);
+    if (previous && nextCode < 4096) {
+      dictionary[nextCode] = appendByte(previous, entry[0] ?? 0);
+      nextCode += 1;
+      if (width < 12 && nextCode + earlyChange === 1 << width) width += 1;
+    }
+    previous = entry;
+  }
+  return applyPredictor(Uint8Array.from(output), parameters, limit);
+}
+
+function applyPredictor(
+  bytes: Uint8Array,
+  parameters: PdfDict | undefined,
+  limit: number,
+): Uint8Array {
   const predictor = integerParameter(parameters, "Predictor", 1);
-  if (predictor === 1) return inflated;
+  if (predictor === 1) return bytes;
 
   const colors = positiveParameter(parameters, "Colors", 1);
   const bits = positiveParameter(parameters, "BitsPerComponent", 8);
   const columns = positiveParameter(parameters, "Columns", 1);
   const rowBytes = Math.ceil((colors * columns * bits) / 8);
   const bytesPerPixel = Math.max(1, Math.ceil((colors * bits) / 8));
-  if (predictor === 2) return decodeTiff(inflated, rowBytes, bytesPerPixel);
+  if (predictor === 2) return decodeTiff(bytes, rowBytes, bytesPerPixel);
   if (predictor >= 10 && predictor <= 15) {
-    return decodePng(inflated, rowBytes, bytesPerPixel, limit);
+    return decodePng(bytes, rowBytes, bytesPerPixel, limit);
   }
   throw new Error(`unsupported stream predictor ${predictor}`);
 }
@@ -35,23 +86,65 @@ export function decodeAsciiHex(bytes: Uint8Array, limit: number): Uint8Array {
 }
 
 async function inflate(bytes: Uint8Array, limit: number): Promise<Uint8Array> {
-  const inflater = new Inflate({ chunkSize: Math.min(64 * 1024, limit + 1) });
+  const attempts: Array<{ bytes: Uint8Array; raw: boolean }> = [
+    { bytes, raw: false },
+    { bytes, raw: true },
+  ];
+  if (bytes.length > 6 && looksLikeZlib(bytes)) {
+    attempts.push({ bytes: bytes.subarray(2, bytes.length - 4), raw: true });
+  }
+  let failure: Error | undefined;
+  for (const attempt of attempts) {
+    try {
+      return inflateOnce(attempt.bytes, limit, attempt.raw);
+    } catch (error) {
+      if (error instanceof RangeError) throw error;
+      failure = error instanceof Error ? error : new Error(String(error));
+    }
+  }
+  throw new Error(`FlateDecode failed: ${failure?.message ?? "invalid compressed data"}`);
+}
+
+function inflateOnce(bytes: Uint8Array, limit: number, raw: boolean): Uint8Array {
+  const inflater = new Inflate({ chunkSize: Math.min(64 * 1024, limit + 1), raw });
   const chunks: Uint8Array[] = [];
   let size = 0;
   inflater.onData = (chunk) => {
     const decoded = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
     size += decoded.byteLength;
-    if (size > limit) throw new Error(`decoded stream exceeds configured limit of ${limit} bytes`);
+    if (size > limit)
+      throw new RangeError(`decoded stream exceeds configured limit of ${limit} bytes`);
     chunks.push(decoded);
   };
   inflater.push(bytes, true);
-  if (inflater.err) throw new Error(`FlateDecode failed: ${inflater.msg}`);
+  if (inflater.err) throw new Error(inflater.msg || "invalid compressed data");
   const output = new Uint8Array(size);
   let offset = 0;
   for (const chunk of chunks) {
     output.set(chunk, offset);
     offset += chunk.byteLength;
   }
+  return output;
+}
+
+function looksLikeZlib(bytes: Uint8Array): boolean {
+  const header = ((bytes[0] ?? 0) << 8) | (bytes[1] ?? 0);
+  return (bytes[0] ?? 0) % 16 === 8 && header % 31 === 0;
+}
+
+function readBits(bytes: Uint8Array, bitOffset: number, width: number): number {
+  let value = 0;
+  for (let bit = 0; bit < width; bit += 1) {
+    const offset = bitOffset + bit;
+    value = (value << 1) | (((bytes[offset >> 3] ?? 0) >> (7 - (offset & 7))) & 1);
+  }
+  return value;
+}
+
+function appendByte(bytes: Uint8Array, byte: number): Uint8Array {
+  const output = new Uint8Array(bytes.length + 1);
+  output.set(bytes);
+  output[bytes.length] = byte;
   return output;
 }
 

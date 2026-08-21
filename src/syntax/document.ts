@@ -1,6 +1,6 @@
 import type { PdfSource } from "../source.js";
 import { type ByteStoreOptions, type ByteStoreStats, SparseByteStore } from "../store/sparse.js";
-import { decodeAsciiHex, decodeFlate } from "./filters.js";
+import { decodeAsciiHex, decodeFlate, decodeLzw } from "./filters.js";
 import { ValueParser } from "./parser.js";
 import { findStartXref, scanPdfStructure } from "./recovery.js";
 import {
@@ -33,6 +33,7 @@ export interface ParserLimits {
   maxDecodedStreamBytes?: number;
   maxXrefBytes?: number;
   maxPageTreeDepth?: number;
+  maxFormDepth?: number;
   maxCachedObjects?: number;
   maxObjectCacheBytes?: number;
 }
@@ -51,6 +52,7 @@ const DEFAULT_MAX_OBJECT_BYTES = 16 * 1024 * 1024;
 const DEFAULT_MAX_DECODED_STREAM_BYTES = 32 * 1024 * 1024;
 const DEFAULT_MAX_XREF_BYTES = 8 * 1024 * 1024;
 const DEFAULT_MAX_PAGE_TREE_DEPTH = 128;
+const DEFAULT_MAX_FORM_DEPTH = 32;
 const DEFAULT_MAX_CACHED_OBJECTS = 256;
 const DEFAULT_MAX_OBJECT_CACHE_BYTES = 16 * 1024 * 1024;
 const latin1 = new TextDecoder("latin1");
@@ -75,6 +77,7 @@ export class PdfObjectReader {
       maxDecodedStreamBytes: options.maxDecodedStreamBytes ?? DEFAULT_MAX_DECODED_STREAM_BYTES,
       maxXrefBytes: options.maxXrefBytes ?? DEFAULT_MAX_XREF_BYTES,
       maxPageTreeDepth: options.maxPageTreeDepth ?? DEFAULT_MAX_PAGE_TREE_DEPTH,
+      maxFormDepth: options.maxFormDepth ?? DEFAULT_MAX_FORM_DEPTH,
       maxCachedObjects: options.maxCachedObjects ?? DEFAULT_MAX_CACHED_OBJECTS,
       maxObjectCacheBytes: options.maxObjectCacheBytes ?? DEFAULT_MAX_OBJECT_CACHE_BYTES,
     };
@@ -233,6 +236,8 @@ export class PdfObjectReader {
       }
       if (filter.value === "FlateDecode" || filter.value === "Fl") {
         bytes = await decodeFlate(bytes, dict, this.limits.maxDecodedStreamBytes);
+      } else if (filter.value === "LZWDecode" || filter.value === "LZW") {
+        bytes = decodeLzw(bytes, dict, this.limits.maxDecodedStreamBytes);
       } else if (filter.value === "ASCIIHexDecode" || filter.value === "AHx") {
         bytes = decodeAsciiHex(bytes, this.limits.maxDecodedStreamBytes);
       } else {
@@ -447,8 +452,12 @@ export class PdfObjectReader {
     for (let index = 0; index < count; index += 1) {
       entries.push({ object: header.parseNumber(), offset: header.parseNumber() });
     }
-    const target = entries[entry.index];
-    if (!target || target.object !== objectNumber) {
+    const indexed = entries[entry.index];
+    const target =
+      indexed?.object === objectNumber
+        ? indexed
+        : entries.find((candidate) => candidate.object === objectNumber);
+    if (!target) {
       throw new Error(`object stream index mismatch for object ${objectNumber}`);
     }
     return new ValueParser(decoded, first + target.offset).parseValue();
