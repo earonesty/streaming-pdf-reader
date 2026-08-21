@@ -62,6 +62,66 @@ describe("simple font encodings", () => {
     expect(decoder.decode(Uint8Array.of(194, 241, 249, 250))).toBe("´æøœ");
   });
 
+  it("uses explicit simple-font widths with defaults for missing entries", async () => {
+    const reader = {
+      async resolve(value: PdfValue) {
+        return value;
+      },
+    } as PdfObjectReader;
+    const decoder = await loadFontEncoding(
+      reader,
+      new Map<string, PdfValue>([
+        ["FirstChar", 65],
+        ["Widths", [250, 750, true]],
+      ]),
+    );
+    expect(decoder.advance?.(Uint8Array.of(65, 66, 67, 68))).toBe(2);
+  });
+
+  it("uses CID width arrays, ranges, and the descendant default", async () => {
+    const descendant: PdfDict = new Map<string, PdfValue>([
+      ["DW", 900],
+      ["W", [1, [200, 300], 4, 5, 400]],
+    ]);
+    const reader = {
+      async resolve(value: PdfValue) {
+        return value;
+      },
+      async resolveDict(value: PdfValue | undefined) {
+        return value instanceof Map ? value : undefined;
+      },
+    } as PdfObjectReader;
+    const decoder = await loadFontEncoding(
+      reader,
+      new Map<string, PdfValue>([
+        ["Subtype", { type: "name", value: "Type0" }],
+        ["DescendantFonts", [descendant]],
+      ]),
+    );
+    expect(decoder.advance?.(Uint8Array.of(0, 1, 0, 2, 0, 4, 0, 5, 0, 9))).toBeCloseTo(2.2);
+  });
+
+  it("omits advances for missing or malformed width structures", async () => {
+    const reader = {
+      async resolve(value: PdfValue) {
+        return value;
+      },
+      async resolveDict(value: PdfValue | undefined) {
+        return value instanceof Map ? value : undefined;
+      },
+    } as PdfObjectReader;
+    const malformedSimple = await loadFontEncoding(
+      reader,
+      new Map<string, PdfValue>([["Widths", true]]),
+    );
+    expect(malformedSimple.advance).toBeUndefined();
+    const missingDescendant = await loadFontEncoding(
+      reader,
+      new Map<string, PdfValue>([["Subtype", { type: "name", value: "Type0" }]]),
+    );
+    expect(missingDescendant.advance).toBeUndefined();
+  });
+
   it("uses named base encodings and ignores malformed Differences entries", async () => {
     const reader = {
       async resolve(value: PdfValue) {

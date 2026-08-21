@@ -22,7 +22,7 @@ Planned extension slices:
 `@boxpdf/reader` reaches v1 parity when all of these statements are true on the
 same pushed commit:
 
-1. At least 108 of the 120 fixtures in `corpus/manifest.json` pass
+1. At least 118 of the 120 fixtures in `corpus/manifest.json` pass
    `pnpm parity:target`.
 2. `pnpm test:coverage` enforces at least 90% line coverage and 80% branch
    coverage over `src/**/*.ts`.
@@ -57,7 +57,7 @@ Baseline established on 2026-08-21:
 
 | Metric | Baseline | Required |
 |---|---:|---:|
-| Corpus parity | 68/120 (56.7%) | 108/120 (90%) |
+| Corpus parity | 68/120 (56.7%) | 118/120 (98%) |
 | Line coverage | 85.06% | 90% |
 | Branch coverage | 68.75% | 80% |
 | Largest source module | 538 lines | no module over 600 lines |
@@ -165,4 +165,5 @@ Target: final completion contract.
 | 2 | `8064977` | 101/120 | 87.52% | 69.68% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32531686908) | LZW/Flate, object streams, forms, bidi, ToUnicode |
 | 3 | `3bf7705` | 108/120 | 87.51% | 69.98% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32532417461) | Font encodings, glyph names, TrueType cmaps |
 | 4 | `6f09773` | 108/120 | 95.22% | 80.89% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32533327103) | Enforced final gates and typed errors |
-| 5a | pending | 112/120 | 94.87% | 80.11% | pending | Type 1 programs, glyph-name recovery, named UTF-16 CMaps |
+| 5a | `c40647f` | 112/120 | 94.87% | 80.11% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32534287893) | Type 1 programs, glyph-name recovery, named UTF-16 CMaps |
+| 5b | pending | 118/120 | pending | pending | pending | Variable CMaps, bounded content concatenation, matrix-aware widths/clipping, RTL flow |

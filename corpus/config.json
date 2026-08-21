@@ -7,7 +7,7 @@
   },
   "targetFixtureCount": 120,
   "maximumPagesPerFixture": 5,
-  "parityTarget": 0.9,
+  "parityTarget": 0.98,
   "coverage": {
     "lines": 90,
     "branches": 80

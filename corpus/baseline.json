@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "upstreamCommit": "0f26334f9d6f96119f6e5164fb65832fbbde7344",
   "fixtureCount": 120,
-  "passed": 112,
-  "parity": 0.9333333333333333,
+  "passed": 118,
+  "parity": 0.9833333333333333,
   "passingFixtureIds": [
     "annotation-border-styles",
     "annotation-choice-widget",
@@ -19,6 +19,7 @@
     "annotation-stamp",
     "annotation-strikeout",
     "annotation-text-widget",
+    "arabiccidtruetype",
     "arial-unicode-ab-cidfont",
     "arial-unicode-en-cidfont",
     "bug1020858",
@@ -31,6 +32,7 @@
     "bug864847",
     "bug868745",
     "bug886717",
+    "bug946506",
     "canvas",
     "ccitt-endofblock-false",
     "cidfont-cmap-overflow",
@@ -47,6 +49,7 @@
     "issue11016-reduced",
     "issue11403-reduced",
     "issue11651",
+    "issue11656",
     "issue11713",
     "issue11922-reduced",
     "issue1249",
@@ -63,6 +66,7 @@
     "issue16224",
     "issue17554",
     "issue18059",
+    "issue18117",
     "issue18986",
     "issue19800",
     "issue19848",
@@ -114,8 +118,10 @@
     "scan-bad",
     "simpletype3font",
     "standard-fonts",
+    "tracemonkey",
     "truetype-without-cmap",
     "vertical",
-    "xref-command-missing"
+    "xref-command-missing",
+    "zero-descent"
   ]
 }

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseToUnicode, reorderBidiLines } from "../../src/content/text.js";
+import {
+  decodeUtf16Bytes,
+  decodeWithMap,
+  normalizeTextCompatibility,
+  parseToUnicode,
+} from "../../src/content/cmap.js";
+import { reorderBidiLines, reorderMixedRtlCitation } from "../../src/content/text.js";
 import { memorySource, openPdf } from "../../src/index.js";
 import type { TextSpan } from "../../src/types.js";
 
@@ -11,6 +17,22 @@ describe("text flow normalization", () => {
     expect(reordered[0]?.bounds.x).toBe(10);
     expect(reordered[0]?.direction).toBe("rtl");
     expect(reordered[3]?.direction).toBe("ltr");
+  });
+
+  it("preserves chunk order for shaped Arabic presentation forms", () => {
+    const reordered = reorderBidiLines([
+      span("ﺔﻴﺑﺮﻌﻟا", 30, 20),
+      span("طﻮﻄﳋا", 20, 20),
+      span("عاﻮﻧا", 10, 20),
+    ]);
+    expect(reordered.map((item) => item.text).join(" ")).toBe("اﻟﻌﺮﺑﻴﺔ اﳋﻄﻮط اﻧﻮاع");
+  });
+
+  it("restores visual-order RTL citations containing nested numbers", () => {
+    expect(reorderMixedRtlCitation(") לחוק מבקר המדינה4(ב()15לחיוב פעולות אלה לפי סעיף")).toBe(
+      "לחיוב פעולות אלה לפי סעיף15(ב)(4) לחוק מבקר המדינה",
+    );
+    expect(reorderMixedRtlCitation("שלום עולם")).toBeUndefined();
   });
 
   it("parses sequential and array ToUnicode ranges with their source width", () => {
@@ -29,6 +51,76 @@ endbfrange`),
     ]);
   });
 
+  it("retains variable-width CMap code spaces for decoding", () => {
+    const cmap = parseToUnicode(
+      new TextEncoder().encode(`3 begincodespacerange
+<00> <7F>
+<E08080> <EFBFBF>
+<F0808080> <F7BFBFBF>
+endcodespacerange
+2 beginbfchar
+<61> <0061>
+<f0a8a780> <d862ddc0>
+endbfchar`),
+    );
+    expect(cmap.codeSpaceRanges).toEqual([
+      { width: 1, start: 0, end: 0x7f },
+      { width: 3, start: 0xe08080, end: 0xefbfbf },
+      { width: 4, start: 0xf0808080, end: 0xf7bfbfbf },
+    ]);
+    expect(cmap.codeBytes).toBeUndefined();
+    expect(cmap.mapping.get(0xf0a8a780)).toBe("𨧀");
+  });
+
+  it("decodes fixed and variable CMap codes with mapped and fallback values", () => {
+    const fallback = { decode: (bytes: Uint8Array) => String.fromCharCode(...bytes) };
+    expect(
+      decodeWithMap(
+        Uint8Array.of(0x41, 0x81, 0x01, 0x42),
+        {
+          mapping: new Map([[0x8101, "Ω"]]),
+          codeSpaceRanges: [
+            { width: 1, start: 0, end: 0x7f },
+            { width: 2, start: 0x8100, end: 0x81ff },
+          ],
+        },
+        1,
+        fallback,
+      ),
+    ).toBe("AΩB");
+    expect(
+      decodeWithMap(
+        Uint8Array.of(0x01, 0x02),
+        { mapping: new Map(), codeBytes: 2, codeSpaceRanges: [] },
+        1,
+        fallback,
+      ),
+    ).toBe("Ă");
+    expect(
+      decodeWithMap(
+        Uint8Array.of(0x41),
+        {
+          mapping: new Map(),
+          codeSpaceRanges: [{ width: 2, start: 0x8100, end: 0x81ff }],
+        },
+        1,
+        fallback,
+      ),
+    ).toBe("A");
+  });
+
+  it("ignores malformed CMap code-space widths", () => {
+    const cmap = parseToUnicode(
+      new TextEncoder().encode("1 begincodespacerange\n<00> <ffff>\nendcodespacerange"),
+    );
+    expect(cmap.codeSpaceRanges).toEqual([]);
+  });
+
+  it("decodes UTF-16 byte pairs and normalizes compatibility glyphs", () => {
+    expect(decodeUtf16Bytes(Uint8Array.of(0, 65, 0, 66, 0))).toBe("AB");
+    expect(normalizeTextCompatibility("ﬀﬁﬂﬃﬄﳋ")).toBe("fffiflffifflلخ");
+  });
+
   it("interprets text-state, positioning, array, and quote operators", async () => {
     const content = `q
 2 0 0 2 0 0 cm
@@ -36,7 +128,8 @@ BT /F1 10 Tf 1 Tc 2 Tw 80 Tz 12 TL 3 Ts
 1 0 0 1 10 20 Tm (A) Tj
 5 -14 TD [(B) 100 ( C)] TJ
 T* (D) '
-1 2 (E) " ET Q`;
+1 2 (E) " ET Q
+<< /Truncated`;
     const pdf = `%PDF-1.4
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>

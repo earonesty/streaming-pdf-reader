@@ -3,6 +3,7 @@ import { isDict, isName, isStream, type PdfDict, type PdfValue } from "../syntax
 
 export interface FontDecoder {
   decode(bytes: Uint8Array): string;
+  advance?(bytes: Uint8Array): number;
 }
 
 const glyphNames: Record<string, string> = {
@@ -12,6 +13,8 @@ const glyphNames: Record<string, string> = {
   ampersand: "&",
   bullet: "•",
   copyright: "©",
+  circlecopyrt: "©",
+  dieresis: "¨",
   comma: ",",
   period: ".",
   quotedblleft: "“",
@@ -98,7 +101,75 @@ export async function loadFontEncoding(
   if (isDict(encoding)) {
     applyDifferences(table, encoding.get("Differences"), !isName(font.get("Subtype"), "Type3"));
   }
-  return { decode: (bytes) => [...bytes].map((byte) => table[byte] as string).join("") };
+  const widths = await loadFontWidths(reader, font);
+  return {
+    decode: (bytes) => [...bytes].map((byte) => table[byte] as string).join(""),
+    ...(widths ? { advance: (bytes: Uint8Array) => widths(bytes) } : {}),
+  };
+}
+
+async function loadFontWidths(
+  reader: PdfObjectReader,
+  font: PdfDict,
+): Promise<((bytes: Uint8Array) => number) | undefined> {
+  if (isName(font.get("Subtype"), "Type0")) return loadCidWidths(reader, font);
+  const value = font.get("Widths");
+  if (value === undefined) return undefined;
+  const resolved = await reader.resolve(value);
+  if (!Array.isArray(resolved)) return undefined;
+  const first = typeof font.get("FirstChar") === "number" ? (font.get("FirstChar") as number) : 0;
+  const widths = resolved.map((width) => (typeof width === "number" ? width / 1000 : 0.5));
+  return (bytes) => {
+    let total = 0;
+    for (const byte of bytes) total += widths[byte - first] ?? 0.5;
+    return total;
+  };
+}
+
+async function loadCidWidths(
+  reader: PdfObjectReader,
+  font: PdfDict,
+): Promise<((bytes: Uint8Array) => number) | undefined> {
+  const descendantsValue = font.get("DescendantFonts");
+  if (descendantsValue === undefined) return undefined;
+  const descendants = await reader.resolve(descendantsValue);
+  if (!Array.isArray(descendants) || descendants.length === 0) return undefined;
+  const descendant = await reader.resolveDict(descendants[0]);
+  if (!descendant) return undefined;
+  const defaultWidth =
+    typeof descendant.get("DW") === "number" ? (descendant.get("DW") as number) / 1000 : 1;
+  const widths = new Map<number, number>();
+  const value = descendant.get("W");
+  const entries = value === undefined ? undefined : await reader.resolve(value);
+  if (Array.isArray(entries)) {
+    for (let index = 0; index < entries.length; ) {
+      const first = entries[index];
+      const next = entries[index + 1];
+      if (typeof first !== "number") break;
+      if (Array.isArray(next)) {
+        for (const [offset, width] of next.entries()) {
+          if (typeof width === "number") widths.set(first + offset, width / 1000);
+        }
+        index += 2;
+        continue;
+      }
+      const last = next;
+      const width = entries[index + 2];
+      if (typeof last !== "number" || typeof width !== "number") break;
+      for (let code = first; code <= last && code - first <= 65_536; code += 1) {
+        widths.set(code, width / 1000);
+      }
+      index += 3;
+    }
+  }
+  return (bytes) => {
+    let total = 0;
+    for (let index = 0; index + 1 < bytes.length; index += 2) {
+      const code = ((bytes[index] ?? 0) << 8) | (bytes[index + 1] ?? 0);
+      total += widths.get(code) ?? defaultWidth;
+    }
+    return total;
+  };
 }
 
 async function embeddedFontEncoding(

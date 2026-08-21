@@ -9,7 +9,7 @@
   "scoring": {
     "fixtureCount": 120,
     "maximumPagesPerFixture": 5,
-    "parityTarget": 0.9
+    "parityTarget": 0.98
   },
   "fixtures": [
     {
