@@ -82,6 +82,8 @@ Status: complete
 
 ## Slice 1 — cross-reference and recovery correctness
 
+Status: complete
+
 Target: at least 92/120 fixtures passing.
 
 - Diagnose the 26 baseline xref-class failures individually.
@@ -136,7 +138,7 @@ Target: final completion contract.
 | Slice | Commit | Parity | Lines | Branches | Remote CI | Notes |
 |---|---|---:|---:|---:|---|---|
 | 0 | `f3f4844` | 68/120 | 85.06% | 68.75% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32530052188) | Corpus foundation |
-| 1 | pending | — | — | — | pending | Xref and recovery |
+| 1 | `c02f161` | 92/120 | 86.41% | 70.46% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32530805070) | Predictors, bounded recovery, damaged lengths, CropBox |
 | 2 | pending | — | — | — | pending | Streams and filters |
 | 3 | pending | — | — | — | pending | Text and nested content |
 | 4 | pending | ≥108/120 | ≥90% | ≥80% | pending | Final gates |
