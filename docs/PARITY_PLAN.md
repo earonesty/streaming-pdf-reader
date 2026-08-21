@@ -96,6 +96,8 @@ Target: at least 92/120 fixtures passing.
 
 ## Slice 2 — stream boundaries, filters, and object streams
 
+Status: complete
+
 Target: at least 100/120 fixtures passing.
 
 - Resolve indirect stream lengths before fallback scanning.
@@ -139,6 +141,6 @@ Target: final completion contract.
 |---|---|---:|---:|---:|---|---|
 | 0 | `f3f4844` | 68/120 | 85.06% | 68.75% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32530052188) | Corpus foundation |
 | 1 | `c02f161` | 92/120 | 86.41% | 70.46% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32530805070) | Predictors, bounded recovery, damaged lengths, CropBox |
-| 2 | pending | — | — | — | pending | Streams and filters |
+| 2 | `8064977` | 101/120 | 87.52% | 69.68% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32531686908) | LZW/Flate, object streams, forms, bidi, ToUnicode |
 | 3 | pending | — | — | — | pending | Text and nested content |
 | 4 | pending | ≥108/120 | ≥90% | ≥80% | pending | Final gates |
