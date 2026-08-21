@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "fixtures": [
+    {
+      "path": "pdfjs/basicapi.pdf",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/basicapi.pdf",
+      "sha256": "925853d98d67d5dae7473c635f932958e1695ce1029d23b2ecd2531cb65f1f14",
+      "license": "Apache-2.0",
+      "covers": ["baseline", "multiple-pages", "text"]
+    },
+    {
+      "path": "pdfjs/pages-tree-refs.pdf",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/Pages-tree-refs.pdf",
+      "sha256": "77c8817ea016296ea59e0991ea1a6d1440ef2480cdcd9acb59106938b649233f",
+      "license": "Apache-2.0",
+      "covers": ["page-tree", "indirect-references"]
+    },
+    {
+      "path": "pdfjs/issue-2391-1.pdf",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue2391-1.pdf",
+      "sha256": "d8efb66423ad2ddf275d4c6292c5beef166f9819cd2c4e3679e4a67187050a24",
+      "license": "Apache-2.0",
+      "covers": ["xref-stream"]
+    },
+    {
+      "path": "pdfjs/rotation.pdf",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/rotation.pdf",
+      "sha256": "5087c2afe763d145537d652bb3bc6c321ace3a267b2679ae2c178add3ba7f1d9",
+      "license": "Apache-2.0",
+      "covers": ["page-rotation", "text-geometry"]
+    },
+    {
+      "path": "pdfjs/structure-simple.pdf",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/structure_simple.pdf",
+      "sha256": "5b5510bb5f91c86aa0bbd4882842d4583c814e0e69a0cfbff0e70dc250a8d0f3",
+      "license": "Apache-2.0",
+      "covers": ["tagged-pdf", "structure-tree", "marked-content"]
+    },
+    {
+      "path": "pdfjs/unicode-cidfont.pdf",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/arial_unicode_ab_cidfont.pdf",
+      "sha256": "049a4330710d8470896061acf7ee486735e94cef2769f6cc13fec3cb13bb65aa",
+      "license": "Apache-2.0",
+      "covers": ["unicode", "cid-font"]
+    },
+    {
+      "path": "qpdf/minimal.pdf",
+      "source": "https://raw.githubusercontent.com/qpdf/qpdf/8ff37c38322a048d3327216b36ead5e4b23712f1/examples/qtest/npages/minimal.pdf",
+      "sha256": "c16e6eaf7d26ae388cac9a262224981394dc590f940bd2e3bb926eba2f2132a2",
+      "license": "Apache-2.0",
+      "covers": ["minimal", "classic-xref"]
+    },
+    {
+      "path": "qpdf/minimal-linearized.pdf",
+      "source": "https://raw.githubusercontent.com/qpdf/qpdf/8ff37c38322a048d3327216b36ead5e4b23712f1/qpdf/qtest/qpdf/minimal-linearized.pdf",
+      "sha256": "75b49e60adac5dd53c07e01c20f488e86c81a12f402c3b1d5b2a5d3e1a7ca883",
+      "license": "Apache-2.0",
+      "covers": ["linearized", "hint-table"]
+    },
+    {
+      "path": "qpdf/object-stream.pdf",
+      "source": "https://raw.githubusercontent.com/qpdf/qpdf/8ff37c38322a048d3327216b36ead5e4b23712f1/qpdf/qtest/qpdf/object-stream.pdf",
+      "sha256": "7e895514a76bff9c9bb699a14275735c9f5c61415fda7acc1e3e80d3003bc730",
+      "license": "Apache-2.0",
+      "covers": ["object-stream", "xref-stream"]
+    }
+  ]
+}
