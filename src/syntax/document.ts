@@ -1,7 +1,8 @@
-import { Inflate } from "pako";
 import type { PdfSource } from "../source.js";
 import { type ByteStoreOptions, type ByteStoreStats, SparseByteStore } from "../store/sparse.js";
-import { isWhitespace, ValueParser } from "./parser.js";
+import { decodeAsciiHex, decodeFlate } from "./filters.js";
+import { ValueParser } from "./parser.js";
+import { findStartXref, scanPdfStructure } from "./recovery.js";
 import {
   isDict,
   isName,
@@ -65,6 +66,7 @@ export class PdfObjectReader {
   #root?: PdfRef;
   #pagesRoot: PdfRef | undefined;
   #pageCount: number | undefined;
+  #recoveryComplete = false;
 
   private constructor(source: PdfSource, options: PdfParserOptions) {
     this.store = new SparseByteStore(source, options);
@@ -151,12 +153,28 @@ export class PdfObjectReader {
       this.#cache.set(objectNumber, cached);
       return cached.value;
     }
-    const entry = this.#xref.get(objectNumber);
+    let entry = this.#xref.get(objectNumber);
+    if (!entry) {
+      await this.#recoverXref();
+      entry = this.#xref.get(objectNumber);
+    }
     if (!entry) throw new Error(`missing xref entry for object ${objectNumber}`);
-    const value =
-      entry.kind === "direct"
-        ? await this.#readDirectObject(objectNumber, entry)
-        : await this.#readCompressedObject(objectNumber, entry);
+    let value: PdfValue;
+    try {
+      value =
+        entry.kind === "direct"
+          ? await this.#readDirectObject(objectNumber, entry)
+          : await this.#readCompressedObject(objectNumber, entry);
+    } catch (error) {
+      if (this.#recoveryComplete) throw error;
+      await this.#recoverXref();
+      const recovered = this.#xref.get(objectNumber);
+      if (!recovered) throw error;
+      value =
+        recovered.kind === "direct"
+          ? await this.#readDirectObject(objectNumber, recovered)
+          : await this.#readCompressedObject(objectNumber, recovered);
+    }
     const size = estimateObjectBytes(value);
     if (size <= this.limits.maxObjectCacheBytes) {
       while (
@@ -202,10 +220,19 @@ export class PdfObjectReader {
       : filterValue === undefined
         ? []
         : [filterValue];
-    for (const filter of filters) {
+    const decodeParameters = stream.dict.get("DecodeParms") ?? stream.dict.get("DP");
+    const parameters = Array.isArray(decodeParameters)
+      ? decodeParameters
+      : filters.map(() => decodeParameters);
+    for (const [index, filter] of filters.entries()) {
       if (!isName(filter)) throw new Error("unsupported indirect or malformed stream filter");
+      const parameter = parameters[index];
+      const dict = parameter === null || parameter === undefined ? undefined : parameter;
+      if (dict !== undefined && !isDict(dict)) {
+        throw new Error("unsupported indirect or malformed stream decode parameters");
+      }
       if (filter.value === "FlateDecode" || filter.value === "Fl") {
-        bytes = await inflate(bytes, this.limits.maxDecodedStreamBytes);
+        bytes = await decodeFlate(bytes, dict, this.limits.maxDecodedStreamBytes);
       } else if (filter.value === "ASCIIHexDecode" || filter.value === "AHx") {
         bytes = decodeAsciiHex(bytes, this.limits.maxDecodedStreamBytes);
       } else {
@@ -222,11 +249,30 @@ export class PdfObjectReader {
 
     const tailLength = Math.min(this.store.source.size, this.limits.maxXrefBytes);
     const tailOffset = this.store.source.size - tailLength;
-    const tail = latin1.decode(await this.store.read(tailOffset, tailLength));
-    const matches = [...tail.matchAll(/startxref\s+(\d+)/g)];
-    const last = matches.at(-1);
-    if (!last) throw new Error("PDF has no startxref marker within the configured xref window");
-    await this.#readXrefChain(Number(last[1]), new Set());
+    const tailBytes = await this.store.read(tailOffset, tailLength);
+    const startXref = findStartXref(tailBytes);
+    if (startXref === undefined) {
+      await this.#recoverXref();
+      return;
+    }
+    try {
+      await this.#readXrefChain(startXref, new Set());
+    } catch {
+      await this.#recoverXref();
+    }
+  }
+
+  async #recoverXref(): Promise<void> {
+    if (this.#recoveryComplete) return;
+    this.#recoveryComplete = true;
+    const length = Math.min(this.store.source.size, this.limits.maxXrefBytes);
+    const offset = this.store.source.size - length;
+    const recovered = scanPdfStructure(await this.store.read(offset, length), offset);
+    for (const [object, entry] of recovered.objects) {
+      this.#xref.set(object, { kind: "direct", ...entry });
+    }
+    if (recovered.root) this.#root = recovered.root;
+    if (!this.#root) throw new Error("PDF recovery could not locate a /Root reference");
   }
 
   async #readXrefChain(offset: number, visited: Set<number>): Promise<void> {
@@ -367,13 +413,14 @@ export class PdfObjectReader {
     if (bytes[parser.offset] === 0x0a) parser.offset += 1;
     const declaredLength = value.get("Length");
     let length = typeof declaredLength === "number" ? declaredLength : undefined;
+    if (length !== undefined && !hasEndstreamMarker(bytes, parser.offset + length)) {
+      length = undefined;
+    }
     if (length === undefined) {
-      const remainder = latin1.decode(bytes.subarray(parser.offset));
-      const end = remainder.indexOf("endstream");
-      if (end < 0)
+      length = findEndstreamLength(bytes, parser.offset);
+      if (length === undefined) {
         throw new Error(`stream at ${absoluteOffset} has no resolvable /Length or endstream`);
-      length = end;
-      while (length > 0 && isWhitespace(bytes[parser.offset + length - 1])) length -= 1;
+      }
     }
     if (length > this.limits.maxObjectBytes || parser.offset + length > bytes.length) {
       throw new Error(`stream at ${absoluteOffset} exceeds the configured object limit`);
@@ -412,6 +459,7 @@ export class PdfObjectReader {
     inherited: {
       resources?: PdfDict | undefined;
       mediaBox?: [number, number, number, number] | undefined;
+      cropBox?: [number, number, number, number] | undefined;
       rotate?: number | undefined;
     },
     target: number,
@@ -422,12 +470,14 @@ export class PdfObjectReader {
     if (!isDict(value)) throw new Error(`page tree object ${ref.object} is not a dictionary`);
     const resources = (await this.resolveDict(value.get("Resources"))) ?? inherited.resources;
     const mediaBox = pdfBox(value.get("MediaBox")) ?? inherited.mediaBox;
+    const cropBox = pdfBox(value.get("CropBox")) ?? inherited.cropBox;
     const rotateValue = value.get("Rotate");
     const rotate = typeof rotateValue === "number" ? rotateValue : (inherited.rotate ?? 0);
     if (isName(value.get("Type"), "Page")) {
-      if (!mediaBox) throw new Error(`page object ${ref.object} has no inherited /MediaBox`);
+      const pageBox = cropBox ?? mediaBox;
+      if (!pageBox) throw new Error(`page object ${ref.object} has no inherited /MediaBox`);
       return target === 0
-        ? { page: { ref, dict: value, resources, mediaBox, rotate }, skipped: 0 }
+        ? { page: { ref, dict: value, resources, mediaBox: pageBox, rotate }, skipped: 0 }
         : { skipped: 1 };
     }
     const kids = value.get("Kids");
@@ -445,7 +495,7 @@ export class PdfObjectReader {
       }
       const result = await this.#findPage(
         kid,
-        { resources, mediaBox, rotate },
+        { resources, mediaBox, cropBox, rotate },
         target - skipped,
         depth + 1,
       );
@@ -454,6 +504,23 @@ export class PdfObjectReader {
     }
     return { skipped };
   }
+}
+
+function hasEndstreamMarker(bytes: Uint8Array, offset: number): boolean {
+  if (offset < 0 || offset > bytes.length) return false;
+  let position = offset;
+  if (bytes[position] === 0x0d) position += 1;
+  if (bytes[position] === 0x0a) position += 1;
+  return latin1.decode(bytes.subarray(position, position + 9)) === "endstream";
+}
+
+function findEndstreamLength(bytes: Uint8Array, streamOffset: number): number | undefined {
+  const end = latin1.decode(bytes.subarray(streamOffset)).indexOf("endstream");
+  if (end < 0) return undefined;
+  let length = end;
+  if (length > 0 && bytes[streamOffset + length - 1] === 0x0a) length -= 1;
+  if (length > 0 && bytes[streamOffset + length - 1] === 0x0d) length -= 1;
+  return length;
 }
 
 function numberValue(value: PdfValue | undefined, label: string): number {
@@ -480,39 +547,6 @@ function pdfBox(value: PdfValue | undefined): [number, number, number, number] |
   if (!Array.isArray(value) || value.length !== 4 || value.some((item) => typeof item !== "number"))
     return undefined;
   return value as [number, number, number, number];
-}
-
-async function inflate(bytes: Uint8Array, limit: number): Promise<Uint8Array> {
-  const inflater = new Inflate({ chunkSize: Math.min(64 * 1024, limit + 1) });
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  inflater.onData = (chunk) => {
-    const bytes = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
-    size += bytes.byteLength;
-    if (size > limit) {
-      throw new Error(`decoded stream exceeds configured limit of ${limit} bytes`);
-    }
-    chunks.push(bytes);
-  };
-  inflater.push(bytes, true);
-  if (inflater.err) throw new Error(`FlateDecode failed: ${inflater.msg}`);
-  const output = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    output.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return output;
-}
-
-function decodeAsciiHex(bytes: Uint8Array, limit: number): Uint8Array {
-  let hex = latin1.decode(bytes).replace(/\s/g, "");
-  const end = hex.indexOf(">");
-  if (end >= 0) hex = hex.slice(0, end);
-  if (hex.length % 2 === 1) hex += "0";
-  if (hex.length / 2 > limit)
-    throw new Error(`decoded stream exceeds configured limit of ${limit} bytes`);
-  return Uint8Array.from(hex.match(/../g)?.map((value) => Number.parseInt(value, 16)) ?? []);
 }
 
 function estimateObjectBytes(value: PdfValue, seen = new Set<object>()): number {

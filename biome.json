@@ -7,7 +7,9 @@
       "!coverage",
       "!node_modules",
       "!fixtures/**/*.pdf",
-      "!corpus/manifest.json"
+      "!corpus/manifest.json",
+      "!corpus/baseline.json",
+      "!artifacts"
     ]
   },
   "formatter": {
