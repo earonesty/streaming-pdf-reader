@@ -65,8 +65,8 @@ export function reorderBidiLines(spans: TextSpan[]): TextSpan[] {
   const output: TextSpan[] = [];
   for (let start = 0; start < spans.length; ) {
     let end = start + 1;
-    const y = spans[start]?.bounds.y ?? 0;
-    while (end < spans.length && Math.abs((spans[end]?.bounds.y ?? 0) - y) <= 0.25) end += 1;
+    const y = (spans[start] as TextSpan).bounds.y;
+    while (end < spans.length && Math.abs((spans[end] as TextSpan).bounds.y - y) <= 0.25) end += 1;
     const line = spans.slice(start, end);
     const text = line.map((span) => span.text).join("");
     const rtlCount = [...text].filter(isRtlCharacter).length;
@@ -81,7 +81,7 @@ export function reorderBidiLines(spans: TextSpan[]): TextSpan[] {
         bounds: { ...span.bounds },
         direction: "rtl" as const,
       }));
-      if (reordered[0]) reordered[0].bounds.x = left;
+      (reordered[0] as TextSpan).bounds.x = left;
       output.push(...reordered);
     } else {
       output.push(...line);

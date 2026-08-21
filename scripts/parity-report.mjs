@@ -55,7 +55,7 @@ if (writeBaseline) {
   console.log(`wrote ${baselinePath}`);
 }
 
-if (gate) {
+if (gate || enforceTarget) {
   const baseline = JSON.parse(await readFile(baselinePath, "utf8"));
   const passingIds = new Set(passing.map((result) => result.id));
   const regressions = baseline.passingFixtureIds.filter((id) => !passingIds.has(id));

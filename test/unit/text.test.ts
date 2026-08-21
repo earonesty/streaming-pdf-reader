@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseToUnicode, reorderBidiLines } from "../../src/content/text.js";
+import { memorySource, openPdf } from "../../src/index.js";
 import type { TextSpan } from "../../src/types.js";
 
 describe("text flow normalization", () => {
@@ -26,6 +27,51 @@ endbfrange`),
       [3, "f"],
       [4, "fi"],
     ]);
+  });
+
+  it("interprets text-state, positioning, array, and quote operators", async () => {
+    const content = `q
+2 0 0 2 0 0 cm
+BT /F1 10 Tf 1 Tc 2 Tw 80 Tz 12 TL 3 Ts
+1 0 0 1 10 20 Tm (A) Tj
+5 -14 TD [(B) 100 ( C)] TJ
+T* (D) '
+1 2 (E) " ET Q`;
+    const pdf = `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 1 /Kids [3 0 R] >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Rotate -90 /Contents 4 0 R
+   /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+4 0 obj
+<< /Length 999 >>
+stream
+${content}
+endstream
+endobj
+trailer
+<< /Root 1 0 R /Size 5 >>
+%%EOF`;
+    const reader = await openPdf(memorySource(new TextEncoder().encode(pdf)), {
+      chunkSize: 128,
+      maxBytes: 512,
+    });
+    const pages = [];
+    for await (const page of reader.pages()) pages.push(page);
+    expect(pages).toHaveLength(1);
+    expect(pages[0]?.rotate).toBe(270);
+    expect(
+      pages[0]?.spans
+        .map((span) => span.text)
+        .join("")
+        .replaceAll(" ", ""),
+    ).toBe("ABCDE");
+    reader.close();
   });
 });
 

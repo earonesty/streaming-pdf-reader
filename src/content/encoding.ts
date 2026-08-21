@@ -73,7 +73,7 @@ export async function loadFontEncoding(
       : (embeddedEncoding ?? "StandardEncoding");
   const table = baseTable(baseName);
   if (isDict(encoding)) applyDifferences(table, encoding.get("Differences"));
-  return { decode: (bytes) => [...bytes].map((byte) => table[byte] ?? "�").join("") };
+  return { decode: (bytes) => [...bytes].map((byte) => table[byte] as string).join("") };
 }
 
 async function embeddedTrueTypeEncoding(
@@ -200,14 +200,16 @@ function applyDifferences(table: string[], value: PdfValue | undefined): void {
 export function glyphNameToUnicode(name: string): string | undefined {
   const known = glyphNames[name];
   if (known !== undefined) return known;
-  const plainName = name.split(".")[0] ?? name;
+  const plainName = name.split(".")[0] as string;
   if (/^[A-Za-z]$/.test(plainName)) return plainName;
   if (/^[A-Za-z](?:_[A-Za-z])+$/.test(plainName)) return plainName.replaceAll("_", "");
   const unicode = /^(?:uni([0-9a-f]{4}(?:[0-9a-f]{4})*)|u([0-9a-f]{4,6}))$/i.exec(plainName);
-  const hex = unicode?.[1] ?? unicode?.[2];
-  if (hex) {
-    const units = hex.match(/.{4}/g) ?? [hex];
+  const unicodeUnits = unicode?.[1];
+  if (unicodeUnits) {
+    const units = unicodeUnits.match(/.{4}/g) as RegExpMatchArray;
     return units.map((unit) => String.fromCodePoint(Number.parseInt(unit, 16))).join("");
   }
+  const codePoint = unicode?.[2];
+  if (codePoint) return String.fromCodePoint(Number.parseInt(codePoint, 16));
   return undefined;
 }

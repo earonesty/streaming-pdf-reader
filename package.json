@@ -87,7 +87,7 @@
     "test:oracle": "vitest run test/oracle",
     "test:memory": "pnpm run build && vitest run test/memory",
     "typecheck": "tsc --noEmit",
-    "quality": "pnpm run corpus:check && pnpm run check && pnpm run test && pnpm run test:coverage && pnpm run parity:gate && pnpm run build && pnpm run package:check",
+    "quality": "pnpm run corpus:check && pnpm run check && pnpm run test && pnpm run test:coverage && pnpm run parity:target && pnpm run build && pnpm run package:check",
     "prepublishOnly": "pnpm run quality"
   },
   "engines": {

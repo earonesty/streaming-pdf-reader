@@ -72,6 +72,12 @@ describe("PDF stream filters", () => {
       "/EarlyChange must be 0 or 1",
     );
     expect(() => decodeLzw(encoded, undefined, 3)).toThrow("configured limit");
+    expect(new TextDecoder().decode(decodeLzw(packCodes([65, 258, 257], 9), undefined, 8))).toBe(
+      "AAA",
+    );
+    expect(() => decodeLzw(packCodes([300], 9), parameters({ EarlyChange: 0 }), 8)).toThrow(
+      "invalid LZW code",
+    );
   });
 
   it("rejects malformed predictors and honors output limits", async () => {
@@ -84,6 +90,24 @@ describe("PDF stream filters", () => {
     await expect(decodeFlate(deflate(new Uint8Array(33)), undefined, 32)).rejects.toThrow(
       "configured limit",
     );
+    await expect(decodeFlate(Uint8Array.of(1, 2, 3), undefined, 32)).rejects.toThrow(
+      "FlateDecode failed",
+    );
+    await expect(
+      decodeFlate(deflate(Uint8Array.of(5, 1)), parameters({ Predictor: 12, Columns: 1 }), 32),
+    ).rejects.toThrow("unsupported PNG predictor filter 5");
+    await expect(
+      decodeFlate(deflate(Uint8Array.of(0, 1)), parameters({ Predictor: 12, Columns: 1 }), 0),
+    ).rejects.toThrow("configured limit");
+    await expect(
+      decodeFlate(deflate(Uint8Array.of(1)), parameters({ Predictor: 2, Columns: 0 }), 32),
+    ).rejects.toThrow("/Columns must be positive");
+    await expect(
+      decodeFlate(deflate(Uint8Array.of(1)), parameters({ Predictor: 2, Columns: 2 }), 32),
+    ).rejects.toThrow("TIFF predictor data has a partial row");
+    await expect(
+      decodeFlate(deflate(Uint8Array.of(1)), parameters({ Predictor: 1.5 }), 32),
+    ).rejects.toThrow("/Predictor must be an integer");
   });
 
   it("decodes ASCII hexadecimal data", () => {
@@ -91,6 +115,7 @@ describe("PDF stream filters", () => {
       0x61, 0x62, 0x30,
     ]);
     expect(() => decodeAsciiHex(new TextEncoder().encode("0011"), 1)).toThrow("configured limit");
+    expect(decodeAsciiHex(new Uint8Array(), 1)).toEqual(new Uint8Array());
   });
 });
 
