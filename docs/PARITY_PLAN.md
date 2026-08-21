@@ -166,4 +166,4 @@ Target: final completion contract.
 | 3 | `3bf7705` | 108/120 | 87.51% | 69.98% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32532417461) | Font encodings, glyph names, TrueType cmaps |
 | 4 | `6f09773` | 108/120 | 95.22% | 80.89% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32533327103) | Enforced final gates and typed errors |
 | 5a | `c40647f` | 112/120 | 94.87% | 80.11% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32534287893) | Type 1 programs, glyph-name recovery, named UTF-16 CMaps |
-| 5b | pending | 118/120 | pending | pending | pending | Variable CMaps, bounded content concatenation, matrix-aware widths/clipping, RTL flow |
+| 5b | `8925c84` | 118/120 | 94.24% | 80.13% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32535983398) | Variable CMaps, bounded content concatenation, matrix-aware widths/clipping, RTL flow |
