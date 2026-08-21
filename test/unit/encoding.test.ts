@@ -25,6 +25,7 @@ describe("simple font encodings", () => {
     } as PdfObjectReader;
     const decoder = await loadFontEncoding(reader, font);
     expect(decoder.decode(Uint8Array.of(31, 32, 65))).toBe("ff∗A");
+    expect(decoder.decode(Uint8Array.of(0x96, 0x97))).toBe("–—");
   });
 
   it("decodes Unicode and suffix-bearing glyph names", () => {

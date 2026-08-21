@@ -248,6 +248,11 @@ function baseTable(name: string): string[] {
   const label = name === "MacRomanEncoding" ? "macintosh" : "windows-1252";
   const decoder = new TextDecoder(label);
   const table = Array.from({ length: 256 }, (_, byte) => decoder.decode(Uint8Array.of(byte)));
+  if (label === "windows-1252") {
+    // Older Node/ICU builds can expose these as C1 controls instead of CP1252 punctuation.
+    table[0x96] = "–";
+    table[0x97] = "—";
+  }
   if (name === "StandardEncoding") applyStandardEncoding(table);
   return table;
 }
