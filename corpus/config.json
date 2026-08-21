@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "upstream": {
+    "repository": "mozilla/pdf.js",
+    "commit": "0f26334f9d6f96119f6e5164fb65832fbbde7344",
+    "testManifestSha256": "2bef2e312b1354854709357e41cb426852a717f8d072d252940250da102678a5"
+  },
+  "targetFixtureCount": 120,
+  "maximumPagesPerFixture": 5,
+  "parityTarget": 0.9,
+  "coverage": {
+    "lines": 90,
+    "branches": 80
+  },
+  "curatedFiles": [
+    "ContentStreamCycleType3insideType3.pdf",
+    "ContentStreamNoCycleType3insideType3.pdf",
+    "IndexedCS_negative_and_high.pdf",
+    "TrueType_without_cmap.pdf",
+    "annotation-border-styles.pdf",
+    "annotation-choice-widget.pdf",
+    "annotation-fileattachment.pdf",
+    "annotation-link-text-popup.pdf",
+    "annotation-text-widget.pdf",
+    "cidfont_cmap_overflow.pdf",
+    "font_ascent_descent.pdf",
+    "mixedfonts.pdf",
+    "pattern_text_embedded_font.pdf",
+    "rotation.pdf",
+    "standard_fonts.pdf",
+    "vertical.pdf",
+    "xref_command_missing.pdf",
+    "issue2391-1.pdf",
+    "issue2391-2.pdf",
+    "jpx_smaskindata.pdf",
+    "ccitt_EndOfBlock_false.pdf",
+    "jbig2_file_header.pdf",
+    "jbig2_symbol_offset.pdf",
+    "annotation-freetext.pdf",
+    "annotation-highlight.pdf",
+    "annotation-ink-without-appearance.pdf",
+    "annotation-line.pdf",
+    "annotation-polyline-polygon.pdf",
+    "annotation-square-circle.pdf",
+    "annotation-squiggly.pdf",
+    "annotation-stamp.pdf",
+    "annotation-strikeout.pdf"
+  ]
+}

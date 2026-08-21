@@ -1,0 +1,1462 @@
+{
+  "schemaVersion": 1,
+  "generatedFrom": {
+    "repository": "mozilla/pdf.js",
+    "commit": "0f26334f9d6f96119f6e5164fb65832fbbde7344",
+    "manifestUrl": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/test_manifest.json",
+    "manifestSha256": "2bef2e312b1354854709357e41cb426852a717f8d072d252940250da102678a5"
+  },
+  "scoring": {
+    "fixtureCount": 120,
+    "maximumPagesPerFixture": 5,
+    "parityTarget": 0.9
+  },
+  "fixtures": [
+    {
+      "id": "annotation-border-styles",
+      "file": "annotation-border-styles.pdf",
+      "mode": "load",
+      "md5": "22930fc09c7386e1131b14d936e554af",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/annotation-border-styles.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "annotation"
+      ]
+    },
+    {
+      "id": "annotation-choice-widget",
+      "file": "annotation-choice-widget.pdf",
+      "mode": "load",
+      "md5": "7dfb0d743a0da0f4a71b209ab43b0be5",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/annotation-choice-widget.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "annotation",
+        "form"
+      ]
+    },
+    {
+      "id": "annotation-fileattachment",
+      "file": "annotation-fileattachment.pdf",
+      "mode": "load",
+      "md5": "d20ecee4b53c81b2dd44c8715a1b4a83",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/annotation-fileattachment.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "annotation"
+      ]
+    },
+    {
+      "id": "annotation-freetext",
+      "file": "annotation-freetext.pdf",
+      "mode": "load",
+      "md5": "6ca19ce632ead3aed08f22e588510e2f",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/annotation-freetext.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "annotation"
+      ]
+    },
+    {
+      "id": "annotation-highlight",
+      "file": "annotation-highlight.pdf",
+      "mode": "load",
+      "md5": "e13e198e3a69c32dc9ebdc704d3105e1",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/annotation-highlight.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "annotation"
+      ]
+    },
+    {
+      "id": "annotation-ink-without-appearance",
+      "file": "annotation-ink-without-appearance.pdf",
+      "mode": "load",
+      "md5": "eb06ad4ac260060082ef86435a2feed5",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/annotation-ink-without-appearance.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "annotation"
+      ]
+    },
+    {
+      "id": "annotation-line",
+      "file": "annotation-line.pdf",
+      "mode": "load",
+      "md5": "fde60608be2748f10fb6522cba425ca1",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/annotation-line.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "annotation"
+      ]
+    },
+    {
+      "id": "annotation-link-text-popup",
+      "file": "annotation-link-text-popup.pdf",
+      "mode": "load",
+      "md5": "4bbf56e81d47232de5f305124ab0ba27",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/annotation-link-text-popup.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "annotation"
+      ]
+    },
+    {
+      "id": "annotation-polyline-polygon",
+      "file": "annotation-polyline-polygon.pdf",
+      "mode": "load",
+      "md5": "e68611602f58c8ca70cc40575ba3b04e",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/annotation-polyline-polygon.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "annotation"
+      ]
+    },
+    {
+      "id": "annotation-square-circle",
+      "file": "annotation-square-circle.pdf",
+      "mode": "load",
+      "md5": "cfd3c302f68d61e1d55ed9c7896046c3",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/annotation-square-circle.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "annotation"
+      ]
+    },
+    {
+      "id": "annotation-squiggly",
+      "file": "annotation-squiggly.pdf",
+      "mode": "load",
+      "md5": "38661e731ac6c525af5894d2d20c6e71",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/annotation-squiggly.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "annotation"
+      ]
+    },
+    {
+      "id": "annotation-stamp",
+      "file": "annotation-stamp.pdf",
+      "mode": "load",
+      "md5": "0a04d7ce1ad103cb3c033d26855d6ec7",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/annotation-stamp.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "annotation"
+      ]
+    },
+    {
+      "id": "annotation-strikeout",
+      "file": "annotation-strikeout.pdf",
+      "mode": "load",
+      "md5": "6624e6b5bedd2f2855b6ab12bbf93c57",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/annotation-strikeout.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "annotation"
+      ]
+    },
+    {
+      "id": "annotation-text-widget",
+      "file": "annotation-text-widget.pdf",
+      "mode": "load",
+      "md5": "b7b8923a12998fca8603fae53f73f19b",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/annotation-text-widget.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "annotation",
+        "form"
+      ]
+    },
+    {
+      "id": "arabiccidtruetype",
+      "file": "ArabicCIDTrueType.pdf",
+      "mode": "text",
+      "md5": "d66dbd18bdb572d3ac8b88b32de2ece6",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/ArabicCIDTrueType.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font"
+      ]
+    },
+    {
+      "id": "arial-unicode-ab-cidfont",
+      "file": "arial_unicode_ab_cidfont.pdf",
+      "mode": "load",
+      "md5": "35090fa7d29e7196ae3421812e554988",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/arial_unicode_ab_cidfont.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font"
+      ]
+    },
+    {
+      "id": "arial-unicode-en-cidfont",
+      "file": "arial_unicode_en_cidfont.pdf",
+      "mode": "load",
+      "md5": "03591cdf20214fb0b2dd5e5c3dd32d8c",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/arial_unicode_en_cidfont.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font"
+      ]
+    },
+    {
+      "id": "bug1020858",
+      "file": "bug1020858.pdf",
+      "mode": "load",
+      "md5": "cde53bcf75df14ff59c8a5a96fe437b9",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/bug1020858.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "bug1245391-reduced",
+      "file": "bug1245391_reduced.pdf",
+      "mode": "text",
+      "md5": "6c946045ee0f2f663f269717c0f1614a",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/bug1245391_reduced.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "bug1513120-reduced",
+      "file": "bug1513120_reduced.pdf",
+      "mode": "text",
+      "md5": "e88ad8b5bb385296f475ca51ce0d216d",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/bug1513120_reduced.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "bug1627427-reduced",
+      "file": "bug1627427_reduced.pdf",
+      "mode": "text",
+      "md5": "3ff75fcf455af49803f0f04eb071bdc3",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/bug1627427_reduced.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "bug1811668-reduced",
+      "file": "bug1811668_reduced.pdf",
+      "mode": "text",
+      "md5": "87aa65d89aa0682cbe7b87152b884495",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/bug1811668_reduced.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "bug1947248-text",
+      "file": "bug1947248_text.pdf",
+      "mode": "text",
+      "md5": "491f1df75b77d2762ff96ce51f5e019b",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/bug1947248_text.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "bug1978317",
+      "file": "bug1978317.pdf",
+      "mode": "load",
+      "md5": "ae4f643ee9bb0fd725277a9d1e0fb1df",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/bug1978317.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "bug864847",
+      "file": "bug864847.pdf",
+      "mode": "text",
+      "md5": "2b62cbba5d40a769be8e611eb5b61bfe",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/bug864847.pdf",
+      "firstPage": 1,
+      "lastPage": 1,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "bug868745",
+      "file": "bug868745.pdf",
+      "mode": "load",
+      "md5": "86111ea5097dd7daffcdea891ad1b348",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/bug868745.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "bug886717",
+      "file": "bug886717.pdf",
+      "mode": "load",
+      "md5": "8ba614192797a1324765610231a1bc9d",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/bug886717.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "bug900822",
+      "file": "bug900822.pdf",
+      "mode": "load",
+      "md5": "70e2a3c5922574eeda169c955cf9d084",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/bug900822.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "bug946506",
+      "file": "bug946506.pdf",
+      "mode": "text",
+      "md5": "c28911b5c31bdc337c2ce404c5971cfc",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/bug946506.pdf",
+      "firstPage": 1,
+      "lastPage": 1,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "canvas",
+      "file": "canvas.pdf",
+      "mode": "load",
+      "md5": "59510028561daf62e00bf9f6f066b033",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/canvas.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "ccitt-endofblock-false",
+      "file": "ccitt_EndOfBlock_false.pdf",
+      "mode": "load",
+      "md5": "ce718efe601cd7491dd00651b4790329",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/ccitt_EndOfBlock_false.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "filter"
+      ]
+    },
+    {
+      "id": "cidfont-cmap-overflow",
+      "file": "cidfont_cmap_overflow.pdf",
+      "mode": "load",
+      "md5": "8ce57e23b42b3232b0f2060bdd2c8b2a",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/cidfont_cmap_overflow.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font"
+      ]
+    },
+    {
+      "id": "complex-ttf-font",
+      "file": "complex_ttf_font.pdf",
+      "mode": "load",
+      "md5": "76de93f9116b01b693bf8583b3e76d91",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/complex_ttf_font.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font"
+      ]
+    },
+    {
+      "id": "contentstreamcycletype3insidetype3",
+      "file": "ContentStreamCycleType3insideType3.pdf",
+      "mode": "load",
+      "md5": "64840fc5dd8ca06afbc86477d9121b59",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/ContentStreamCycleType3insideType3.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font",
+        "malformed"
+      ]
+    },
+    {
+      "id": "contentstreamnocycletype3insidetype3",
+      "file": "ContentStreamNoCycleType3insideType3.pdf",
+      "mode": "load",
+      "md5": "fbf258be0fed9756cbc714f4be6626ff",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/ContentStreamNoCycleType3insideType3.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font",
+        "malformed"
+      ]
+    },
+    {
+      "id": "extgstate",
+      "file": "extgstate.pdf",
+      "mode": "text",
+      "md5": "001bb4ec04463a01d93aad748361f049",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/extgstate.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "font-ascent-descent",
+      "file": "font_ascent_descent.pdf",
+      "mode": "load",
+      "md5": "c0048a7735010002b998c112335e47bf",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/font_ascent_descent.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font"
+      ]
+    },
+    {
+      "id": "identitytounicodemap-charcodeof",
+      "file": "IdentityToUnicodeMap_charCodeOf.pdf",
+      "mode": "text",
+      "md5": "da030686418c5e37d889127a05dafb83",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/IdentityToUnicodeMap_charCodeOf.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font"
+      ]
+    },
+    {
+      "id": "indexedcs-negative-and-high",
+      "file": "IndexedCS_negative_and_high.pdf",
+      "mode": "load",
+      "md5": "3bbf5e6f1cf49acb075fabb0726b5fe4",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/IndexedCS_negative_and_high.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "filter"
+      ]
+    },
+    {
+      "id": "issue10301",
+      "file": "issue10301.pdf",
+      "mode": "text",
+      "md5": "c7ee7ba727969ab3bba12a4d13739303",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue10301.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue1045",
+      "file": "issue1045.pdf",
+      "mode": "text",
+      "md5": "61d7e9bfbc03cd457dcefeab3e78a687",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue1045.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue10529",
+      "file": "issue10529.pdf",
+      "mode": "text",
+      "md5": "1a4d404a137c610ff0c747cbea3b8666",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue10529.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue11016-reduced",
+      "file": "issue11016_reduced.pdf",
+      "mode": "text",
+      "md5": "b75578bd052d2e6acdcc85b615eab6b1",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue11016_reduced.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue11403-reduced",
+      "file": "issue11403_reduced.pdf",
+      "mode": "text",
+      "md5": "08287b64f442cb7c329b97c4774aa1cd",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue11403_reduced.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue11651",
+      "file": "issue11651.pdf",
+      "mode": "text",
+      "md5": "375233ad8dc4181a06148f8412f35b91",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue11651.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue11656",
+      "file": "issue11656.pdf",
+      "mode": "text",
+      "md5": "82d5d4f5978a4974707deb1ea98e62f2",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue11656.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue11713",
+      "file": "issue11713.pdf",
+      "mode": "text",
+      "md5": "bafe5801234feeb95969da106f2ce6d8",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue11713.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue11922-reduced",
+      "file": "issue11922_reduced.pdf",
+      "mode": "load",
+      "md5": "711bb4b4bf92d967644b4f88d11a93db",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue11922_reduced.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue1249",
+      "file": "issue1249.pdf",
+      "mode": "load",
+      "md5": "4f81339fa09422a7db980f34ea963609",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue1249.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue1293r",
+      "file": "issue1293r.pdf",
+      "mode": "load",
+      "md5": "4a098f5051f34fab036f5bbe88f8deef",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue1293r.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue14048",
+      "file": "issue14048.pdf",
+      "mode": "text",
+      "md5": "770026875a93dc44a187905f4dcd3de2",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue14048.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue14415",
+      "file": "issue14415.pdf",
+      "mode": "text",
+      "md5": "fa306a250a3d37fe0e7a4b3bba51c91e",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue14415.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue14497",
+      "file": "issue14497.pdf",
+      "mode": "text",
+      "md5": "7f795a92caa612117b6928f8bb4c5b65",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue14497.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue14627",
+      "file": "issue14627.pdf",
+      "mode": "text",
+      "md5": "5d1bfcc3b3130bfa7e33e43990e2213a",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue14627.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue14999-reduced",
+      "file": "issue14999_reduced.pdf",
+      "mode": "text",
+      "md5": "a4e664e734f6869aa66245e72d448874",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue14999_reduced.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue15516-reduced",
+      "file": "issue15516_reduced.pdf",
+      "mode": "text",
+      "md5": "a30be78c73d13aa6ff890834ce69adc1",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue15516_reduced.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue15629",
+      "file": "issue15629.pdf",
+      "mode": "text",
+      "md5": "689771b7f5c86c783c56aa8dedab0057",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue15629.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue15910",
+      "file": "issue15910.pdf",
+      "mode": "text",
+      "md5": "6429d8490e11e226b1cbdf2033c04237",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue15910.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue16221",
+      "file": "issue16221.pdf",
+      "mode": "text",
+      "md5": "62d93c9b3aa4ba3af5446504632e78a5",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue16221.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue16224",
+      "file": "issue16224.pdf",
+      "mode": "text",
+      "md5": "1aa34fbb2154f9a647c7fa9e90db0eff",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue16224.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue17554",
+      "file": "issue17554.pdf",
+      "mode": "load",
+      "md5": "09607e5c6007b28b4e75bf8c38a60de3",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue17554.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue18059",
+      "file": "issue18059.pdf",
+      "mode": "text",
+      "md5": "b70373894edfcd571a41caa1a0776b6f",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue18059.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue18117",
+      "file": "issue18117.pdf",
+      "mode": "text",
+      "md5": "0be6391f9910d807a0ded5e6913ff7e3",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue18117.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue18986",
+      "file": "issue18986.pdf",
+      "mode": "load",
+      "md5": "e147084fabd9677366f6ae3586dd311b",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue18986.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue19800",
+      "file": "issue19800.pdf",
+      "mode": "text",
+      "md5": "92825d3178196bdd01096c4081609efd",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue19800.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue19848",
+      "file": "issue19848.pdf",
+      "mode": "text",
+      "md5": "a6b05b61c883542e647b9a5a628e6422",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue19848.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue1985",
+      "file": "issue1985.pdf",
+      "mode": "load",
+      "md5": "2ac7c68e26a8ef797aead15e4875cc6d",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue1985.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue2017r",
+      "file": "issue2017r.pdf",
+      "mode": "text",
+      "md5": "5d2bc43b386496cfb8841ca677db7046",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue2017r.pdf",
+      "firstPage": 1,
+      "lastPage": 1,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue20930",
+      "file": "issue20930.pdf",
+      "mode": "text",
+      "md5": "321f0901af604a6052baa7b2855a7e3e",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue20930.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue2391-1",
+      "file": "issue2391-1.pdf",
+      "mode": "load",
+      "md5": "25ae9cb959612e7b343b55da63af2716",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue2391-1.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue2391-2",
+      "file": "issue2391-2.pdf",
+      "mode": "load",
+      "md5": "7e68756d11021a087383eaac95ba45dd",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue2391-2.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue4461",
+      "file": "issue4461.pdf",
+      "mode": "load",
+      "md5": "9df4ecaae429adb5dc93d9342a53159d",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue4461.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue4550",
+      "file": "issue4550.pdf",
+      "mode": "text",
+      "md5": "d64cfc4b50e225f596130d9938e8d5cc",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue4550.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue4665",
+      "file": "issue4665.pdf",
+      "mode": "text",
+      "md5": "0de1308432819c101881df7ca4424575",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue4665.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue4684",
+      "file": "issue4684.pdf",
+      "mode": "text",
+      "md5": "af5056fcdfb08bd7adc1710d36e4b5b5",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue4684.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue5421",
+      "file": "issue5421.pdf",
+      "mode": "text",
+      "md5": "273f6813758a2349090003c7c8a0d85e",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue5421.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue5599",
+      "file": "issue5599.pdf",
+      "mode": "load",
+      "md5": "529a4a9409ac024aeb57a047210280fe",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue5599.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue5734",
+      "file": "issue5734.pdf",
+      "mode": "text",
+      "md5": "2cf88f1786b039ba080623085c87beb9",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue5734.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue5808",
+      "file": "issue5808.pdf",
+      "mode": "text",
+      "md5": "e0584dd540d7859d6c191aa53379692e",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue5808.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue5896",
+      "file": "issue5896.pdf",
+      "mode": "text",
+      "md5": "08f69084d72dabc5dfdcf5c1ff2a719f",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue5896.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue5972",
+      "file": "issue5972.pdf",
+      "mode": "text",
+      "md5": "51f03e1d38410b04c9dda7e75fe8a0a3",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue5972.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue6019",
+      "file": "issue6019.pdf",
+      "mode": "text",
+      "md5": "7a2e5dda3b0fc5c2e9060e378a8cdc4e",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue6019.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue6069",
+      "file": "issue6069.pdf",
+      "mode": "load",
+      "md5": "d0ad8871f4116bca8e39513ffa8b7d8e",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue6069.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue6108",
+      "file": "issue6108.pdf",
+      "mode": "load",
+      "md5": "8961cb55149495989a80bf0487e0f076",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue6108.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue6151",
+      "file": "issue6151.pdf",
+      "mode": "load",
+      "md5": "926f8c6b25e6f0978759f7947d70e079",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue6151.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue6342",
+      "file": "issue6342.pdf",
+      "mode": "text",
+      "md5": "2ea85ca8d17117798f105be88bdb2bfd",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue6342.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue6387",
+      "file": "issue6387.pdf",
+      "mode": "text",
+      "md5": "08c39ac6d0aab1596e6e59793eaf3ee4",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue6387.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue6605",
+      "file": "issue6605.pdf",
+      "mode": "text",
+      "md5": "67158a9c6d0e966ece55f7c433e18cc5",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue6605.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue6612",
+      "file": "issue6612.pdf",
+      "mode": "text",
+      "md5": "657f33236496916597cd70ef1222509a",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue6612.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue6901",
+      "file": "issue6901.pdf",
+      "mode": "text",
+      "md5": "1a0604b1a7a3aaf2162b425a9a84230b",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue6901.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue6962",
+      "file": "issue6962.pdf",
+      "mode": "text",
+      "md5": "d40e871ecca68baf93114bd28c782148",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue6962.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue7180",
+      "file": "issue7180.pdf",
+      "mode": "text",
+      "md5": "73ed92d7ca55475f1f31d1d75fee3283",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue7180.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue7229",
+      "file": "issue7229.pdf",
+      "mode": "load",
+      "md5": "480e51aae0ac271780e4603d1561d15e",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue7229.pdf",
+      "firstPage": 1,
+      "lastPage": 1,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue7446",
+      "file": "issue7446.pdf",
+      "mode": "load",
+      "md5": "1b5bdd8a806e6ab9eda7c1c707b75fc6",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue7446.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue7492",
+      "file": "issue7492.pdf",
+      "mode": "text",
+      "md5": "7b0b28919c1088a2a5a0aeedbaa4c3ca",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue7492.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue7580",
+      "file": "issue7580.pdf",
+      "mode": "text",
+      "md5": "44dd5a9b4373fcab9890cf567722a766",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue7580.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue7665",
+      "file": "issue7665.pdf",
+      "mode": "load",
+      "md5": "f1199d16195a61e8232e2d1e742ed46b",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue7665.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue7878",
+      "file": "issue7878.pdf",
+      "mode": "text",
+      "md5": "59194e30037e8c09ae846ddd0ace4c81",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue7878.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue8229",
+      "file": "issue8229.pdf",
+      "mode": "text",
+      "md5": "a729f663782e87ebc1efad0755ebf6a5",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue8229.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue8372",
+      "file": "issue8372.pdf",
+      "mode": "text",
+      "md5": "b02fb07364dd00ad5044bd259860da97",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue8372.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue8702",
+      "file": "issue8702.pdf",
+      "mode": "text",
+      "md5": "59d501ed1518d78ef6ee442cf824b0f6",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue8702.pdf",
+      "firstPage": 1,
+      "lastPage": 1,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "issue9655-reduced",
+      "file": "issue9655_reduced.pdf",
+      "mode": "text",
+      "md5": "87259a82cf3cda18e240517ca53c312a",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/issue9655_reduced.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "jbig2-file-header",
+      "file": "jbig2_file_header.pdf",
+      "mode": "load",
+      "md5": "702be2459f9bdbe93338ab3a584babc4",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/jbig2_file_header.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "filter"
+      ]
+    },
+    {
+      "id": "jbig2-symbol-offset",
+      "file": "jbig2_symbol_offset.pdf",
+      "mode": "load",
+      "md5": "6b22a0f838008fa4d8cb5b40ba095c48",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/jbig2_symbol_offset.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "filter"
+      ]
+    },
+    {
+      "id": "jpx-smaskindata",
+      "file": "jpx_smaskindata.pdf",
+      "mode": "load",
+      "md5": "f7a8628b14ca176700247f106c16812a",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/jpx_smaskindata.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "filter"
+      ]
+    },
+    {
+      "id": "mixedfonts",
+      "file": "mixedfonts.pdf",
+      "mode": "load",
+      "md5": "a582b83fa1b3a25a6f13803a367c71ec",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/mixedfonts.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font"
+      ]
+    },
+    {
+      "id": "openoffice",
+      "file": "openoffice.pdf",
+      "mode": "load",
+      "md5": "ecb0225c7ce2df2cd9a5323a349f8f84",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/openoffice.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "operator-in-tj-array",
+      "file": "operator-in-TJ-array.pdf",
+      "mode": "text",
+      "md5": "dfe0f15a45be18eca142adaf760984ee",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/operator-in-TJ-array.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "pattern-text-embedded-font",
+      "file": "pattern_text_embedded_font.pdf",
+      "mode": "load",
+      "md5": "763b1b9efaecb2b5aefea71c39233f56",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/pattern_text_embedded_font.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font"
+      ]
+    },
+    {
+      "id": "pdfjsbad1586",
+      "file": "pdfjsbad1586.pdf",
+      "mode": "load",
+      "md5": "793d0870f0b0c613799b0677d64daca4",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/pdfjsbad1586.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "malformed"
+      ]
+    },
+    {
+      "id": "rotated",
+      "file": "rotated.pdf",
+      "mode": "text",
+      "md5": "aed187f53e969ccdcbab0bb4c59f9e46",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/rotated.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "geometry"
+      ]
+    },
+    {
+      "id": "rotation",
+      "file": "rotation.pdf",
+      "mode": "load",
+      "md5": "4fb25ada00ce7528569d9791c14decf5",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/rotation.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "geometry"
+      ]
+    },
+    {
+      "id": "scan-bad",
+      "file": "scan-bad.pdf",
+      "mode": "load",
+      "md5": "4cf988f01ab83f61aca57f406dfd6584",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/scan-bad.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "malformed"
+      ]
+    },
+    {
+      "id": "simpletype3font",
+      "file": "simpletype3font.pdf",
+      "mode": "text",
+      "md5": "b374c7543920840c61999e9e86939f99",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/simpletype3font.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font"
+      ]
+    },
+    {
+      "id": "standard-fonts",
+      "file": "standard_fonts.pdf",
+      "mode": "load",
+      "md5": "bb3a9ab3322328be983e8b4e8089843a",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/standard_fonts.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font"
+      ]
+    },
+    {
+      "id": "tracemonkey",
+      "file": "tracemonkey.pdf",
+      "mode": "text",
+      "md5": "9a192d8b1a7dc652a19835f6f08098bd",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/tracemonkey.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "general"
+      ]
+    },
+    {
+      "id": "truetype-without-cmap",
+      "file": "TrueType_without_cmap.pdf",
+      "mode": "load",
+      "md5": "afca8bb11f2e1f7298b4e5dd85785fb0",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/TrueType_without_cmap.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font"
+      ]
+    },
+    {
+      "id": "vertical",
+      "file": "vertical.pdf",
+      "mode": "load",
+      "md5": "8a74d33504701edcefeef2afd022765e",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/vertical.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "font",
+        "geometry"
+      ]
+    },
+    {
+      "id": "xref-command-missing",
+      "file": "xref_command_missing.pdf",
+      "mode": "load",
+      "md5": "06cdb0f13cfeff41d6bfb24b7bbe1268",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/xref_command_missing.pdf",
+      "firstPage": 1,
+      "lastPage": null,
+      "categories": [
+        "xref",
+        "malformed"
+      ]
+    },
+    {
+      "id": "zero-descent",
+      "file": "zero_descent.pdf",
+      "mode": "text",
+      "md5": "32805ab28be1d0e91d27d9742c66eccf",
+      "source": "https://raw.githubusercontent.com/mozilla/pdf.js/0f26334f9d6f96119f6e5164fb65832fbbde7344/test/pdfs/zero_descent.pdf",
+      "firstPage": 1,
+      "lastPage": 1,
+      "categories": [
+        "general"
+      ]
+    }
+  ]
+}
