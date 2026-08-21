@@ -390,7 +390,24 @@ async function loadFonts(
         continue;
       }
     }
+    const namedEncoding = font.get("Encoding");
+    if (
+      isName(font.get("Subtype"), "Type0") &&
+      isName(namedEncoding) &&
+      /-UTF16-(?:H|V)$/.test(namedEncoding.value)
+    ) {
+      output.set(name, { decode: decodeUtf16Bytes });
+      continue;
+    }
     output.set(name, encoding);
+  }
+  return output;
+}
+
+function decodeUtf16Bytes(bytes: Uint8Array): string {
+  let output = "";
+  for (let index = 0; index + 1 < bytes.length; index += 2) {
+    output += String.fromCharCode(((bytes[index] ?? 0) << 8) | (bytes[index + 1] ?? 0));
   }
   return output;
 }

@@ -9,9 +9,15 @@ const glyphNames: Record<string, string> = {
   space: " ",
   acute: "´",
   asteriskmath: "∗",
+  ampersand: "&",
   bullet: "•",
+  copyright: "©",
   comma: ",",
   period: ".",
+  quotedblleft: "“",
+  quotedblright: "”",
+  quoteleft: "‘",
+  quoteright: "’",
   hyphen: "-",
   slash: "/",
   parenleft: "(",
@@ -33,6 +39,11 @@ const glyphNames: Record<string, string> = {
   Oslash: "Ø",
   oe: "œ",
   OE: "Œ",
+  ff: "ff",
+  fi: "fi",
+  fl: "fl",
+  ffi: "ffi",
+  ffl: "ffl",
   germandbls: "ß",
   dotlessi: "ı",
   uacute: "ú",
@@ -55,6 +66,16 @@ const glyphNames: Record<string, string> = {
   Ecaron: "Ě",
   uring: "ů",
   Uring: "Ů",
+  zero: "0",
+  one: "1",
+  two: "2",
+  three: "3",
+  four: "4",
+  five: "5",
+  six: "6",
+  seven: "7",
+  eight: "8",
+  nine: "9",
 };
 
 export async function loadFontEncoding(
@@ -65,28 +86,65 @@ export async function loadFontEncoding(
   const encoding = encodingValue === undefined ? undefined : await reader.resolve(encodingValue);
   const baseEncoding = isDict(encoding) ? encoding.get("BaseEncoding") : undefined;
   const embeddedEncoding =
-    encoding === undefined ? await embeddedTrueTypeEncoding(reader, font) : undefined;
+    encoding === undefined ? await embeddedFontEncoding(reader, font) : undefined;
   const baseName = isName(encoding)
     ? encoding.value
     : isName(baseEncoding)
       ? baseEncoding.value
-      : (embeddedEncoding ?? "StandardEncoding");
-  const table = baseTable(baseName);
-  if (isDict(encoding)) applyDifferences(table, encoding.get("Differences"));
+      : typeof embeddedEncoding === "string"
+        ? embeddedEncoding
+        : "StandardEncoding";
+  const table = Array.isArray(embeddedEncoding) ? embeddedEncoding : baseTable(baseName);
+  if (isDict(encoding)) {
+    applyDifferences(table, encoding.get("Differences"), !isName(font.get("Subtype"), "Type3"));
+  }
   return { decode: (bytes) => [...bytes].map((byte) => table[byte] as string).join("") };
 }
 
-async function embeddedTrueTypeEncoding(
+async function embeddedFontEncoding(
   reader: PdfObjectReader,
   font: PdfDict,
-): Promise<string | undefined> {
-  if (!isName(font.get("Subtype"), "TrueType")) return undefined;
-  const descriptor = await reader.resolveDict(font.get("FontDescriptor"));
-  const fontFileValue = descriptor?.get("FontFile2");
+): Promise<string | string[] | undefined> {
+  const descriptorValue = font.get("FontDescriptor");
+  if (descriptorValue === undefined) return undefined;
+  const descriptor = await reader.resolveDict(descriptorValue);
+  const isTrueType = isName(font.get("Subtype"), "TrueType");
+  const fontFileValue = descriptor?.get(isTrueType ? "FontFile2" : "FontFile");
   if (fontFileValue === undefined) return undefined;
   const fontFile = await reader.resolve(fontFileValue);
   if (!isStream(fontFile)) return undefined;
-  return detectTrueTypeBaseEncoding(await reader.decodeStream(fontFile));
+  const bytes = await reader.decodeStream(fontFile);
+  return isTrueType ? detectTrueTypeBaseEncoding(bytes) : parseType1Encoding(bytes);
+}
+
+export function parseType1Encoding(bytes: Uint8Array): string[] | undefined {
+  const eexec = new TextEncoder().encode("currentfile eexec");
+  const marker = findBytes(bytes, eexec);
+  const clearLength = marker < 0 ? Math.min(bytes.length, 64 * 1024) : marker;
+  const text = new TextDecoder("latin1").decode(bytes.subarray(0, clearLength));
+  if (!/\/Encoding\s+256\s+array/.test(text)) return undefined;
+  const table = baseTable("StandardEncoding");
+  let found = false;
+  for (const match of text.matchAll(/dup\s+(\d+)\s+\/([^\s]+)\s+put/g)) {
+    const code = Number(match[1]);
+    const name = match[2];
+    const unicode = name === undefined ? undefined : glyphNameToUnicode(name);
+    if (code >= 0 && code <= 255 && unicode !== undefined) {
+      table[code] = unicode;
+      found = true;
+    }
+  }
+  return found ? table : undefined;
+}
+
+function findBytes(haystack: Uint8Array, needle: Uint8Array): number {
+  outer: for (let index = 0; index <= haystack.length - needle.length; index += 1) {
+    for (let offset = 0; offset < needle.length; offset += 1) {
+      if (haystack[index + offset] !== needle[offset]) continue outer;
+    }
+    return index;
+  }
+  return -1;
 }
 
 export function detectTrueTypeBaseEncoding(bytes: Uint8Array): string | undefined {
@@ -183,14 +241,21 @@ function applyStandardEncoding(table: string[]): void {
   for (const [code, value] of Object.entries(values)) table[Number(code)] = value;
 }
 
-function applyDifferences(table: string[], value: PdfValue | undefined): void {
+function applyDifferences(
+  table: string[],
+  value: PdfValue | undefined,
+  allowSyntheticHex = true,
+): void {
   if (!Array.isArray(value)) return;
   let code = 0;
   for (const item of value) {
     if (typeof item === "number") {
       code = item;
     } else if (isName(item) && code >= 0 && code <= 255) {
-      const unicode = glyphNameToUnicode(item.value);
+      const unicode =
+        !allowSyntheticHex && /^(?:G[0-9a-f]{2,6}|C\d{1,7})$/i.test(item.value)
+          ? undefined
+          : glyphNameToUnicode(item.value);
       if (unicode !== undefined) table[code] = unicode;
       code += 1;
     }
@@ -201,6 +266,13 @@ export function glyphNameToUnicode(name: string): string | undefined {
   const known = glyphNames[name];
   if (known !== undefined) return known;
   const plainName = name.split(".")[0] as string;
+  const syntheticHex = /^G([0-9a-f]{2,6})$/i.exec(plainName)?.[1];
+  if (syntheticHex !== undefined) return String.fromCodePoint(Number.parseInt(syntheticHex, 16));
+  const syntheticDecimal = /^C(\d{1,7})$/.exec(plainName)?.[1];
+  if (syntheticDecimal !== undefined) {
+    const codePoint = Number(syntheticDecimal);
+    if (codePoint <= 0x10ffff) return String.fromCodePoint(codePoint);
+  }
   if (/^[A-Za-z]$/.test(plainName)) return plainName;
   if (/^[A-Za-z](?:_[A-Za-z])+$/.test(plainName)) return plainName.replaceAll("_", "");
   const unicode = /^(?:uni([0-9a-f]{4}(?:[0-9a-f]{4})*)|u([0-9a-f]{4,6}))$/i.exec(plainName);

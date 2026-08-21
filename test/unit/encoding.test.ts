@@ -3,6 +3,7 @@ import {
   detectTrueTypeBaseEncoding,
   glyphNameToUnicode,
   loadFontEncoding,
+  parseType1Encoding,
 } from "../../src/content/encoding.js";
 import type { PdfObjectReader } from "../../src/syntax/document.js";
 import type { PdfDict, PdfValue } from "../../src/syntax/values.js";
@@ -30,6 +31,25 @@ describe("simple font encodings", () => {
     expect(glyphNameToUnicode("uni00660069")).toBe("fi");
     expect(glyphNameToUnicode("uni1EC7")).toBe("ệ");
     expect(glyphNameToUnicode("f.sc")).toBe("f");
+    expect(glyphNameToUnicode("GED")).toBe("í");
+    expect(glyphNameToUnicode("GFA")).toBe("ú");
+    expect(glyphNameToUnicode("C121")).toBe("y");
+    expect(glyphNameToUnicode("five")).toBe("5");
+    expect(glyphNameToUnicode("ampersand")).toBe("&");
+  });
+
+  it("reads bounded clear-text Type 1 encoding programs", () => {
+    const bytes = new TextEncoder().encode(
+      "/Encoding 256 array\ndup 11 /ff put\ndup 14 /ffi put\nreadonly def\ncurrentfile eexec",
+    );
+    const table = parseType1Encoding(bytes);
+    expect(table?.[11]).toBe("ff");
+    expect(table?.[14]).toBe("ffi");
+  });
+
+  it("ignores Type 1 programs without an explicit array encoding", () => {
+    const bytes = new TextEncoder().encode("/Encoding StandardEncoding def");
+    expect(parseType1Encoding(bytes)).toBeUndefined();
   });
 
   it("uses Adobe StandardEncoding when a simple font omits /Encoding", async () => {

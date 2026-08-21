@@ -1,4 +1,21 @@
-# PDF.js 90% parity implementation plan
+# PDF.js parity implementation plan
+
+## 98% extension
+
+The active completion target is now at least 118 of the same 120 revision-pinned
+fixtures (98.0% when expressed as the requested whole-percent milestone). The
+denominator, scoring rules, memory bounds, coverage thresholds, quality gates,
+and mandatory slice protocol below remain unchanged. The two encrypted fixtures
+may remain explicitly unsupported; reaching the target therefore requires all
+other fixtures to pass without regressing any prior pass.
+
+Planned extension slices:
+
+1. Font encodings: embedded Type 1 encoding programs, synthetic glyph names,
+   named CMaps, and variable-width ToUnicode sources.
+2. Text flow: mixed-direction line ordering and positioned text suppression.
+3. Recovery and closure: malformed object recovery, remaining font mappings,
+   the 118/120 target gate, full quality run, and remote CI.
 
 ## Objective and completion contract
 
@@ -148,3 +165,4 @@ Target: final completion contract.
 | 2 | `8064977` | 101/120 | 87.52% | 69.68% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32531686908) | LZW/Flate, object streams, forms, bidi, ToUnicode |
 | 3 | `3bf7705` | 108/120 | 87.51% | 69.98% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32532417461) | Font encodings, glyph names, TrueType cmaps |
 | 4 | `6f09773` | 108/120 | 95.22% | 80.89% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32533327103) | Enforced final gates and typed errors |
+| 5a | pending | 112/120 | 94.87% | 80.11% | pending | Type 1 programs, glyph-name recovery, named UTF-16 CMaps |
