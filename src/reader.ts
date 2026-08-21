@@ -1,4 +1,5 @@
 import { extractPageText } from "./content/text.js";
+import { normalizePdfError } from "./errors.js";
 import type { PdfSource } from "./source.js";
 import { PdfObjectReader, type PdfParserOptions } from "./syntax/document.js";
 import type { ExtractedPage } from "./types.js";
@@ -33,21 +34,29 @@ export class StreamingPdfReader {
   }
 
   async getPageCount(): Promise<number> {
-    return this.#objects.pageCount();
+    try {
+      return await this.#objects.pageCount();
+    } catch (error) {
+      throw normalizePdfError(error);
+    }
   }
 
   async getPage(index: number): Promise<ExtractedPage> {
-    const page = await this.#objects.getPage(index);
-    const [x1, y1, x2, y2] = page.mediaBox;
-    const spans = await extractPageText(this.#objects, page);
-    for (const span of spans) span.source.page = index + 1;
-    return {
-      number: index + 1,
-      width: Math.abs(x2 - x1),
-      height: Math.abs(y2 - y1),
-      rotate: normalizeRotation(page.rotate),
-      spans,
-    };
+    try {
+      const page = await this.#objects.getPage(index);
+      const [x1, y1, x2, y2] = page.mediaBox;
+      const spans = await extractPageText(this.#objects, page);
+      for (const span of spans) span.source.page = index + 1;
+      return {
+        number: index + 1,
+        width: Math.abs(x2 - x1),
+        height: Math.abs(y2 - y1),
+        rotate: normalizeRotation(page.rotate),
+        spans,
+      };
+    } catch (error) {
+      throw normalizePdfError(error);
+    }
   }
 
   async *pages(): AsyncGenerator<ExtractedPage> {

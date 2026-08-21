@@ -1,4 +1,5 @@
 import { Inflate } from "pako";
+import { PdfError } from "../errors.js";
 import type { PdfDict } from "./values.js";
 
 const latin1 = new TextDecoder("latin1");
@@ -42,7 +43,10 @@ export function decodeLzw(
       (code === nextCode && previous ? appendByte(previous, previous[0] ?? 0) : undefined);
     if (!entry) throw new Error(`invalid LZW code ${code}`);
     if (output.length + entry.length > limit) {
-      throw new Error(`decoded stream exceeds configured limit of ${limit} bytes`);
+      throw new PdfError(
+        "RESOURCE_LIMIT",
+        `decoded stream exceeds configured limit of ${limit} bytes`,
+      );
     }
     output.push(...entry);
     if (previous && nextCode < 4096) {
@@ -81,7 +85,10 @@ export function decodeAsciiHex(bytes: Uint8Array, limit: number): Uint8Array {
   if (end >= 0) hex = hex.slice(0, end);
   if (hex.length % 2 === 1) hex += "0";
   if (hex.length / 2 > limit)
-    throw new Error(`decoded stream exceeds configured limit of ${limit} bytes`);
+    throw new PdfError(
+      "RESOURCE_LIMIT",
+      `decoded stream exceeds configured limit of ${limit} bytes`,
+    );
   return Uint8Array.from(hex.match(/../g)?.map((value) => Number.parseInt(value, 16)) ?? []);
 }
 
@@ -98,7 +105,7 @@ async function inflate(bytes: Uint8Array, limit: number): Promise<Uint8Array> {
     try {
       return inflateOnce(attempt.bytes, limit, attempt.raw);
     } catch (error) {
-      if (error instanceof RangeError) throw error;
+      if (error instanceof PdfError) throw error;
       failure = error instanceof Error ? error : new Error(String(error));
     }
   }
@@ -113,7 +120,10 @@ function inflateOnce(bytes: Uint8Array, limit: number, raw: boolean): Uint8Array
     const decoded = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk);
     size += decoded.byteLength;
     if (size > limit)
-      throw new RangeError(`decoded stream exceeds configured limit of ${limit} bytes`);
+      throw new PdfError(
+        "RESOURCE_LIMIT",
+        `decoded stream exceeds configured limit of ${limit} bytes`,
+      );
     chunks.push(decoded);
   };
   inflater.push(bytes, true);

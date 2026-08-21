@@ -1,3 +1,4 @@
+import { normalizePdfError, PdfError } from "../errors.js";
 import type { PdfSource } from "../source.js";
 import { type ByteStoreOptions, type ByteStoreStats, SparseByteStore } from "../store/sparse.js";
 import { decodeAsciiHex, decodeFlate, decodeLzw } from "./filters.js";
@@ -90,7 +91,11 @@ export class PdfObjectReader {
 
   static async open(source: PdfSource, options: PdfParserOptions = {}): Promise<PdfObjectReader> {
     const reader = new PdfObjectReader(source, options);
-    await reader.#initialize();
+    try {
+      await reader.#initialize();
+    } catch (error) {
+      throw normalizePdfError(error);
+    }
     return reader;
   }
 
@@ -241,7 +246,7 @@ export class PdfObjectReader {
       } else if (filter.value === "ASCIIHexDecode" || filter.value === "AHx") {
         bytes = decodeAsciiHex(bytes, this.limits.maxDecodedStreamBytes);
       } else {
-        throw new Error(`unsupported stream filter /${filter.value}`);
+        throw new PdfError("UNSUPPORTED_FEATURE", `unsupported stream filter /${filter.value}`);
       }
     }
     return bytes;
@@ -262,7 +267,8 @@ export class PdfObjectReader {
     }
     try {
       await this.#readXrefChain(startXref, new Set());
-    } catch {
+    } catch (error) {
+      if (error instanceof PdfError) throw error;
       await this.#recoverXref();
     }
   }
@@ -305,6 +311,9 @@ export class PdfObjectReader {
     }
 
     const root = trailer.get("Root");
+    if (trailer.has("Encrypt")) {
+      throw new PdfError("UNSUPPORTED_FEATURE", "encrypted PDFs are not supported");
+    }
     if (!this.#root && isRef(root)) this.#root = root;
     const xrefStream = trailer.get("XRefStm");
     if (typeof xrefStream === "number") await this.#readXrefChain(xrefStream, visited);
