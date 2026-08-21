@@ -1,6 +1,7 @@
 import type { ParsedPage, PdfObjectReader } from "../syntax/document.js";
 import { ValueParser } from "../syntax/parser.js";
 import {
+  isDict,
   isName,
   isRef,
   isStream,
@@ -9,10 +10,7 @@ import {
   type PdfValue,
 } from "../syntax/values.js";
 import type { TextSpan } from "../types.js";
-
-interface FontDecoder {
-  decode(bytes: Uint8Array): string;
-}
+import { type FontDecoder, loadFontEncoding } from "./encoding.js";
 
 export interface UnicodeMap {
   mapping: Map<number, string>;
@@ -257,7 +255,10 @@ async function applyOperator(
       if (objectNumber !== undefined && activeForms.has(objectNumber)) return;
       const resolved = await reader.resolve(xObject);
       if (!isStream(resolved) || !isName(resolved.dict.get("Subtype"), "Form")) return;
-      const formResources = (await reader.resolveDict(resolved.dict.get("Resources"))) ?? resources;
+      const resourceValue = resolved.dict.get("Resources");
+      const resolvedResources =
+        resourceValue === undefined ? undefined : await reader.resolve(resourceValue);
+      const formResources = isDict(resolvedResources) ? resolvedResources : resources;
       const formFonts = await loadFonts(reader, formResources);
       const matrix = pdfMatrix(resolved.dict.get("Matrix")) ?? identity;
       const saved = cloneState(state);
@@ -320,7 +321,12 @@ function showString(
   spans: TextSpan[],
   page: ParsedPage,
 ): void {
-  const text = fonts.get(state.font ?? "")?.decode(value.bytes) ?? decodePdfString(value.bytes);
+  let text = fonts.get(state.font ?? "")?.decode(value.bytes) ?? decodePdfString(value.bytes);
+  const leadingSpaces = /^ +/.exec(text)?.[0] ?? "";
+  if (leadingSpaces) {
+    state.textMatrix[4] += approximateAdvance(leadingSpaces, state);
+    text = text.slice(leadingSpaces.length);
+  }
   if (!text) return;
   const width = approximateAdvance(text, state);
   const [x, y] = transformPoint(state.ctm, state.textMatrix[4], state.textMatrix[5] + state.rise);
@@ -371,6 +377,7 @@ async function loadFonts(
   for (const [name, value] of fonts) {
     const font = await reader.resolveDict(value);
     if (!font) continue;
+    const encoding = await loadFontEncoding(reader, font);
     const toUnicodeValue = font.get("ToUnicode");
     if (toUnicodeValue) {
       const toUnicode = await reader.resolve(toUnicodeValue);
@@ -378,12 +385,12 @@ async function loadFonts(
         const unicodeMap = parseToUnicode(await reader.decodeStream(toUnicode));
         const codeBytes = unicodeMap.codeBytes ?? (isName(font.get("Subtype"), "Type0") ? 2 : 1);
         output.set(name, {
-          decode: (bytes) => decodeWithMap(bytes, unicodeMap.mapping, codeBytes),
+          decode: (bytes) => decodeWithMap(bytes, unicodeMap.mapping, codeBytes, encoding),
         });
         continue;
       }
     }
-    output.set(name, { decode: decodePdfString });
+    output.set(name, encoding);
   }
   return output;
 }
@@ -441,12 +448,21 @@ function incrementHex(hex: string, amount: number): string {
   return (BigInt(`0x${hex}`) + BigInt(amount)).toString(16).padStart(hex.length, "0");
 }
 
-function decodeWithMap(bytes: Uint8Array, mapping: Map<number, string>, codeBytes: number): string {
+function decodeWithMap(
+  bytes: Uint8Array,
+  mapping: Map<number, string>,
+  codeBytes: number,
+  fallback: FontDecoder,
+): string {
   let output = "";
   for (let index = 0; index < bytes.length; index += codeBytes) {
     let code = 0;
     for (let byte = 0; byte < codeBytes; byte += 1) code = code * 256 + (bytes[index + byte] ?? 0);
-    output += mapping.get(code) ?? String.fromCodePoint(code);
+    output +=
+      mapping.get(code) ??
+      (codeBytes === 1
+        ? fallback.decode(bytes.subarray(index, index + 1))
+        : String.fromCodePoint(code));
   }
   return output;
 }
