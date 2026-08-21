@@ -126,6 +126,8 @@ Target: at least 108/120 fixtures passing.
 
 ## Slice 4 — coverage, API errors, and maintainability closure
 
+Status: complete
+
 Target: final completion contract.
 
 - Add branch-focused tests for HTTP/file sources, range validation, limits,
@@ -145,4 +147,4 @@ Target: final completion contract.
 | 1 | `c02f161` | 92/120 | 86.41% | 70.46% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32530805070) | Predictors, bounded recovery, damaged lengths, CropBox |
 | 2 | `8064977` | 101/120 | 87.52% | 69.68% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32531686908) | LZW/Flate, object streams, forms, bidi, ToUnicode |
 | 3 | `3bf7705` | 108/120 | 87.51% | 69.98% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32532417461) | Font encodings, glyph names, TrueType cmaps |
-| 4 | pending | ≥108/120 | ≥90% | ≥80% | pending | Final gates |
+| 4 | `6f09773` | 108/120 | 95.22% | 80.89% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32533327103) | Enforced final gates and typed errors |
