@@ -32,6 +32,12 @@ describe("HTML writer", () => {
     });
     expect(rtl).toContain('dir="rtl"');
     expect(rtl).toContain("width:0pt");
+    const controls = await pageToHtml({
+      ...page,
+      spans: [{ ...span("A\0B\u0007C\tD\nE\rF", 20, 700) }],
+    });
+    expect(controls).toContain("A�B�C\tD\nE\nF");
+    expect(controls).not.toContain("\0");
   });
 
   it("uses rotated display dimensions for quarter-turn pages", async () => {

@@ -128,10 +128,26 @@ function escapeAttribute(value: string): string {
 }
 
 function escapeHtml(value: string): string {
-  return value
+  return [...value]
+    .map((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      if (codePoint === 13) return "\n";
+      return isForbiddenControl(codePoint) ? "�" : character;
+    })
+    .join("")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function isForbiddenControl(codePoint: number): boolean {
+  return (
+    codePoint <= 8 ||
+    codePoint === 11 ||
+    codePoint === 12 ||
+    (codePoint >= 14 && codePoint <= 31) ||
+    codePoint === 127
+  );
 }

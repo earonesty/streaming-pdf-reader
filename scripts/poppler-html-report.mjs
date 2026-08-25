@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { parse } from "parse5";
 import { openPdf } from "../dist/index.js";
 import { fileSource } from "../dist/node.js";
 import { writeHtmlDocument } from "../packages/html-writer/dist/index.js";
@@ -87,12 +88,13 @@ async function compareFixture(fixture) {
       firstPage + manifest.scoring.maximumPagesPerFixture - 1,
     );
     let writerHtml = "";
+    const evidence = { pages: 0, text: "" };
     await writeHtmlDocument(
-      selectedPages(reader, firstPage, lastPage),
+      selectedPages(reader, firstPage, lastPage, evidence),
       (chunk) => {
         writerHtml += chunk;
       },
-      { includeDocument: false },
+      { title: fixture.id },
     );
 
     const oraclePath = join(temporaryDirectory, `${fixture.id}.html`);
@@ -111,6 +113,11 @@ async function compareFixture(fixture) {
       oraclePath,
     ]);
     const actual = summarizeWriter(writerHtml);
+    if (actual.pages.length !== evidence.pages)
+      return failure(fixture, `html-page-count:${actual.pages.length}!=${evidence.pages}`);
+    const serializedText = sanitizeHtmlText(evidence.text);
+    if (actual.text !== serializedText)
+      return failure(fixture, `html-${textDifference(actual.text, serializedText)}`);
     const expected = summarizePoppler(await readFile(oraclePath, "utf8"));
     if (actual.pages.length !== expected.pages.length)
       return failure(fixture, `page-count:${actual.pages.length}!=${expected.pages.length}`);
@@ -133,22 +140,86 @@ async function compareFixture(fixture) {
   }
 }
 
-async function* selectedPages(reader, firstPage, lastPage) {
+async function* selectedPages(reader, firstPage, lastPage, evidence) {
   for (let pageNumber = firstPage; pageNumber <= lastPage; pageNumber += 1) {
-    yield await reader.getPage(pageNumber - 1);
+    const page = await reader.getPage(pageNumber - 1);
+    evidence.pages += 1;
+    evidence.text += page.spans.map((span) => span.text).join("");
+    yield page;
     reader.releasePage();
   }
 }
 
+function sanitizeHtmlText(value) {
+  return [...value]
+    .map((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      if (codePoint === 13) return "\n";
+      const forbidden =
+        codePoint <= 8 ||
+        codePoint === 11 ||
+        codePoint === 12 ||
+        (codePoint >= 14 && codePoint <= 31) ||
+        codePoint === 127;
+      return forbidden ? "�" : character;
+    })
+    .join("");
+}
+
 function summarizeWriter(html) {
+  const parseErrors = [];
+  const document = parse(html, { onParseError: (error) => parseErrors.push(error.code) });
+  if (parseErrors.length > 0)
+    throw new Error(`invalid-html:${[...new Set(parseErrors)].join(",")}`);
+  const htmlElement = children(document).find((node) => node.tagName === "html");
+  const head = children(htmlElement).find((node) => node.tagName === "head");
+  const body = children(htmlElement).find((node) => node.tagName === "body");
+  const main = descendants(body).find(
+    (node) => node.tagName === "main" && attribute(node, "class") === "pdf-document",
+  );
+  if (!htmlElement || !head || !body || !main) throw new Error("invalid-html:document-structure");
+  const sections = children(main).filter(
+    (node) => node.tagName === "section" && hasClass(node, "pdf-page--positioned"),
+  );
   return {
-    pages: [...html.matchAll(/pdf-page--positioned[^>]+width:([\d.]+)pt;height:([\d.]+)pt/g)].map(
-      (match) => ({ width: Number(match[1]), height: Number(match[2]) }),
-    ),
-    text: [...html.matchAll(/<span[^>]*>([\s\S]*?)<\/span>/g)]
-      .map((match) => decodeEntities(stripTags(match[1] ?? "")))
+    pages: sections.map((section) => pageGeometry(attribute(section, "style"))),
+    text: sections
+      .flatMap((section) => descendants(section).filter((node) => node.tagName === "span"))
+      .map(textContent)
       .join(""),
   };
+}
+
+function pageGeometry(style) {
+  const match = /(?:^|;)width:([\d.]+)pt;height:([\d.]+)pt(?:;|$)/.exec(style);
+  if (!match) throw new Error("invalid-html:page-geometry");
+  return { width: Number(match[1]), height: Number(match[2]) };
+}
+
+function children(node) {
+  return node?.childNodes ?? [];
+}
+
+function descendants(node) {
+  const output = [];
+  for (const child of children(node)) {
+    output.push(child, ...descendants(child));
+  }
+  return output;
+}
+
+function attribute(node, name) {
+  return node?.attrs?.find((candidate) => candidate.name === name)?.value ?? "";
+}
+
+function hasClass(node, name) {
+  return attribute(node, "class").split(/\s+/).includes(name);
+}
+
+function textContent(node) {
+  return children(node)
+    .map((child) => (child.nodeName === "#text" ? child.value : textContent(child)))
+    .join("");
 }
 
 function summarizePoppler(html) {
