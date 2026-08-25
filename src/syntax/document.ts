@@ -14,20 +14,7 @@ import {
   type PdfStream,
   type PdfValue,
 } from "./values.js";
-
-interface DirectXrefEntry {
-  kind: "direct";
-  offset: number;
-  generation: number;
-}
-
-interface CompressedXrefEntry {
-  kind: "compressed";
-  streamObject: number;
-  index: number;
-}
-
-type XrefEntry = DirectXrefEntry | CompressedXrefEntry;
+import { type CompressedXrefEntry, type DirectXrefEntry, XrefIndex } from "./xref.js";
 
 export interface ParserLimits {
   maxObjectBytes?: number;
@@ -61,7 +48,7 @@ const latin1 = new TextDecoder("latin1");
 export class PdfObjectReader {
   readonly store: SparseByteStore;
   readonly limits: Required<ParserLimits>;
-  readonly #xref = new Map<number, XrefEntry>();
+  readonly #xref = new XrefIndex();
   readonly #xrefSectionOffsets = new Set<number>();
   readonly #cache = new Map<number, { value: PdfValue; size: number }>();
   #objectCacheBytes = 0;
@@ -100,12 +87,19 @@ export class PdfObjectReader {
   }
 
   get stats(): Readonly<
-    ByteStoreStats & { objectCacheBytes: number; peakObjectCacheBytes: number }
+    ByteStoreStats & {
+      objectCacheBytes: number;
+      peakObjectCacheBytes: number;
+      xrefEntries: number;
+      xrefResidentBytes: number;
+    }
   > {
     return {
       ...this.store.stats,
       objectCacheBytes: this.#objectCacheBytes,
       peakObjectCacheBytes: this.#peakObjectCacheBytes,
+      xrefEntries: this.#xref.size,
+      xrefResidentBytes: this.#xref.residentBytes,
     };
   }
 
@@ -210,6 +204,7 @@ export class PdfObjectReader {
     this.#objectCacheBytes = 0;
     this.#pagesRoot = undefined;
     this.#pageCount = undefined;
+    this.#xref.clear();
     this.store.clear();
   }
 

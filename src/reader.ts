@@ -16,6 +16,8 @@ export interface ReaderStats {
   largestSourceRead: number;
   objectCacheBytes: number;
   peakObjectCacheBytes: number;
+  xrefEntries: number;
+  xrefResidentBytes: number;
 }
 
 export class StreamingPdfReader {
