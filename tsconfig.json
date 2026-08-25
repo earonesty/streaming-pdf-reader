@@ -6,7 +6,9 @@
     "baseUrl": ".",
     "paths": {
       "@boxpdf/reader": ["src/index.ts"],
-      "@boxpdf/reader/structure": ["src/structure/index.ts"]
+      "@boxpdf/reader/node": ["src/node.ts"],
+      "@boxpdf/reader/structure": ["src/structure/index.ts"],
+      "@boxpdf/html-writer": ["packages/html-writer/src/index.ts"]
     },
     "lib": ["ES2022", "DOM"],
     "strict": true,

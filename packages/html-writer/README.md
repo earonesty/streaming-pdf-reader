@@ -29,6 +29,13 @@ The default `positioned` layout preserves text coordinates. The optional
 `flow` layout uses the reader's inferred lines and tables. Images, vector
 graphics, and exact font reproduction are not yet rendered.
 
+The callback is awaited for every chunk, so a file stream, HTTP response, or
+Web `WritableStream` can apply backpressure. The caller owns and closes the PDF
+source, reader, and destination; the writer owns only HTML serialization. See
+[`examples/file.ts`](examples/file.ts) for Node file-to-file conversion and
+[`examples/http.ts`](examples/http.ts) for a streaming Web `Response`. Validate
+or allowlist user-provided PDF URLs before passing them to the HTTP example.
+
 ## Compatibility oracle
 
 Tests compare normalized page geometry, text, and anchor positions with

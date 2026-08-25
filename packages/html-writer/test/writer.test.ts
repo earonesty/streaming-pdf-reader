@@ -66,6 +66,20 @@ describe("HTML writer", () => {
     expect(html.endsWith("</body></html>")).toBe(true);
   });
 
+  it("does not produce the next chunk until the output accepts the current one", async () => {
+    let release: (() => void) | undefined;
+    const writes: string[] = [];
+    const pending = writeHtmlDocument([page], async (chunk) => {
+      writes.push(chunk);
+      if (writes.length === 1) await new Promise<void>((resolve) => (release = resolve));
+    });
+    await Promise.resolve();
+    expect(writes).toHaveLength(1);
+    release?.();
+    await pending;
+    expect(writes.length).toBeGreaterThan(1);
+  });
+
   it("writes flow HTML without a document wrapper", async () => {
     const chunks: string[] = [];
     await writeHtmlDocument(
