@@ -42,3 +42,14 @@ and geometry agreement on 51 fixtures. The remaining cases are retained in the
 denominator; most exercise intentional PDF.js/Poppler differences in RTL text,
 font encodings, or malformed Unicode maps. `pnpm poppler:gate` rejects any loss
 from the known-good pass set and runs in CI.
+
+The writer retains the reader's logical Unicode order. RTL spans and flow lines
+receive `dir="rtl"` plus isolated bidirectional CSS so browsers perform visual
+ordering without changing extracted text. Vertical spans use CSS writing mode.
+Poppler emits visual-order text for several RTL corpus files, so those source
+strings are expected to differ.
+
+`issue16224` is the geometry exception: its 531 × 666 point MediaBox contains an
+182.77 × 32.539 point CropBox. PDF.js, `pdfinfo`, and the reader expose the
+CropBox as page size; Poppler 22.02 `pdftohtml` emits the MediaBox. The writer
+keeps the PDF.js-compatible CropBox dimensions.

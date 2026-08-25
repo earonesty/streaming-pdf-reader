@@ -12,7 +12,7 @@ export interface HtmlWriterOptions {
   includeStyles?: boolean;
 }
 
-const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-page-content--90{transform:translateX(100%) rotate(90deg)}.pdf-page-content--180{transform:translate(100%,100%) rotate(180deg)}.pdf-page-content--270{transform:translateY(100%) rotate(270deg)}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom}.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--flow p{white-space:pre-wrap}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
+const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-page-content--90{transform:translateX(100%) rotate(90deg)}.pdf-page-content--180{transform:translate(100%,100%) rotate(180deg)}.pdf-page-content--270{transform:translateY(100%) rotate(270deg)}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom;unicode-bidi:isolate}.pdf-span[data-direction=ttb]{writing-mode:vertical-rl}.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--flow p{white-space:pre-wrap;unicode-bidi:plaintext}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
 
 export async function writeHtmlDocument(
   pages: AsyncIterable<ExtractedPage> | Iterable<ExtractedPage>,
@@ -88,7 +88,7 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
       }
       continue;
     }
-    await write(`<p>${escapeHtml(line.text)}</p>`);
+    await write(`<p${directionAttribute(line.spans)}>${escapeHtml(line.text)}</p>`);
   }
   for (const table of tables) {
     if (!emittedTables.has(table)) await write(tableToHtml(table));
@@ -97,7 +97,7 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
 }
 
 function positionedSpan(span: TextSpan): string {
-  const direction = span.direction === "rtl" ? ' dir="rtl"' : "";
+  const direction = directionAttribute([span]);
   const style = [
     `left:${number(span.bounds.x)}pt`,
     `bottom:${number(span.bounds.y)}pt`,
@@ -106,6 +106,13 @@ function positionedSpan(span: TextSpan): string {
     `font-size:${number(span.fontSize)}pt`,
   ].join(";");
   return `<span class="pdf-span"${direction} style="${style}">${escapeHtml(span.text)}</span>`;
+}
+
+function directionAttribute(spans: TextSpan[]): string {
+  const rtl = spans.filter((span) => span.direction === "rtl").length;
+  const vertical = spans.filter((span) => span.direction === "ttb").length;
+  if (vertical > rtl && vertical * 2 >= spans.length) return ' data-direction="ttb"';
+  return rtl * 2 >= spans.length && spans.length > 0 ? ' dir="rtl"' : "";
 }
 
 function containsY(table: Table, y: number): boolean {

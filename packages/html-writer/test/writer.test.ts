@@ -78,6 +78,27 @@ describe("HTML writer", () => {
     expect(html).not.toContain("<!doctype html>");
   });
 
+  it("preserves logical RTL text and marks positioned and flow direction", async () => {
+    const rtlPage = {
+      ...page,
+      spans: [{ ...span("שלום עולם", 20, 700), direction: "rtl" as const }],
+    };
+    const positioned = await pageToHtml(rtlPage);
+    const flow = await pageToHtml(rtlPage, { layout: "flow" });
+    expect(positioned).toContain('<span class="pdf-span" dir="rtl"');
+    expect(positioned).toContain("שלום עולם");
+    expect(flow).toContain('<p dir="rtl">שלום עולם</p>');
+  });
+
+  it("marks vertical text without mislabeling it as RTL", async () => {
+    const vertical = await pageToHtml({
+      ...page,
+      spans: [{ ...span("vertical", 20, 700), direction: "ttb" }],
+    });
+    expect(vertical).toContain('data-direction="ttb"');
+    expect(vertical).not.toContain('dir="rtl"');
+  });
+
   it("writes inferred tables once and permits style-free documents", async () => {
     const tablePage: ExtractedPage = {
       ...page,
