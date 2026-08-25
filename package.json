@@ -76,6 +76,9 @@
     "corpus:fetch": "node scripts/fetch-corpus.mjs",
     "fixtures:fetch": "node scripts/fetch-fixtures.mjs",
     "maintainability": "node scripts/check-source-size.mjs && jscpd src --config .jscpd.json",
+    "poppler:baseline": "pnpm run build && pnpm --dir packages/html-writer build && pnpm corpus:fetch && node scripts/poppler-html-report.mjs --write-baseline",
+    "poppler:gate": "pnpm run build && pnpm --dir packages/html-writer build && pnpm corpus:fetch && node scripts/poppler-html-report.mjs --gate",
+    "poppler:report": "pnpm run build && pnpm --dir packages/html-writer build && pnpm corpus:fetch && node scripts/poppler-html-report.mjs",
     "package:check": "publint && pnpm pack --dry-run",
     "parity:baseline": "pnpm run build && pnpm corpus:fetch && node scripts/parity-report.mjs --write-baseline",
     "parity:gate": "pnpm run build && pnpm corpus:fetch && node scripts/parity-report.mjs --gate",
@@ -87,7 +90,7 @@
     "test:oracle": "vitest run test/oracle",
     "test:memory": "pnpm run build && vitest run test/memory",
     "typecheck": "tsc --noEmit",
-    "quality": "pnpm run corpus:check && pnpm run check && pnpm run test && pnpm run test:coverage && pnpm run parity:target && pnpm run build && pnpm run package:check && pnpm --dir packages/html-writer quality",
+    "quality": "pnpm run corpus:check && pnpm run check && pnpm run test && pnpm run test:coverage && pnpm run parity:target && pnpm run poppler:gate && pnpm run build && pnpm run package:check && pnpm --dir packages/html-writer quality",
     "prepublishOnly": "pnpm run quality"
   },
   "engines": {

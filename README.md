@@ -121,8 +121,10 @@ with explicit errors.
 
 PDF.js is the primary behavioral oracle for page geometry, decoded text, text
 direction, and positioning. Tests compare normalized positioned characters
-rather than requiring identical text-span boundaries. Poppler and MuPDF can
-serve as secondary oracles where implementations disagree.
+rather than requiring identical text-span boundaries. Poppler is an independent
+secondary oracle for the HTML writer. Its corpus gate preserves exact geometry
+and decoded-text agreement on every fixture known to agree across both engines;
+engine-specific RTL and font-decoding differences remain visible in the report.
 
 The current commit gate compares seven OSS fixtures against PDF.js. It requires
 exact page count, dimensions, rotation, and normalized decoded characters, plus

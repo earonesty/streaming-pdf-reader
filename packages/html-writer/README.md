@@ -35,3 +35,10 @@ Tests compare normalized page geometry, text, and anchor positions with
 Poppler's `pdftohtml -c -hidden -noframes -zoom 1` output. Poppler runs only as
 an independent test oracle; its resource use is not part of the writer's memory
 contract.
+
+`pnpm poppler:report` runs the positioned writer over all 62 text fixtures in
+the pinned PDF.js corpus. The checked-in baseline currently records exact text
+and geometry agreement on 51 fixtures. The remaining cases are retained in the
+denominator; most exercise intentional PDF.js/Poppler differences in RTL text,
+font encodings, or malformed Unicode maps. `pnpm poppler:gate` rejects any loss
+from the known-good pass set and runs in CI.
