@@ -55,6 +55,7 @@
   "devDependencies": {
     "@boxpdf/reader": "workspace:*",
     "@biomejs/biome": "^2.5.10",
+    "@types/node": "^24.3.0",
     "@vitest/coverage-v8": "4.1.11",
     "publint": "^0.3.24",
     "tsup": "^8.5.0",

@@ -28,3 +28,10 @@ try {
 The default `positioned` layout preserves text coordinates. The optional
 `flow` layout uses the reader's inferred lines and tables. Images, vector
 graphics, and exact font reproduction are not yet rendered.
+
+## Compatibility oracle
+
+Tests compare normalized page geometry, text, and anchor positions with
+Poppler's `pdftohtml -c -hidden -noframes -zoom 1` output. Poppler runs only as
+an independent test oracle; its resource use is not part of the writer's memory
+contract.

@@ -12,7 +12,7 @@ export interface HtmlWriterOptions {
   includeStyles?: boolean;
 }
 
-const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--positioned{position:relative;overflow:hidden}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom}.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--flow p{white-space:pre-wrap}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
+const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-page-content--90{transform:translateX(100%) rotate(90deg)}.pdf-page-content--180{transform:translate(100%,100%) rotate(180deg)}.pdf-page-content--270{transform:translateY(100%) rotate(270deg)}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom}.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--flow p{white-space:pre-wrap}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
 
 export async function writeHtmlDocument(
   pages: AsyncIterable<ExtractedPage> | Iterable<ExtractedPage>,
@@ -61,11 +61,17 @@ export async function pageToHtml(
 }
 
 async function writePositionedPage(page: ExtractedPage, write: HtmlWrite): Promise<void> {
+  const quarterTurn = page.rotate === 90 || page.rotate === 270;
+  const displayWidth = quarterTurn ? page.height : page.width;
+  const displayHeight = quarterTurn ? page.width : page.height;
   await write(
-    `<section class="pdf-page pdf-page--positioned" data-page="${page.number}" style="width:${number(page.width)}pt;height:${number(page.height)}pt">`,
+    `<section class="pdf-page pdf-page--positioned" data-page="${page.number}" data-rotate="${page.rotate}" style="width:${number(displayWidth)}pt;height:${number(displayHeight)}pt">`,
+  );
+  await write(
+    `<div class="pdf-page-content pdf-page-content--${page.rotate}" style="width:${number(page.width)}pt;height:${number(page.height)}pt">`,
   );
   for (const span of page.spans) await write(positionedSpan(span));
-  await write("</section>");
+  await write("</div></section>");
 }
 
 async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<void> {

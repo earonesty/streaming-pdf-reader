@@ -22,6 +22,7 @@ describe("HTML writer", () => {
   it("writes positioned, escaped page HTML", async () => {
     const html = await pageToHtml(page);
     expect(html).toContain('data-page="1"');
+    expect(html).toContain('data-rotate="0"');
     expect(html).toContain("width:612pt;height:792pt");
     expect(html).toContain("&lt;Hello &amp; &quot;world&quot;&gt;");
     const rtl = await pageToHtml({
@@ -31,6 +32,12 @@ describe("HTML writer", () => {
     });
     expect(rtl).toContain('dir="rtl"');
     expect(rtl).toContain("width:0pt");
+  });
+
+  it("uses rotated display dimensions for quarter-turn pages", async () => {
+    const html = await pageToHtml({ ...page, rotate: 90 });
+    expect(html).toContain("width:792pt;height:612pt");
+    expect(html).toContain("pdf-page-content--90");
   });
 
   it("awaits output chunks and supports document metadata", async () => {

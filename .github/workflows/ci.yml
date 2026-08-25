@@ -21,5 +21,10 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+      - name: Install Poppler HTML oracle
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes poppler-utils
+          pdftohtml -v
       - run: pnpm install --frozen-lockfile
       - run: pnpm quality
