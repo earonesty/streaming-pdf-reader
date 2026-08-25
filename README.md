@@ -37,14 +37,22 @@ interface PdfSource {
 ├── content         graphics state, fonts, CMaps, and text operations
 └── structure       optional reading order, paragraphs, lists, and tables
 
-future optional package or entry point
-└── render          Canvas, SVG, or bitmap rendering
+separate output packages
+├── @boxpdf/html-writer  streaming positioned or flow HTML output
+└── render               future Canvas, SVG, or bitmap rendering
 ```
 
 The core result preserves positioned text and provenance. Semantic structure
 is inferred separately and includes confidence and diagnostic reasons. A
 future renderer will consume page operations without becoming a dependency of
 text or table extraction.
+
+## HTML writer
+
+`@boxpdf/html-writer` streams PDF pages to HTML through an awaited write
+callback. Its name distinguishes PDF-to-HTML output from the existing
+HTML-to-PDF `boxpdf-html` project. Positioned output preserves text coordinates;
+flow output uses inferred lines and tables. See `packages/html-writer`.
 
 ## Usage
 

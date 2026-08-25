@@ -3,9 +3,9 @@
   "files": {
     "includes": [
       "**",
-      "!dist",
-      "!coverage",
-      "!node_modules",
+      "!**/dist",
+      "!**/coverage",
+      "!**/node_modules",
       "!fixtures/**/*.pdf",
       "!corpus/manifest.json",
       "!corpus/baseline.json",
