@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { writeHtmlDocument } from "../../packages/html-writer/dist/index.js";
+import { writeHtmlDocument } from "../../packages/html-writer/src/index.js";
 import { memorySource, openPdf } from "../../src/index.js";
 import { buildManyPagePdf } from "../support/many-page-pdf.js";
 
