@@ -24,6 +24,7 @@ export interface ParserLimits {
   maxFormDepth?: number;
   maxCachedObjects?: number;
   maxObjectCacheBytes?: number;
+  maxXrefCacheBytes?: number;
 }
 
 export interface PdfParserOptions extends ByteStoreOptions, ParserLimits {}
@@ -43,12 +44,13 @@ const DEFAULT_MAX_PAGE_TREE_DEPTH = 128;
 const DEFAULT_MAX_FORM_DEPTH = 32;
 const DEFAULT_MAX_CACHED_OBJECTS = 256;
 const DEFAULT_MAX_OBJECT_CACHE_BYTES = 16 * 1024 * 1024;
+const DEFAULT_MAX_XREF_CACHE_BYTES = 16 * 1024 * 1024;
 const latin1 = new TextDecoder("latin1");
 
 export class PdfObjectReader {
   readonly store: SparseByteStore;
   readonly limits: Required<ParserLimits>;
-  readonly #xref = new XrefIndex();
+  readonly #xref: XrefIndex;
   readonly #xrefSectionOffsets = new Set<number>();
   readonly #cache = new Map<number, { value: PdfValue; size: number }>();
   #objectCacheBytes = 0;
@@ -68,12 +70,14 @@ export class PdfObjectReader {
       maxFormDepth: options.maxFormDepth ?? DEFAULT_MAX_FORM_DEPTH,
       maxCachedObjects: options.maxCachedObjects ?? DEFAULT_MAX_CACHED_OBJECTS,
       maxObjectCacheBytes: options.maxObjectCacheBytes ?? DEFAULT_MAX_OBJECT_CACHE_BYTES,
+      maxXrefCacheBytes: options.maxXrefCacheBytes ?? DEFAULT_MAX_XREF_CACHE_BYTES,
     };
     for (const [name, value] of Object.entries(this.limits)) {
       if (!Number.isSafeInteger(value) || value <= 0) {
         throw new RangeError(`${name} must be a positive safe integer`);
       }
     }
+    this.#xref = new XrefIndex(this.limits.maxXrefCacheBytes);
   }
 
   static async open(source: PdfSource, options: PdfParserOptions = {}): Promise<PdfObjectReader> {

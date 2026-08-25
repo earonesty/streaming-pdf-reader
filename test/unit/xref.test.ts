@@ -28,4 +28,13 @@ describe("packed xref index", () => {
     expect(index.get(5)).toEqual({ kind: "direct", offset: 20, generation: 1 });
     expect(index.get(-1)).toBeUndefined();
   });
+
+  it("fails with a typed resource error before exceeding its byte budget", () => {
+    const index = new XrefIndex(1024 * 13);
+    index.set(1, { kind: "direct", offset: 10, generation: 0 });
+    expect(() => index.set(1024, { kind: "direct", offset: 20, generation: 0 })).toThrowError(
+      expect.objectContaining({ code: "RESOURCE_LIMIT" }),
+    );
+    expect(index.residentBytes).toBe(1024 * 13);
+  });
 });

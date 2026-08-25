@@ -58,6 +58,7 @@ const source = await fileSource("large.pdf");
 const pdf = await openPdf(source, {
   chunkSize: 64 * 1024,
   maxBytes: 16 * 1024 * 1024,
+  maxXrefCacheBytes: 16 * 1024 * 1024,
 });
 
 try {
@@ -100,6 +101,7 @@ The v1 parser supports:
 - literal and hexadecimal strings, common text operators, graphics transforms,
   WinAnsi text, UTF-16 strings, Type 0 fonts, and common `ToUnicode` mappings
 - bounded sparse byte caching with source-read and resident-byte telemetry
+- a configurable packed-xref byte ceiling with resident-byte telemetry
 - deterministic line grouping, aligned-table inference, and rows, CSV, and HTML formatting
 
 Encrypted PDFs, damaged-file repair, inline images in content streams, uncommon

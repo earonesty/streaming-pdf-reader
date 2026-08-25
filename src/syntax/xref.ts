@@ -1,3 +1,5 @@
+import { PdfError } from "../errors.js";
+
 export interface DirectXrefEntry {
   kind: "direct";
   offset: number;
@@ -24,7 +26,15 @@ interface XrefChunk {
 /** A sparse, packed xref index without one JavaScript object allocation per PDF object. */
 export class XrefIndex {
   readonly #chunks = new Map<number, XrefChunk>();
+  readonly #maxBytes: number;
   #size = 0;
+
+  constructor(maxBytes = 16 * 1024 * 1024) {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < BYTES_PER_CHUNK) {
+      throw new RangeError(`maxXrefCacheBytes must be at least ${BYTES_PER_CHUNK}`);
+    }
+    this.#maxBytes = maxBytes;
+  }
 
   get size(): number {
     return this.#size;
@@ -67,6 +77,12 @@ export class XrefIndex {
     const chunkNumber = Math.floor(object / CHUNK_SIZE);
     let chunk = this.#chunks.get(chunkNumber);
     if (!chunk) {
+      if (this.residentBytes + BYTES_PER_CHUNK > this.#maxBytes) {
+        throw new PdfError(
+          "RESOURCE_LIMIT",
+          `xref index exceeds configured ${this.#maxBytes}-byte cache limit`,
+        );
+      }
       chunk = {
         types: new Uint8Array(CHUNK_SIZE),
         primary: new Float64Array(CHUNK_SIZE),
