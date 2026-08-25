@@ -1,15 +1,12 @@
 # `@boxpdf/reader`
 
 A streaming, memory-bounded PDF reader and structured-data extractor for
-JavaScript. The source repository is named `streaming-pdf-reader` so the
-project is discoverable by the problem it solves; the package uses the compact
-`@boxpdf/reader` API name.
+JavaScript.
 
 ## Defining contract
 
 The reader parses and extracts content from large PDFs without buffering
-the complete file. Memory use is governed by explicit byte and object cache
-budgets rather than document size or pages already processed.
+the complete file. Explicit byte and object cache budgets govern memory use.
 
 ```text
 peak parser-owned memory <= configured caches
@@ -120,11 +117,11 @@ with explicit errors.
 ## Compatibility oracle
 
 PDF.js is the primary behavioral oracle for page geometry, decoded text, text
-direction, and positioning. Tests compare normalized positioned characters
-rather than requiring identical text-span boundaries. Poppler is an independent
-secondary oracle for the HTML writer. Its corpus gate preserves exact geometry
-and decoded-text agreement on every fixture known to agree across both engines;
-engine-specific RTL and font-decoding differences remain visible in the report.
+direction, and positioning. Tests compare normalized positioned characters and
+allow different text-span boundaries. Poppler is an independent secondary
+oracle for the HTML writer. Its corpus gate preserves exact geometry and
+decoded-text agreement on every fixture known to agree across both engines.
+The report records RTL and font-decoding differences between the engines.
 
 The full corpus gate passes all 118 supported, unencrypted fixtures (100%)
 against PDF.js. The two remaining fixtures in the fixed 120-file denominator
@@ -137,6 +134,28 @@ Memory tests extract from 10 MB and 1 GB virtual random-access PDFs with the
 same 64 KiB byte-cache limit. They assert cache residency, maximum individual
 source reads, total bytes fetched, process RSS, and ArrayBuffer growth.
 
+## Memory comparison
+
+`pnpm memory:compare` runs `@boxpdf/reader`, raw PDF.js, and unpdf in isolated
+processes against the same logical PDF. The default comparison uses 10 MiB and
+100 MiB inputs. PDF.js and unpdf receive complete `Uint8Array` inputs;
+`@boxpdf/reader` receives a random-access source. PDF.js URL and range loading
+are separate input modes and are outside this comparison.
+
+One Node 24 run produced these measurements:
+
+| Input | Engine | Peak RSS | Peak ArrayBuffers | Source data read |
+|---:|---|---:|---:|---:|
+| 10 MiB | `@boxpdf/reader` | 49.42 MiB | 89.92 KiB | 140 KiB |
+| 10 MiB | PDF.js | 129.70 MiB | 10.16 MiB | entire input |
+| 10 MiB | unpdf | 82.02 MiB | 10.15 MiB | entire input |
+| 100 MiB | `@boxpdf/reader` | 49.43 MiB | 89.92 KiB | 140 KiB |
+| 100 MiB | PDF.js | 219.75 MiB | 100.16 MiB | entire input |
+| 100 MiB | unpdf | 172.29 MiB | 100.15 MiB | entire input |
+
+RSS varies by operating system and dependency version. The benchmark script is
+the source of current measurements.
+
 ## Repository layout
 
 - `src/source.ts`: public random-access source contract and portable sources
@@ -145,7 +164,7 @@ source reads, total bytes fetched, process RSS, and ArrayBuffer growth.
 - `src/content/`: page content and text interpretation
 - `src/structure/`: reading-order and table inference
 - `src/render/`: reserved boundary for an optional renderer adapter
-- `test/unit/`: fast surgical tests
+- `test/unit/`: focused parser and API tests
 - `test/fixtures/`: fixture integrity and golden extraction tests
 - `test/oracle/`: differential PDF.js tests
 - `test/memory/`: isolated-process memory-bound tests

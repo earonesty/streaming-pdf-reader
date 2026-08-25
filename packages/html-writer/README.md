@@ -26,8 +26,8 @@ try {
 ```
 
 The default `positioned` layout preserves text coordinates. The optional
-`flow` layout uses the reader's inferred lines and tables. Images, vector
-graphics, and exact font reproduction are not yet rendered.
+`flow` layout uses the reader's inferred lines and tables. The current output
+surface excludes images, vector graphics, and exact font reproduction.
 
 The callback is awaited for every chunk, so a file stream, HTTP response, or
 Web `WritableStream` can apply backpressure. The caller owns and closes the PDF
@@ -39,9 +39,9 @@ or allowlist user-provided PDF URLs before passing them to the HTTP example.
 ## Compatibility oracle
 
 Tests compare normalized page geometry, text, and anchor positions with
-Poppler's `pdftohtml -c -hidden -noframes -zoom 1` output. Poppler runs only as
-an independent test oracle; its resource use is not part of the writer's memory
-contract.
+Poppler's `pdftohtml -c -hidden -noframes -zoom 1` output. Poppler serves as an
+independent test oracle. The writer's memory contract covers the reader and
+HTML serialization.
 
 `pnpm poppler:report` runs the positioned writer over all 62 text fixtures in
 the pinned PDF.js corpus. The checked-in baseline currently records exact text

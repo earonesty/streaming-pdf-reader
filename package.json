@@ -76,6 +76,7 @@
     "corpus:fetch": "node scripts/fetch-corpus.mjs",
     "fixtures:fetch": "node scripts/fetch-fixtures.mjs",
     "maintainability": "node scripts/check-source-size.mjs && jscpd src --config .jscpd.json",
+    "memory:compare": "pnpm run build && node scripts/memory-comparison.mjs",
     "poppler:baseline": "pnpm run build && pnpm --dir packages/html-writer build && pnpm corpus:fetch && node scripts/poppler-html-report.mjs --write-baseline",
     "poppler:gate": "pnpm run build && pnpm --dir packages/html-writer build && pnpm corpus:fetch && node scripts/poppler-html-report.mjs --gate",
     "poppler:report": "pnpm run build && pnpm --dir packages/html-writer build && pnpm corpus:fetch && node scripts/poppler-html-report.mjs",
@@ -111,6 +112,7 @@
     "publint": "^0.3.24",
     "tsup": "^8.5.0",
     "typescript": "^5.9.2",
+    "unpdf": "1.8.1",
     "vitest": "^4.0.0"
   },
   "publishConfig": {
