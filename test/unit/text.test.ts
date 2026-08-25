@@ -164,6 +164,9 @@ trailer
         .join("")
         .replaceAll(" ", ""),
     ).toBe("ABCDE");
+    expect(pages[0]?.spans[0]?.bounds.width).toBeCloseTo(9.6, 5);
+    expect(pages[0]?.spans[0]?.bounds.height).toBeCloseTo(20, 5);
+    expect(pages[0]?.spans[0]?.fontSize).toBeCloseTo(20, 5);
     reader.close();
   });
 });

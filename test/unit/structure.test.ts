@@ -38,14 +38,67 @@ describe("structured extraction quality gate", () => {
       "<table><tr><td>Item</td><td>Price</td></tr><tr><td>Socks</td><td>$28</td></tr><tr><td>Hat</td><td>$12, sale</td></tr></table>",
     );
   });
+
+  it("recovers word spaces when estimated font widths overlap slightly", () => {
+    const page: ExtractedPage = {
+      number: 1,
+      width: 612,
+      height: 792,
+      rotate: 0,
+      spans: [
+        span("All", 275.213, 635.232, 19.095, 11, "F1"),
+        span("swimming", 292.126, 635.232, 41.827, 11, "F1"),
+        span("pools", 338.897, 635.232, 25.361, 11, "F1"),
+        span("and", 365.623, 635.232, 14.333, 11, "F1"),
+        span("any", 383.998, 635.232, 14.414, 11, "F1"),
+        span("ornamental", 402.372, 635.232, 50.041, 11, "F1"),
+        span("pool", 452.484, 635.232, 20.905, 11, "F1"),
+        span("with", 474.408, 635.232, 22.474, 11, "F1"),
+        span("a", 496.541, 635.232, 4.441, 11, "F1"),
+        span("depth", 504.684, 635.232, 24.45, 11, "F1"),
+      ],
+    };
+
+    expect(structurePage(page).lines[0]?.text).toBe(
+      "All swimming pools and any ornamental pool with a depth",
+    );
+  });
+
+  it("keeps hyphen continuations and styled word fragments joined", () => {
+    const page: ExtractedPage = {
+      number: 1,
+      width: 300,
+      height: 100,
+      rotate: 0,
+      spans: [
+        span("24-", 10, 50, 14, 10, "F1"),
+        span("164", 24.5, 50, 14, 10, "F1"),
+        span("(", 43, 50, 4, 10, "F1"),
+        span("c", 49, 50, 5, 10, "F1"),
+        span(")", 55, 50, 4, 10, "F1"),
+        span("hel", 70, 50, 14, 10, "Regular"),
+        span("lo", 84, 50, 9, 10, "Bold"),
+      ],
+    };
+
+    expect(structurePage(page).lines[0]?.text).toBe("24-164 (c) hello");
+  });
 });
 
-function span(text: string, x: number, y: number, width: number): TextSpan {
+function span(
+  text: string,
+  x: number,
+  y: number,
+  width: number,
+  fontSize = 12,
+  fontName?: string,
+): TextSpan {
   return {
     text,
     bounds: { x, y, width, height: 12 },
     direction: "ltr",
-    fontSize: 12,
+    fontName,
+    fontSize,
     source: { page: 1 },
   };
 }

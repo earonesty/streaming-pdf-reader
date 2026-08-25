@@ -388,12 +388,21 @@ function showString(
   }
   const visibleMatrix = translate(state.textMatrix, visible.offset, 0);
   const [x, y] = transformPoint(state.ctm, visibleMatrix[4], visibleMatrix[5] + state.rise);
+  const endMatrix = translate(visibleMatrix, visible.width, 0);
+  const [endX, endY] = transformPoint(state.ctm, endMatrix[4], endMatrix[5] + state.rise);
+  const topMatrix = translate(visibleMatrix, 0, Math.abs(state.fontSize));
+  const [topX, topY] = transformPoint(state.ctm, topMatrix[4], topMatrix[5] + state.rise);
   spans.push({
     text: visible.text,
-    bounds: { x, y, width: visible.width, height: Math.abs(state.fontSize) },
+    bounds: {
+      x,
+      y,
+      width: Math.hypot(endX - x, endY - y),
+      height: Math.hypot(topX - x, topY - y),
+    },
     direction: "ltr",
     fontName: state.font,
-    fontSize: Math.abs(state.fontSize),
+    fontSize: Math.hypot(topX - x, topY - y),
     source: { page: 0, objectNumber: page.ref.object },
   });
   state.textMatrix = translate(state.textMatrix, width, 0);

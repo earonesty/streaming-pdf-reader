@@ -176,14 +176,33 @@ function closestColumn(columns: number[], x: number): number {
 
 function joinSpans(spans: TextSpan[]): string {
   let output = "";
-  let previousEnd: number | undefined;
+  let previous: TextSpan | undefined;
   for (const span of spans) {
-    if (previousEnd !== undefined && span.bounds.x - previousEnd > span.fontSize * 0.2)
-      output += " ";
+    if (previous && shouldInsertSpace(previous, span)) output += " ";
     output += span.text;
-    previousEnd = span.bounds.x + span.bounds.width;
+    previous = span;
   }
   return output.trim();
+}
+
+function shouldInsertSpace(previous: TextSpan, current: TextSpan): boolean {
+  if (/\s$/u.test(previous.text) || /^\s/u.test(current.text)) return false;
+  const continuation = /[-‐‑‒–—([{/]$/u.test(previous.text);
+  const closingPunctuation = /^[,.;:!?%)\]}]/u.test(current.text);
+  if (continuation || closingPunctuation) return false;
+  const gap = current.bounds.x - (previous.bounds.x + previous.bounds.width);
+  if (gap > current.fontSize * 0.2) return true;
+  const sameFont = previous.fontName === current.fontName;
+  const similarSize =
+    Math.abs(previous.fontSize - current.fontSize) <=
+    Math.max(previous.fontSize, current.fontSize) * 0.05;
+  const wordBoundary = /[\p{L}\p{N}]$/u.test(previous.text) && /^[\p{L}\p{N}]/u.test(current.text);
+  return (
+    sameFont &&
+    similarSize &&
+    wordBoundary &&
+    gap > -Math.min(previous.fontSize, current.fontSize) * 0.25
+  );
 }
 
 function union(rectangles: Rect[]): Rect {
