@@ -167,3 +167,22 @@ Target: final completion contract.
 | 4 | `6f09773` | 108/120 | 95.22% | 80.89% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32533327103) | Enforced final gates and typed errors |
 | 5a | `c40647f` | 112/120 | 94.87% | 80.11% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32534287893) | Type 1 programs, glyph-name recovery, named UTF-16 CMaps |
 | 5b | `8925c84` | 118/120 | 94.24% | 80.13% | [passed](https://github.com/earonesty/streaming-pdf-reader/actions/runs/32535983398) | Variable CMaps, bounded content concatenation, matrix-aware widths/clipping, RTL flow |
+
+## HTML writer release slices
+
+Each slice uses the mandatory slice protocol above and lands directly on
+`main` only after the local quality gate passes.
+
+1. **1,000-page memory gate:** stream a generated document through the reader
+   and positioned writer into a non-buffering sink; assert cache ceilings,
+   bounded chunk sizes, complete page output, and process-memory limits.
+2. **RTL and geometry parity:** classify the Poppler RTL differences, improve
+   directional markup where the PDF evidence supports it, and resolve the
+   remaining geometry mismatch without adopting engine-specific guesses.
+3. **Corpus HTML validity:** validate escaping, nesting, document structure,
+   page counts, and attributes across every supported text fixture.
+4. **Streaming ergonomics:** add file and HTTP output examples, exercise
+   backpressure and cleanup, and settle the public writer options and naming.
+5. **Release closure:** run package consumer smoke tests for ESM and CJS,
+   finalize package metadata and versions, generate tarballs, and validate the
+   release commit in remote CI.
