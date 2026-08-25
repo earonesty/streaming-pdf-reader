@@ -16,7 +16,8 @@ if (!startXref) throw new Error("fixture has no startxref");
 const suffix = new TextEncoder().encode(`\nstartxref\n${startXref}\n%%EOF\n`);
 let largestRead = 0;
 let sourceBytesRead = 0;
-let peak = process.memoryUsage();
+const baseline = process.memoryUsage();
+let peak = baseline;
 
 function sample() {
   const usage = process.memoryUsage();
@@ -89,8 +90,10 @@ process.stdout.write(
     engine,
     virtualSize,
     peakRss: peak.rss,
+    rssGrowth: peak.rss - baseline.rss,
     peakHeapUsed: peak.heapUsed,
     peakArrayBuffers: peak.arrayBuffers,
+    arrayBufferGrowth: peak.arrayBuffers - baseline.arrayBuffers,
     largestRead: largestRead || null,
     sourceBytesRead: sourceBytesRead || null,
     reader: readerStats,

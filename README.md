@@ -144,17 +144,18 @@ are separate input modes and are outside this comparison.
 
 One Node 24 run produced these measurements:
 
-| Input | Engine | Peak RSS | Peak ArrayBuffers | Source data read |
-|---:|---|---:|---:|---:|
-| 10 MiB | `@boxpdf/reader` | 49.42 MiB | 89.92 KiB | 140 KiB |
-| 10 MiB | PDF.js | 129.70 MiB | 10.16 MiB | entire input |
-| 10 MiB | unpdf | 82.02 MiB | 10.15 MiB | entire input |
-| 100 MiB | `@boxpdf/reader` | 49.43 MiB | 89.92 KiB | 140 KiB |
-| 100 MiB | PDF.js | 219.75 MiB | 100.16 MiB | entire input |
-| 100 MiB | unpdf | 172.29 MiB | 100.15 MiB | entire input |
+| Input | Engine | Peak RSS | RSS growth | ArrayBuffer growth | Source data read |
+|---:|---|---:|---:|---:|---:|
+| 10 MiB | `@boxpdf/reader` | 49.26 MiB | 3.64 MiB | 77.06 KiB | 140 KiB |
+| 10 MiB | PDF.js | 130.13 MiB | 84.49 MiB | 10.15 MiB | entire input |
+| 10 MiB | unpdf | 82.37 MiB | 36.74 MiB | 10.14 MiB | entire input |
+| 100 MiB | `@boxpdf/reader` | 49.32 MiB | 3.64 MiB | 77.06 KiB | 140 KiB |
+| 100 MiB | PDF.js | 220.09 MiB | 174.44 MiB | 100.15 MiB | entire input |
+| 100 MiB | unpdf | 172.37 MiB | 126.75 MiB | 100.14 MiB | entire input |
 
-RSS varies by operating system and dependency version. The benchmark script is
-the source of current measurements.
+Peak RSS includes the Node process baseline, which was about 46 MiB in this
+run. RSS and allocator behavior vary by operating system and dependency
+version. The benchmark script is the source of current measurements.
 
 ## Repository layout
 

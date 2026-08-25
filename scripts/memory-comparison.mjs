@@ -18,11 +18,11 @@ for (const size of sizes) {
   }
 }
 
-console.log("| Input | Engine | Peak RSS | Peak ArrayBuffers | Source data read |");
-console.log("|---:|---|---:|---:|---:|");
+console.log("| Input | Engine | Peak RSS | RSS growth | ArrayBuffer growth | Source data read |");
+console.log("|---:|---|---:|---:|---:|---:|");
 for (const result of results) {
   console.log(
-    `| ${formatBytes(result.virtualSize)} | ${result.engine} | ${formatBytes(result.peakRss)} | ${formatBytes(result.peakArrayBuffers)} | ${result.sourceBytesRead === null ? "entire input" : formatBytes(result.sourceBytesRead)} |`,
+    `| ${formatBytes(result.virtualSize)} | ${result.engine} | ${formatBytes(result.peakRss)} | ${formatBytes(result.rssGrowth)} | ${formatBytes(result.arrayBufferGrowth)} | ${result.sourceBytesRead === null ? "entire input" : formatBytes(result.sourceBytesRead)} |`,
   );
 }
 
