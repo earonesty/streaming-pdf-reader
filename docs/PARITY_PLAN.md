@@ -9,6 +9,10 @@ and mandatory slice protocol below remain unchanged. The two encrypted fixtures
 may remain explicitly unsupported; reaching the target therefore requires all
 other fixtures to pass without regressing any prior pass.
 
+The completed result is therefore 118/118 (100%) across the supported,
+unencrypted corpus, or 118/120 (98.3%) when the two intentionally unsupported
+encrypted fixtures remain in the fixed denominator.
+
 Planned extension slices:
 
 1. Font encodings: embedded Type 1 encoding programs, synthetic glyph names,

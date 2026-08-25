@@ -126,10 +126,12 @@ secondary oracle for the HTML writer. Its corpus gate preserves exact geometry
 and decoded-text agreement on every fixture known to agree across both engines;
 engine-specific RTL and font-decoding differences remain visible in the report.
 
-The current commit gate compares seven OSS fixtures against PDF.js. It requires
-exact page count, dimensions, rotation, and normalized decoded characters, plus
-first-span positioning on unrotated pages. Table reconstruction has exact
-goldens for reading order, rows, CSV, and HTML.
+The full corpus gate passes all 118 supported, unencrypted fixtures (100%)
+against PDF.js. The two remaining fixtures in the fixed 120-file denominator
+are encrypted and intentionally unsupported. The gate requires exact page
+count, dimensions, rotation, and normalized decoded characters, plus first-span
+positioning on unrotated pages. Table reconstruction has exact goldens for
+reading order, rows, CSV, and HTML.
 
 Memory tests extract from 10 MB and 1 GB virtual random-access PDFs with the
 same 64 KiB byte-cache limit. They assert cache residency, maximum individual
