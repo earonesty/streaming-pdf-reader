@@ -1,0 +1,56 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          lfs: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Use an OIDC-capable npm CLI
+        run: npm install --global npm@11.11.0
+      - name: Verify tag and package versions
+        env:
+          TAG_VERSION: ${{ github.ref_name }}
+        run: |
+          TAG_VERSION="${TAG_VERSION#v}"
+          READER_VERSION=$(node --print "require('./package.json').version")
+          WRITER_VERSION=$(node --print "require('./packages/html-writer/package.json').version")
+          test "$TAG_VERSION" = "$READER_VERSION"
+          test "$TAG_VERSION" = "$WRITER_VERSION"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Poppler HTML oracle
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes poppler-utils
+          pdftohtml -v
+      - name: Validate release
+        run: pnpm quality
+      - name: Publish reader
+        run: npm publish --ignore-scripts --access public
+      - name: Publish HTML writer
+        working-directory: packages/html-writer
+        run: npm publish --ignore-scripts --access public
