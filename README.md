@@ -110,9 +110,9 @@ The v1 parser supports:
 - deterministic line grouping, aligned-table inference, and rows, CSV, and HTML formatting
 
 Encrypted PDFs, damaged-file repair, inline images in content streams, uncommon
-stream filters, complete font-width metrics, OCR, and rendering are outside the
-v1 support surface. Unsupported filters and configured resource limits fail
-with explicit errors.
+stream filters, complete embedded Type 1 and vertical font metrics, OCR, and
+rendering are outside the v1 support surface. Unsupported filters and configured
+resource limits fail with explicit errors.
 
 ## Compatibility oracle
 
@@ -125,10 +125,12 @@ The report records RTL and font-decoding differences between the engines.
 
 The full corpus gate passes all 118 supported, unencrypted fixtures (100%)
 against PDF.js. The two remaining fixtures in the fixed 120-file denominator
-are encrypted and intentionally unsupported. The gate requires exact page
-count, dimensions, rotation, and normalized decoded characters, plus first-span
-positioning on unrotated pages. Table reconstruction has exact goldens for
-reading order, rows, CSV, and HTML.
+are encrypted and intentionally unsupported. This score covers page count,
+dimensions, rotation, normalized decoded characters, and the first text origin
+on unrotated pages. Focused geometry tests additionally compare span width,
+height, font size, and transformed positions. Structure goldens cover reading
+order, inferred word boundaries, rows, CSV, and HTML. The scoring limits and the
+layout gap found after v0.1.1 are recorded in `docs/PARITY_PLAN.md`.
 
 Memory tests extract from 10 MB and 1 GB virtual random-access PDFs with the
 same 64 KiB byte-cache limit. They assert cache residency, maximum individual

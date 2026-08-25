@@ -79,6 +79,40 @@ describe("simple font encodings", () => {
     expect(decoder.advance?.(Uint8Array.of(65, 66, 67, 68))).toBe(2);
   });
 
+  it("uses Standard 14 metrics when a font omits its width array", async () => {
+    const reader = {
+      async resolve(value: PdfValue) {
+        return value;
+      },
+    } as PdfObjectReader;
+    const decoder = await loadFontEncoding(
+      reader,
+      new Map<string, PdfValue>([["BaseFont", { type: "name", value: "Helvetica" }]]),
+    );
+    expect(decoder.advance?.(Uint8Array.of(65, 32, 66))).toBeCloseTo(1.612);
+  });
+
+  it("uses FontDescriptor MissingWidth for absent character widths", async () => {
+    const descriptor: PdfDict = new Map([["MissingWidth", 321]]);
+    const reader = {
+      async resolve(value: PdfValue) {
+        return value;
+      },
+      async resolveDict(value: PdfValue | undefined) {
+        return value instanceof Map ? value : undefined;
+      },
+    } as PdfObjectReader;
+    const decoder = await loadFontEncoding(
+      reader,
+      new Map<string, PdfValue>([
+        ["FirstChar", 65],
+        ["Widths", [500]],
+        ["FontDescriptor", descriptor],
+      ]),
+    );
+    expect(decoder.advance?.(Uint8Array.of(65, 66))).toBeCloseTo(0.821);
+  });
+
   it("uses CID width arrays, ranges, and the descendant default", async () => {
     const descendant: PdfDict = new Map<string, PdfValue>([
       ["DW", 900],

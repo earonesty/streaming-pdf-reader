@@ -187,11 +187,14 @@ function joinSpans(spans: TextSpan[]): string {
 
 function shouldInsertSpace(previous: TextSpan, current: TextSpan): boolean {
   if (/\s$/u.test(previous.text) || /^\s/u.test(current.text)) return false;
+  if (current.hasLeadingSpace) return true;
   const continuation = /[-‐‑‒–—([{/]$/u.test(previous.text);
   const closingPunctuation = /^[,.;:!?%)\]}]/u.test(current.text);
   if (continuation || closingPunctuation) return false;
   const gap = current.bounds.x - (previous.bounds.x + previous.bounds.width);
-  if (gap > current.fontSize * 0.2) return true;
+  if (gap > current.fontSize) return true;
+  const tokenBoundary = [...previous.text].length > 1 || [...current.text].length > 1;
+  if (gap > current.fontSize * 0.2) return tokenBoundary;
   const sameFont = previous.fontName === current.fontName;
   const similarSize =
     Math.abs(previous.fontSize - current.fontSize) <=
@@ -200,6 +203,7 @@ function shouldInsertSpace(previous: TextSpan, current: TextSpan): boolean {
   return (
     sameFont &&
     similarSize &&
+    tokenBoundary &&
     wordBoundary &&
     gap > -Math.min(previous.fontSize, current.fontSize) * 0.25
   );

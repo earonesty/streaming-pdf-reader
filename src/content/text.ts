@@ -365,6 +365,7 @@ function showString(
   let text = normalizeTextCompatibility(font?.decode(value.bytes) ?? decodePdfString(value.bytes));
   let bytes = value.bytes;
   const leadingSpaces = /^ +/.exec(text)?.[0] ?? "";
+  const hasLeadingSpace = leadingSpaces.length > 0;
   if (leadingSpaces) {
     if (bytes.length === text.length) {
       const leadingBytes = bytes.subarray(0, leadingSpaces.length);
@@ -394,6 +395,7 @@ function showString(
   const [topX, topY] = transformPoint(state.ctm, topMatrix[4], topMatrix[5] + state.rise);
   spans.push({
     text: visible.text,
+    ...(hasLeadingSpace ? { hasLeadingSpace: true } : {}),
     bounds: {
       x,
       y,

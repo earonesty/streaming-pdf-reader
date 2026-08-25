@@ -13,6 +13,7 @@ export interface SourceRef {
 
 export interface TextSpan {
   text: string;
+  hasLeadingSpace?: boolean | undefined;
   bounds: Rect;
   direction: "ltr" | "rtl" | "ttb";
   fontName?: string | undefined;

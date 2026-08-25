@@ -57,6 +57,33 @@ plan is active.
 - At most five pages per fixture are checked. Explicit upstream page windows are
   honored.
 
+### Layout gate gap found after v0.1.1
+
+The 120-file corpus contains 58 load fixtures and 62 text fixtures. Only 15 are
+categorized as font fixtures and 3 as geometry fixtures. More importantly, the
+text score removes all whitespace before comparison and checks only the first
+nonempty span origin on unrotated pages. It does not score span width, height,
+font size, later-span positions, or reconstructed word boundaries.
+
+That scoring explains why the Atlantic Beach spacing defect passed the corpus.
+The reader decoded every character correctly, while inaccurate fallback font
+widths made adjacent word bounds overlap. Whitespace removal hid the serialized
+line difference and the first-origin check could not see an advance error.
+
+The strengthened layout gates are:
+
+1. Generated PDF.js differential cases compare text, x/y, width, height, and
+   font size for Standard 14 and transformed explicit-width fonts.
+2. Structure regressions preserve the observed Atlantic Beach span geometry and
+   check both inferred word spaces and `24-164` continuation behavior.
+3. Font metric unit cases cover Standard 14 widths, `/MissingWidth`, embedded
+   TrueType `cmap` formats 4 and 12, and `hmtx` fallback behavior.
+
+The 118/118 score remains the parser and character-decoding gate. It should not
+be described as complete layout parity. Future production layout defects must
+add a reduced geometry or structure regression, even when the source PDF cannot
+be redistributed.
+
 Baseline established on 2026-08-21:
 
 | Metric | Baseline | Required |

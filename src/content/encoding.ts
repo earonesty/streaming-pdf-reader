@@ -1,5 +1,7 @@
+import { Encodings, Font, type IFontNames } from "@pdf-lib/standard-fonts";
 import type { PdfObjectReader } from "../syntax/document.js";
 import { isDict, isName, isStream, type PdfDict, type PdfValue } from "../syntax/values.js";
+import { parseTrueTypeMetrics } from "./truetype.js";
 
 export interface FontDecoder {
   decode(bytes: Uint8Array): string;
@@ -98,10 +100,16 @@ export async function loadFontEncoding(
         ? embeddedEncoding
         : "StandardEncoding";
   const table = Array.isArray(embeddedEncoding) ? embeddedEncoding : baseTable(baseName);
+  const glyphTable = table.map((character) => glyphNameForCharacter(character, baseName));
   if (isDict(encoding)) {
-    applyDifferences(table, encoding.get("Differences"), !isName(font.get("Subtype"), "Type3"));
+    applyDifferences(
+      table,
+      encoding.get("Differences"),
+      !isName(font.get("Subtype"), "Type3"),
+      glyphTable,
+    );
   }
-  const widths = await loadFontWidths(reader, font);
+  const widths = await loadFontWidths(reader, font, table, glyphTable);
   return {
     decode: (bytes) => [...bytes].map((byte) => table[byte] as string).join(""),
     ...(widths ? { advance: (bytes: Uint8Array) => widths(bytes) } : {}),
@@ -111,19 +119,127 @@ export async function loadFontEncoding(
 async function loadFontWidths(
   reader: PdfObjectReader,
   font: PdfDict,
+  characterTable: string[],
+  glyphTable: Array<string | undefined>,
 ): Promise<((bytes: Uint8Array) => number) | undefined> {
   if (isName(font.get("Subtype"), "Type0")) return loadCidWidths(reader, font);
+  const missingWidth = await loadMissingWidth(reader, font);
+  const standardWidths = standardFontWidths(font, glyphTable);
   const value = font.get("Widths");
-  if (value === undefined) return undefined;
+  if (value === undefined) {
+    const embeddedWidths = await embeddedTrueTypeWidths(reader, font, characterTable);
+    return standardWidths ?? embeddedWidths ?? constantWidth(missingWidth);
+  }
   const resolved = await reader.resolve(value);
-  if (!Array.isArray(resolved)) return undefined;
+  if (!Array.isArray(resolved)) {
+    const embeddedWidths = await embeddedTrueTypeWidths(reader, font, characterTable);
+    return standardWidths ?? embeddedWidths ?? constantWidth(missingWidth);
+  }
   const first = typeof font.get("FirstChar") === "number" ? (font.get("FirstChar") as number) : 0;
-  const widths = resolved.map((width) => (typeof width === "number" ? width / 1000 : 0.5));
+  const widths = resolved.map((width) => (typeof width === "number" ? width / 1000 : undefined));
   return (bytes) => {
     let total = 0;
-    for (const byte of bytes) total += widths[byte - first] ?? 0.5;
+    for (const byte of bytes) {
+      total +=
+        widths[byte - first] ?? widthFromStandardFont(standardWidths, byte) ?? missingWidth ?? 0.5;
+    }
     return total;
   };
+}
+
+async function embeddedTrueTypeWidths(
+  reader: PdfObjectReader,
+  font: PdfDict,
+  characterTable: string[],
+): Promise<((bytes: Uint8Array) => number) | undefined> {
+  if (!isName(font.get("Subtype"), "TrueType")) return undefined;
+  const descriptor = await reader.resolveDict(font.get("FontDescriptor"));
+  const value = descriptor?.get("FontFile2");
+  if (value === undefined) return undefined;
+  const stream = await reader.resolve(value);
+  if (!isStream(stream)) return undefined;
+  const metrics = parseTrueTypeMetrics(await reader.decodeStream(stream));
+  if (!metrics) return undefined;
+  return (bytes) => {
+    let total = 0;
+    for (const byte of bytes) {
+      const character = characterTable[byte] ?? "";
+      for (const value of character) {
+        total += metrics.widthOfCodePoint(value.codePointAt(0) ?? 0) ?? 0.5;
+      }
+    }
+    return total;
+  };
+}
+
+async function loadMissingWidth(
+  reader: PdfObjectReader,
+  font: PdfDict,
+): Promise<number | undefined> {
+  const value = font.get("FontDescriptor");
+  if (value === undefined) return undefined;
+  const descriptor = await reader.resolveDict(value);
+  const width = descriptor?.get("MissingWidth");
+  return typeof width === "number" && Number.isFinite(width) ? width / 1000 : undefined;
+}
+
+function constantWidth(width: number | undefined): ((bytes: Uint8Array) => number) | undefined {
+  return width === undefined ? undefined : (bytes) => bytes.length * width;
+}
+
+const standardFontNames = new Set([
+  "Courier",
+  "Courier-Bold",
+  "Courier-Oblique",
+  "Courier-BoldOblique",
+  "Helvetica",
+  "Helvetica-Bold",
+  "Helvetica-Oblique",
+  "Helvetica-BoldOblique",
+  "Times-Roman",
+  "Times-Bold",
+  "Times-Italic",
+  "Times-BoldItalic",
+  "Symbol",
+  "ZapfDingbats",
+]);
+
+function standardFontWidths(
+  font: PdfDict,
+  glyphTable: Array<string | undefined>,
+): ((bytes: Uint8Array) => number) | undefined {
+  const baseFont = font.get("BaseFont");
+  if (!isName(baseFont)) return undefined;
+  const name = baseFont.value.replace(/^[A-Z]{6}\+/, "");
+  if (!standardFontNames.has(name)) return undefined;
+  const metrics = Font.load(name as IFontNames);
+  return (bytes) => {
+    let total = 0;
+    for (const byte of bytes)
+      total += (metrics.getWidthOfGlyph(glyphTable[byte] ?? ".notdef") ?? 0) / 1000;
+    return total;
+  };
+}
+
+function widthFromStandardFont(
+  advance: ((bytes: Uint8Array) => number) | undefined,
+  byte: number,
+): number | undefined {
+  return advance?.(Uint8Array.of(byte));
+}
+
+function glyphNameForCharacter(character: string, encodingName: string): string | undefined {
+  const codePoint = character.codePointAt(0);
+  if (codePoint === undefined) return undefined;
+  const encoding =
+    encodingName === "Symbol"
+      ? Encodings.Symbol
+      : encodingName === "ZapfDingbats"
+        ? Encodings.ZapfDingbats
+        : Encodings.WinAnsi;
+  return encoding.canEncodeUnicodeCodePoint(codePoint)
+    ? encoding.encodeUnicodeCodePoint(codePoint).name
+    : undefined;
 }
 
 async function loadCidWidths(
@@ -321,6 +437,7 @@ function applyDifferences(
   table: string[],
   value: PdfValue | undefined,
   allowSyntheticHex = true,
+  glyphTable?: Array<string | undefined>,
 ): void {
   if (!Array.isArray(value)) return;
   let code = 0;
@@ -333,6 +450,7 @@ function applyDifferences(
           ? undefined
           : glyphNameToUnicode(item.value);
       if (unicode !== undefined) table[code] = unicode;
+      if (unicode !== undefined && glyphTable) glyphTable[code] = item.value;
       code += 1;
     }
   }

@@ -32,7 +32,7 @@ endobj
 4 0 obj
 << /Length 999 >>
 stream
-q 1 0 0 1 10 20 cm /X Do Q
+q 1 0 0 1 30 20 cm /X Do Q
 endstream
 endobj
 5 0 obj
