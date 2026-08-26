@@ -236,19 +236,7 @@ function shouldInsertSpace(previous: TextSpan, current: TextSpan): boolean {
   const gap = current.bounds.x - (previous.bounds.x + previous.bounds.width);
   if (gap > current.fontSize) return true;
   const tokenBoundary = [...previous.text].length > 1 || [...current.text].length > 1;
-  if (gap > current.fontSize * 0.2) return tokenBoundary;
-  const sameFont = previous.fontName === current.fontName;
-  const similarSize =
-    Math.abs(previous.fontSize - current.fontSize) <=
-    Math.max(previous.fontSize, current.fontSize) * 0.05;
-  const wordBoundary = /[\p{L}\p{N}]$/u.test(previous.text) && /^[\p{L}\p{N}]/u.test(current.text);
-  return (
-    sameFont &&
-    similarSize &&
-    tokenBoundary &&
-    wordBoundary &&
-    gap > -Math.min(previous.fontSize, current.fontSize) * 0.25
-  );
+  return gap > current.fontSize * 0.2 && tokenBoundary;
 }
 
 function union(rectangles: Rect[]): Rect {
