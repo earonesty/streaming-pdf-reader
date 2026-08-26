@@ -80,6 +80,21 @@ export function tableToHtml(table: Table): string {
 }
 
 function groupLines(spans: TextSpan[], tolerance: number): TextLine[] {
+  const horizontal = groupHorizontalLines(
+    spans.filter((span) => span.direction !== "ttb"),
+    tolerance,
+  );
+  const vertical = groupVerticalLines(
+    spans.filter((span) => span.direction === "ttb"),
+    tolerance,
+  );
+  return [...horizontal, ...vertical].sort((left, right) => {
+    const baseline = right.bounds.y - left.bounds.y;
+    return Math.abs(baseline) > tolerance ? baseline : right.bounds.x - left.bounds.x;
+  });
+}
+
+function groupHorizontalLines(spans: TextSpan[], tolerance: number): TextLine[] {
   const rows: TextSpan[][] = [];
   for (const span of [...spans].sort((left, right) => {
     const vertical = right.bounds.y - left.bounds.y;
@@ -105,11 +120,38 @@ function groupLines(spans: TextSpan[], tolerance: number): TextLine[] {
   });
 }
 
+function groupVerticalLines(spans: TextSpan[], tolerance: number): TextLine[] {
+  const columns: TextSpan[][] = [];
+  for (const span of [...spans].sort(
+    (left, right) => right.bounds.x - left.bounds.x || right.bounds.y - left.bounds.y,
+  )) {
+    const column = columns.find(
+      (candidate) => Math.abs((candidate[0]?.bounds.x ?? 0) - span.bounds.x) <= tolerance,
+    );
+    if (column) column.push(span);
+    else columns.push([span]);
+  }
+  return columns.map((column) => {
+    column.sort((left, right) => right.bounds.y - left.bounds.y);
+    return {
+      type: "line",
+      bounds: union(column.map((span) => span.bounds)),
+      text: column.map((span) => span.text).join(""),
+      spans: column,
+      confidence: 1,
+      reasons: ["shared-vertical-axis"],
+    };
+  });
+}
+
 function inferTables(page: number, lines: TextLine[], options: StructureOptions): Table[] {
   const minimumRows = options.minimumTableRows ?? 2;
   const minimumColumns = options.minimumTableColumns ?? 2;
   const columnTolerance = options.columnTolerance ?? 8;
-  const candidates = lines.filter((line) => line.spans.length >= minimumColumns);
+  const candidates = lines.filter(
+    (line) =>
+      line.spans.length >= minimumColumns && line.spans.every((span) => span.direction !== "ttb"),
+  );
   if (candidates.length < minimumRows) return [];
 
   const columns: number[] = [];
