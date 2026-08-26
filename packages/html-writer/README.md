@@ -1,8 +1,6 @@
 # `@boxpdf/html-writer`
 
-Streams text-oriented HTML from pages produced by `@boxpdf/reader`. This is the
-PDF-to-HTML package; it is intentionally named differently from `boxpdf-html`,
-which converts HTML in the opposite direction.
+Streams text-oriented HTML from pages produced by `@boxpdf/reader`.
 
 ```ts
 import { open } from "node:fs/promises";

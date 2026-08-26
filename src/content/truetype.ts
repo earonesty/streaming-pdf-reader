@@ -1,5 +1,11 @@
 export interface TrueTypeMetrics {
   widthOfCodePoint(codePoint: number): number | undefined;
+  codePointOfGlyph(glyph: number): number | undefined;
+}
+
+interface CmapMapping {
+  glyphOfCodePoint(codePoint: number): number | undefined;
+  codePointOfGlyph(glyph: number): number | undefined;
 }
 
 interface TableRecord {
@@ -23,15 +29,16 @@ export function parseTrueTypeMetrics(bytes: Uint8Array): TrueTypeMetrics | undef
   const numberOfGlyphs = view.getUint16(maxp.offset + 4);
   if (unitsPerEm === 0 || numberOfHMetrics === 0 || numberOfGlyphs === 0) return undefined;
   if (numberOfHMetrics > numberOfGlyphs || !contains(hmtx, numberOfHMetrics * 4)) return undefined;
-  const glyphForCodePoint = readCmap(view, cmap);
-  if (!glyphForCodePoint) return undefined;
+  const mapping = readCmap(view, cmap, numberOfGlyphs);
+  if (!mapping) return undefined;
   return {
     widthOfCodePoint(codePoint) {
-      const glyph = glyphForCodePoint(codePoint);
+      const glyph = mapping.glyphOfCodePoint(codePoint);
       if (glyph === undefined || glyph >= numberOfGlyphs) return undefined;
       const metric = Math.min(glyph, numberOfHMetrics - 1);
       return view.getUint16(hmtx.offset + metric * 4) / unitsPerEm;
     },
+    codePointOfGlyph: mapping.codePointOfGlyph,
   };
 }
 
@@ -53,7 +60,8 @@ function readTableDirectory(bytes: Uint8Array, view: DataView): Map<string, Tabl
 function readCmap(
   view: DataView,
   table: TableRecord,
-): ((codePoint: number) => number | undefined) | undefined {
+  numberOfGlyphs: number,
+): CmapMapping | undefined {
   if (!contains(table, 4)) return undefined;
   const count = view.getUint16(table.offset + 2);
   const candidates: Array<{ format: number; offset: number; score: number }> = [];
@@ -74,33 +82,42 @@ function readCmap(
   if (!selected) return undefined;
   return selected.format === 12
     ? readFormat12(view, table, selected.offset)
-    : readFormat4(view, table, selected.offset);
+    : readFormat4(view, table, selected.offset, numberOfGlyphs);
 }
 
-function readFormat12(
-  view: DataView,
-  table: TableRecord,
-  offset: number,
-): ((codePoint: number) => number | undefined) | undefined {
+function readFormat12(view: DataView, table: TableRecord, offset: number): CmapMapping | undefined {
   if (offset + 16 > table.offset + table.length) return undefined;
   const length = view.getUint32(offset + 4);
   const groups = view.getUint32(offset + 12);
   if (length < 16 || offset + length > table.offset + table.length || groups > 1_000_000)
     return undefined;
   if (16 + groups * 12 > length) return undefined;
-  return (codePoint) => {
-    let low = 0;
-    let high = groups - 1;
-    while (low <= high) {
-      const middle = Math.floor((low + high) / 2);
-      const record = offset + 16 + middle * 12;
-      const start = view.getUint32(record);
-      const end = view.getUint32(record + 4);
-      if (codePoint < start) high = middle - 1;
-      else if (codePoint > end) low = middle + 1;
-      else return view.getUint32(record + 8) + codePoint - start;
-    }
-    return undefined;
+  return {
+    glyphOfCodePoint(codePoint) {
+      let low = 0;
+      let high = groups - 1;
+      while (low <= high) {
+        const middle = Math.floor((low + high) / 2);
+        const record = offset + 16 + middle * 12;
+        const start = view.getUint32(record);
+        const end = view.getUint32(record + 4);
+        if (codePoint < start) high = middle - 1;
+        else if (codePoint > end) low = middle + 1;
+        else return view.getUint32(record + 8) + codePoint - start;
+      }
+      return undefined;
+    },
+    codePointOfGlyph(glyph) {
+      for (let index = 0; index < groups; index += 1) {
+        const record = offset + 16 + index * 12;
+        const start = view.getUint32(record);
+        const end = view.getUint32(record + 4);
+        const firstGlyph = view.getUint32(record + 8);
+        if (glyph >= firstGlyph && glyph <= firstGlyph + end - start)
+          return start + glyph - firstGlyph;
+      }
+      return undefined;
+    },
   };
 }
 
@@ -108,7 +125,8 @@ function readFormat4(
   view: DataView,
   table: TableRecord,
   offset: number,
-): ((codePoint: number) => number | undefined) | undefined {
+  numberOfGlyphs: number,
+): CmapMapping | undefined {
   if (offset + 14 > table.offset + table.length) return undefined;
   const length = view.getUint16(offset + 2);
   const segmentCount = view.getUint16(offset + 6) / 2;
@@ -119,7 +137,7 @@ function readFormat4(
   const deltas = startCodes + segmentCount * 2;
   const rangeOffsets = deltas + segmentCount * 2;
   if (rangeOffsets + segmentCount * 2 > offset + length) return undefined;
-  return (codePoint) => {
+  const glyphOfCodePoint = (codePoint: number): number | undefined => {
     if (codePoint > 0xffff) return undefined;
     for (let index = 0; index < segmentCount; index += 1) {
       const end = view.getUint16(endCodes + index * 2);
@@ -136,6 +154,37 @@ function readFormat4(
       return glyph === 0 ? 0 : (glyph + delta) & 0xffff;
     }
     return undefined;
+  };
+  let reverse: Uint32Array | undefined;
+  return {
+    glyphOfCodePoint,
+    codePointOfGlyph(glyph) {
+      if (!reverse) {
+        reverse = new Uint32Array(numberOfGlyphs);
+        let work = 0;
+        for (let index = 0; index < segmentCount && work <= 65_536; index += 1) {
+          const start = view.getUint16(startCodes + index * 2);
+          const end = view.getUint16(endCodes + index * 2);
+          const delta = view.getInt16(deltas + index * 2);
+          const rangeOffsetPosition = rangeOffsets + index * 2;
+          const rangeOffset = view.getUint16(rangeOffsetPosition);
+          for (let codePoint = start; codePoint <= end && work <= 65_536; codePoint += 1) {
+            work += 1;
+            let mapped: number;
+            if (rangeOffset === 0) mapped = (codePoint + delta) & 0xffff;
+            else {
+              const position = rangeOffsetPosition + rangeOffset + (codePoint - start) * 2;
+              if (position + 2 > offset + length) break;
+              const raw = view.getUint16(position);
+              mapped = raw === 0 ? 0 : (raw + delta) & 0xffff;
+            }
+            if (mapped < reverse.length && reverse[mapped] === 0) reverse[mapped] = codePoint + 1;
+          }
+        }
+      }
+      const stored = reverse[glyph];
+      return stored ? stored - 1 : undefined;
+    },
   };
 }
 

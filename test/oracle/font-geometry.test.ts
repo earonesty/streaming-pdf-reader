@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { describe, expect, it } from "vitest";
 import { memorySource, openPdf } from "../../src/index.js";
+import { buildPdfObjects } from "../support/pdf-builder.js";
 
 const standardFontDataUrl = `${resolve(import.meta.dirname, "../../node_modules/pdfjs-dist/standard_fonts")}/`;
 
@@ -44,23 +45,10 @@ describe("PDF.js font geometry oracle", () => {
 });
 
 function buildPdf(font: string, content: string): Uint8Array {
-  const objects = [
+  return buildPdfObjects([
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
     `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << /Font << /F1 ${font} >> >> /Contents 4 0 R >>`,
     `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
-  ];
-  let pdf = "%PDF-1.7\n";
-  const offsets = [0];
-  objects.forEach((object, index) => {
-    offsets[index + 1] = pdf.length;
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
-  });
-  const xref = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  for (let index = 1; index <= objects.length; index += 1) {
-    pdf += `${String(offsets[index]).padStart(10, "0")} 00000 n \n`;
-  }
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return new TextEncoder().encode(pdf);
+  ]);
 }

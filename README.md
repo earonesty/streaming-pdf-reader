@@ -47,9 +47,8 @@ text or table extraction.
 ## HTML writer
 
 `@boxpdf/html-writer` streams PDF pages to HTML through an awaited write
-callback. Its name distinguishes PDF-to-HTML output from the existing
-HTML-to-PDF `boxpdf-html` project. Positioned output preserves text coordinates;
-flow output uses inferred lines and tables. See `packages/html-writer`.
+callback. Positioned output preserves text coordinates; flow output uses
+inferred lines and tables. See `packages/html-writer`.
 
 ## Usage
 
@@ -105,14 +104,19 @@ The v1 parser supports:
 - unfiltered, Flate, and ASCII-hex streams with decoded-size limits
 - literal and hexadecimal strings, common text operators, graphics transforms,
   WinAnsi text, UTF-16 strings, Type 0 fonts, and common `ToUnicode` mappings
+- Standard 14, explicit, embedded TrueType, and PFA/PFB Type 1 horizontal
+  metrics
+- horizontal and vertical CID widths, vertical origins, `TJ` displacement, and
+  top-to-bottom structure grouping
 - bounded sparse byte caching with source-read and resident-byte telemetry
 - a configurable packed-xref byte ceiling with resident-byte telemetry
 - deterministic line grouping, aligned-table inference, and rows, CSV, and HTML formatting
 
 Encrypted PDFs, damaged-file repair, inline images in content streams, uncommon
-stream filters, complete embedded Type 1 and vertical font metrics, OCR, and
-rendering are outside the v1 support surface. Unsupported filters and configured
-resource limits fail with explicit errors.
+stream filters, Type1C/CFF width recovery, named CMap collections without a
+`ToUnicode` map or usable embedded TrueType cmap, OCR, and rendering are outside
+the v1 support surface. Unsupported filters and configured resource limits fail
+with explicit errors.
 
 ## Compatibility oracle
 

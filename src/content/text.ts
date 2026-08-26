@@ -10,12 +10,16 @@ import {
   type PdfValue,
 } from "../syntax/values.js";
 import type { TextSpan } from "../types.js";
+import { reorderBidiLines } from "./bidi.js";
 import {
   decodeUtf16Bytes,
   decodeWithMap,
   normalizeTextCompatibility,
   parseToUnicode,
 } from "./cmap.js";
+
+export { reorderBidiLines, reorderMixedRtlCitation } from "./bidi.js";
+
 import { type FontDecoder, loadFontEncoding } from "./encoding.js";
 
 interface TextState {
@@ -60,68 +64,6 @@ export async function extractPageText(
     await interpret(reader, bytes, state, fonts, page.resources, spans, page, 0, new Set());
   }
   return reorderBidiLines(spans);
-}
-
-export function reorderBidiLines(spans: TextSpan[]): TextSpan[] {
-  const output: TextSpan[] = [];
-  for (let start = 0; start < spans.length; ) {
-    let end = start + 1;
-    const y = (spans[start] as TextSpan).bounds.y;
-    while (end < spans.length && Math.abs((spans[end] as TextSpan).bounds.y - y) <= 0.25) end += 1;
-    const line = spans.slice(start, end);
-    const text = line.map((span) => span.text).join("");
-    const rtlCount = [...text].filter(isRtlCharacter).length;
-    const strongCount = [...text].filter(
-      (character) => isRtlCharacter(character) || /[A-Za-z]/.test(character),
-    ).length;
-    if (rtlCount > 0 && rtlCount * 2 >= strongCount) {
-      const left = Math.min(...line.map((span) => span.bounds.x));
-      const preserveChunkOrder =
-        /[\u0600-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/u.test(text) && !/[\u0590-\u05FF]/u.test(text);
-      const chunks = preserveChunkOrder ? line : line.reverse();
-      const reordered = chunks.map((span) => ({
-        ...span,
-        text: [...span.text].some(isRtlCharacter) ? [...span.text].reverse().join("") : span.text,
-        bounds: { ...span.bounds },
-        direction: "rtl" as const,
-      }));
-      const mixedText = reorderMixedRtlCitation(reordered.map((span) => span.text).join(""));
-      if (mixedText !== undefined) {
-        const first = reordered[0] as TextSpan;
-        output.push({ ...first, text: mixedText, bounds: { ...first.bounds, x: left } });
-        start = end;
-        continue;
-      }
-      const first = reordered[0] as TextSpan;
-      const wordInset =
-        /\s/u.test(text) && /[\u0590-\u05FF]/u.test(text) ? first.fontSize * 0.035 : 0;
-      first.bounds.x = left + wordInset;
-      output.push(...reordered);
-    } else {
-      output.push(...line);
-    }
-    start = end;
-  }
-  return output;
-}
-
-export function reorderMixedRtlCitation(text: string): string | undefined {
-  const match =
-    /^\)\s*([\u0590-\u05FF][\u0590-\u05FF\s]*?)(\d+)\(([\u0590-\u05FF]+)\(\)(\d+)([\u0590-\u05FF][\u0590-\u05FF\s]*)$/u.exec(
-      text,
-    );
-  if (!match) return undefined;
-  const [, following, visualRight, label, visualLeft, preceding] = match;
-  return `${preceding ?? ""}${visualLeft ?? ""}(${label ?? ""})(${visualRight ?? ""}) ${following ?? ""}`;
-}
-
-function isRtlCharacter(character: string): boolean {
-  const code = character.codePointAt(0) ?? 0;
-  return (
-    (code >= 0x0590 && code <= 0x08ff) ||
-    (code >= 0xfb1d && code <= 0xfdff) ||
-    (code >= 0xfe70 && code <= 0xfeff)
-  );
 }
 
 async function interpret(
@@ -256,10 +198,11 @@ async function applyOperator(
         for (const item of array) {
           if (isPdfString(item)) showString(item, state, fonts, spans, page);
           else if (typeof item === "number") {
+            const vertical = fonts.get(state.font ?? "")?.writingMode === "vertical";
             state.textMatrix = translate(
               state.textMatrix,
-              (-item / 1000) * state.fontSize * state.horizontalScale,
-              0,
+              vertical ? 0 : (-item / 1000) * state.fontSize * state.horizontalScale,
+              vertical ? (-item / 1000) * state.fontSize : 0,
             );
           }
         }
@@ -362,6 +305,7 @@ function showString(
   page: ParsedPage,
 ): void {
   const font = fonts.get(state.font ?? "");
+  const vertical = font?.writingMode === "vertical";
   let text = normalizeTextCompatibility(font?.decode(value.bytes) ?? decodePdfString(value.bytes));
   let bytes = value.bytes;
   const leadingSpaces = /^ +/.exec(text)?.[0] ?? "";
@@ -369,14 +313,20 @@ function showString(
   if (leadingSpaces) {
     if (bytes.length === text.length) {
       const leadingBytes = bytes.subarray(0, leadingSpaces.length);
+      const advance = textAdvance(leadingBytes, leadingSpaces, state, font);
       state.textMatrix = translate(
         state.textMatrix,
-        textAdvance(leadingBytes, leadingSpaces, state, font),
-        0,
+        vertical ? 0 : advance,
+        vertical ? -advance : 0,
       );
       bytes = bytes.subarray(leadingSpaces.length);
     } else {
-      state.textMatrix = translate(state.textMatrix, approximateAdvance(leadingSpaces, state), 0);
+      const advance = approximateAdvance(leadingSpaces, state, vertical);
+      state.textMatrix = translate(
+        state.textMatrix,
+        vertical ? 0 : advance,
+        vertical ? -advance : 0,
+      );
     }
     text = text.slice(leadingSpaces.length);
   }
@@ -384,14 +334,26 @@ function showString(
   const width = textAdvance(bytes, text, state, font);
   const visible = visibleText(bytes, text, state, font, page);
   if (!visible) {
-    state.textMatrix = translate(state.textMatrix, width, 0);
+    state.textMatrix = translate(state.textMatrix, vertical ? 0 : width, vertical ? -width : 0);
     return;
   }
-  const visibleMatrix = translate(state.textMatrix, visible.offset, 0);
+  const visibleMatrix = translate(
+    state.textMatrix,
+    vertical ? 0 : visible.offset,
+    vertical ? -visible.offset : 0,
+  );
   const [x, y] = transformPoint(state.ctm, visibleMatrix[4], visibleMatrix[5] + state.rise);
-  const endMatrix = translate(visibleMatrix, visible.width, 0);
+  const endMatrix = translate(
+    visibleMatrix,
+    vertical ? 0 : visible.width,
+    vertical ? -visible.width : 0,
+  );
   const [endX, endY] = transformPoint(state.ctm, endMatrix[4], endMatrix[5] + state.rise);
-  const topMatrix = translate(visibleMatrix, 0, Math.abs(state.fontSize));
+  const topMatrix = translate(
+    visibleMatrix,
+    vertical ? Math.abs(state.fontSize) * state.horizontalScale : 0,
+    vertical ? 0 : Math.abs(state.fontSize),
+  );
   const [topX, topY] = transformPoint(state.ctm, topMatrix[4], topMatrix[5] + state.rise);
   spans.push({
     text: visible.text,
@@ -399,15 +361,15 @@ function showString(
     bounds: {
       x,
       y,
-      width: Math.hypot(endX - x, endY - y),
-      height: Math.hypot(topX - x, topY - y),
+      width: vertical ? Math.hypot(topX - x, topY - y) : Math.hypot(endX - x, endY - y),
+      height: vertical ? Math.hypot(endX - x, endY - y) : Math.hypot(topX - x, topY - y),
     },
-    direction: "ltr",
+    direction: vertical ? "ttb" : "ltr",
     fontName: state.font,
     fontSize: Math.hypot(topX - x, topY - y),
     source: { page: 0, objectNumber: page.ref.object },
   });
-  state.textMatrix = translate(state.textMatrix, width, 0);
+  state.textMatrix = translate(state.textMatrix, vertical ? 0 : width, vertical ? -width : 0);
 }
 
 function visibleText(
@@ -425,7 +387,8 @@ function visibleText(
   let last = -1;
   let firstOffset = 0;
   for (let index = 0; index < bytes.length; index += 1) {
-    const matrix = translate(state.textMatrix, offset, 0);
+    const vertical = font.writingMode === "vertical";
+    const matrix = translate(state.textMatrix, vertical ? 0 : offset, vertical ? -offset : 0);
     const [x, y] = transformPoint(state.ctm, matrix[4], matrix[5] + state.rise);
     if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
       if (first < 0) {
@@ -453,21 +416,24 @@ function textAdvance(
   state: TextState,
   font: FontDecoder | undefined,
 ): number {
-  if (!font?.advance) return approximateAdvance(text, state);
+  const vertical = font?.writingMode === "vertical";
+  const metric = vertical ? font.verticalAdvance : font?.advance;
+  if (!metric) return approximateAdvance(text, state, vertical);
   const spacing =
     text.length * state.charSpacing +
     [...text].filter((character) => character === " ").length * state.wordSpacing;
-  return (font.advance(bytes) * state.fontSize + spacing) * state.horizontalScale;
+  const advance = metric(bytes) * state.fontSize + spacing;
+  return vertical ? advance : advance * state.horizontalScale;
 }
 
-function approximateAdvance(text: string, state: TextState): number {
+function approximateAdvance(text: string, state: TextState, vertical = false): number {
   let units = 0;
   for (const character of text) {
     units += character === " " ? 0.278 : 0.5;
     units += state.charSpacing / Math.max(1, state.fontSize);
     if (character === " ") units += state.wordSpacing / Math.max(1, state.fontSize);
   }
-  return units * state.fontSize * state.horizontalScale;
+  return units * state.fontSize * (vertical ? 1 : state.horizontalScale);
 }
 
 async function contentStreams(
@@ -509,8 +475,8 @@ async function loadFonts(
   for (const [name, value] of fonts) {
     const font = await reader.resolveDict(value);
     if (!font) continue;
-    const encoding = await loadFontEncoding(reader, font);
     const toUnicodeValue = font.get("ToUnicode");
+    const encoding = await loadFontEncoding(reader, font, toUnicodeValue === undefined);
     if (toUnicodeValue) {
       const toUnicode = await reader.resolve(toUnicodeValue);
       if (isStream(toUnicode)) {
@@ -519,6 +485,9 @@ async function loadFonts(
         output.set(name, {
           decode: (bytes) => decodeWithMap(bytes, unicodeMap, codeBytes, encoding),
           ...(encoding.advance ? { advance: encoding.advance } : {}),
+          ...(encoding.verticalAdvance ? { verticalAdvance: encoding.verticalAdvance } : {}),
+          ...(encoding.verticalOrigin ? { verticalOrigin: encoding.verticalOrigin } : {}),
+          ...(encoding.writingMode ? { writingMode: encoding.writingMode } : {}),
         });
         continue;
       }
@@ -529,7 +498,13 @@ async function loadFonts(
       isName(namedEncoding) &&
       /-UTF16-(?:H|V)$/.test(namedEncoding.value)
     ) {
-      output.set(name, { decode: decodeUtf16Bytes });
+      output.set(name, {
+        decode: decodeUtf16Bytes,
+        ...(encoding.advance ? { advance: encoding.advance } : {}),
+        ...(encoding.verticalAdvance ? { verticalAdvance: encoding.verticalAdvance } : {}),
+        ...(encoding.verticalOrigin ? { verticalOrigin: encoding.verticalOrigin } : {}),
+        ...(encoding.writingMode ? { writingMode: encoding.writingMode } : {}),
+      });
       continue;
     }
     output.set(name, encoding);

@@ -83,6 +83,25 @@ describe("structured extraction quality gate", () => {
 
     expect(structurePage(page).lines[0]?.text).toBe("24-164 (c) hello");
   });
+
+  it("groups vertical spans into right-to-left columns and top-to-bottom text", () => {
+    const vertical = (text: string, x: number, y: number): TextSpan => ({
+      ...span(text, x, y, 10, 10, "F1"),
+      bounds: { x, y, width: 10, height: 10 },
+      direction: "ttb",
+    });
+    const page: ExtractedPage = {
+      number: 1,
+      width: 200,
+      height: 200,
+      rotate: 0,
+      spans: [vertical("語", 100, 80), vertical("日", 120, 100), vertical("本", 120, 90)],
+    };
+    const structured = structurePage(page);
+    expect(structured.lines.map((line) => line.text)).toEqual(["日本", "語"]);
+    expect(structured.lines[0]?.reasons).toEqual(["shared-vertical-axis"]);
+    expect(structured.tables).toEqual([]);
+  });
 });
 
 function span(

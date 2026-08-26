@@ -65,6 +65,10 @@ text score removes all whitespace before comparison and checks only the first
 nonempty span origin on unrotated pages. It does not score span width, height,
 font size, later-span positions, or reconstructed word boundaries.
 
+The upstream `vertical.pdf` fixture is one of the 58 load-only cases. Its
+original score checks that the file opens but does not compare its Japanese
+text, top-to-bottom direction, `/W2` geometry, or vertical `TJ` displacement.
+
 That scoring explains why the Atlantic Beach spacing defect passed the corpus.
 The reader decoded every character correctly, while inaccurate fallback font
 widths made adjacent word bounds overlap. Whitespace removal hid the serialized
@@ -78,6 +82,18 @@ The strengthened layout gates are:
    check both inferred word spaces and `24-164` continuation behavior.
 3. Font metric unit cases cover Standard 14 widths, `/MissingWidth`, embedded
    TrueType `cmap` formats 4 and 12, and `hmtx` fallback behavior.
+4. Embedded-font cases cover PFA and PFB containers, binary and ASCII-hex
+   eexec, `lenIV`, `hsbw`, `sbw`, subroutines, and bounded malformed input.
+5. Vertical differential cases compare PDF.js text, direction, x/y, width,
+   height, `/W2` array and range forms, `/DW2` defaults, origins, and `TJ`
+   displacement. Structure cases verify right-to-left column order and
+   top-to-bottom text flow.
+
+PDF.js substitutes a base-font width when the generated Type 1 case omits
+`/Widths`, even though the embedded CharString supplies a different width. The
+differential test records both results and requires BoxPDF to retain the
+embedded metric. Standard inputs with explicit widths continue to use PDF.js as
+an exact geometry oracle.
 
 The 118/118 score remains the parser and character-decoding gate. It should not
 be described as complete layout parity. Future production layout defects must

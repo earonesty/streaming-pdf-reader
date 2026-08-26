@@ -1,11 +1,17 @@
 import { Encodings, Font, type IFontNames } from "@pdf-lib/standard-fonts";
 import type { PdfObjectReader } from "../syntax/document.js";
 import { isDict, isName, isStream, type PdfDict, type PdfValue } from "../syntax/values.js";
+import { findBytes } from "./bytes.js";
+import { embeddedCidUnicodeDecoder, loadCidMetrics } from "./cid.js";
 import { parseTrueTypeMetrics } from "./truetype.js";
+import { parseType1Metrics, unwrapType1Program } from "./type1.js";
 
 export interface FontDecoder {
   decode(bytes: Uint8Array): string;
   advance?(bytes: Uint8Array): number;
+  verticalAdvance?(bytes: Uint8Array): number;
+  verticalOrigin?(bytes: Uint8Array): { x: number; y: number };
+  writingMode?: "vertical";
 }
 
 const glyphNames: Record<string, string> = {
@@ -86,6 +92,7 @@ const glyphNames: Record<string, string> = {
 export async function loadFontEncoding(
   reader: PdfObjectReader,
   font: PdfDict,
+  recoverCidUnicode = true,
 ): Promise<FontDecoder> {
   const encodingValue = font.get("Encoding");
   const encoding = encodingValue === undefined ? undefined : await reader.resolve(encodingValue);
@@ -109,10 +116,19 @@ export async function loadFontEncoding(
       glyphTable,
     );
   }
-  const widths = await loadFontWidths(reader, font, table, glyphTable);
+  const cidMetrics = await loadCidMetrics(reader, font, encoding);
+  const cidUnicode = recoverCidUnicode ? await embeddedCidUnicodeDecoder(reader, font) : undefined;
+  const widths = cidMetrics?.advance ?? (await loadFontWidths(reader, font, table, glyphTable));
   return {
-    decode: (bytes) => [...bytes].map((byte) => table[byte] as string).join(""),
+    decode: cidUnicode ?? ((bytes) => [...bytes].map((byte) => table[byte] as string).join("")),
     ...(widths ? { advance: (bytes: Uint8Array) => widths(bytes) } : {}),
+    ...(cidMetrics?.verticalAdvance
+      ? {
+          verticalAdvance: cidMetrics.verticalAdvance,
+          verticalOrigin: cidMetrics.verticalOrigin,
+          writingMode: "vertical" as const,
+        }
+      : {}),
   };
 }
 
@@ -122,18 +138,17 @@ async function loadFontWidths(
   characterTable: string[],
   glyphTable: Array<string | undefined>,
 ): Promise<((bytes: Uint8Array) => number) | undefined> {
-  if (isName(font.get("Subtype"), "Type0")) return loadCidWidths(reader, font);
   const missingWidth = await loadMissingWidth(reader, font);
   const standardWidths = standardFontWidths(font, glyphTable);
   const value = font.get("Widths");
   if (value === undefined) {
-    const embeddedWidths = await embeddedTrueTypeWidths(reader, font, characterTable);
-    return standardWidths ?? embeddedWidths ?? constantWidth(missingWidth);
+    const embeddedWidths = await embeddedFontWidths(reader, font, characterTable, glyphTable);
+    return embeddedWidths ?? standardWidths ?? constantWidth(missingWidth);
   }
   const resolved = await reader.resolve(value);
   if (!Array.isArray(resolved)) {
-    const embeddedWidths = await embeddedTrueTypeWidths(reader, font, characterTable);
-    return standardWidths ?? embeddedWidths ?? constantWidth(missingWidth);
+    const embeddedWidths = await embeddedFontWidths(reader, font, characterTable, glyphTable);
+    return embeddedWidths ?? standardWidths ?? constantWidth(missingWidth);
   }
   const first = typeof font.get("FirstChar") === "number" ? (font.get("FirstChar") as number) : 0;
   const widths = resolved.map((width) => (typeof width === "number" ? width / 1000 : undefined));
@@ -147,27 +162,40 @@ async function loadFontWidths(
   };
 }
 
-async function embeddedTrueTypeWidths(
+async function embeddedFontWidths(
   reader: PdfObjectReader,
   font: PdfDict,
   characterTable: string[],
+  glyphTable: Array<string | undefined>,
 ): Promise<((bytes: Uint8Array) => number) | undefined> {
-  if (!isName(font.get("Subtype"), "TrueType")) return undefined;
+  const isTrueType = isName(font.get("Subtype"), "TrueType");
+  const isType1 = isName(font.get("Subtype"), "Type1") || isName(font.get("Subtype"), "MMType1");
+  if (!isTrueType && !isType1) return undefined;
   const descriptor = await reader.resolveDict(font.get("FontDescriptor"));
-  const value = descriptor?.get("FontFile2");
+  const value = descriptor?.get(isTrueType ? "FontFile2" : "FontFile");
   if (value === undefined) return undefined;
   const stream = await reader.resolve(value);
   if (!isStream(stream)) return undefined;
-  const metrics = parseTrueTypeMetrics(await reader.decodeStream(stream));
-  if (!metrics) return undefined;
-  return (bytes) => {
-    let total = 0;
-    for (const byte of bytes) {
-      const character = characterTable[byte] ?? "";
-      for (const value of character) {
-        total += metrics.widthOfCodePoint(value.codePointAt(0) ?? 0) ?? 0.5;
+  const bytes = await reader.decodeStream(stream);
+  if (isTrueType) {
+    const metrics = parseTrueTypeMetrics(bytes);
+    if (!metrics) return undefined;
+    return (encoded) => {
+      let total = 0;
+      for (const byte of encoded) {
+        const character = characterTable[byte] ?? "";
+        for (const value of character) {
+          total += metrics.widthOfCodePoint(value.codePointAt(0) ?? 0) ?? 0.5;
+        }
       }
-    }
+      return total;
+    };
+  }
+  const metrics = parseType1Metrics(bytes);
+  if (!metrics) return undefined;
+  return (encoded) => {
+    let total = 0;
+    for (const byte of encoded) total += metrics.widthOfGlyph(glyphTable[byte] ?? ".notdef") ?? 0.5;
     return total;
   };
 }
@@ -242,52 +270,6 @@ function glyphNameForCharacter(character: string, encodingName: string): string 
     : undefined;
 }
 
-async function loadCidWidths(
-  reader: PdfObjectReader,
-  font: PdfDict,
-): Promise<((bytes: Uint8Array) => number) | undefined> {
-  const descendantsValue = font.get("DescendantFonts");
-  if (descendantsValue === undefined) return undefined;
-  const descendants = await reader.resolve(descendantsValue);
-  if (!Array.isArray(descendants) || descendants.length === 0) return undefined;
-  const descendant = await reader.resolveDict(descendants[0]);
-  if (!descendant) return undefined;
-  const defaultWidth =
-    typeof descendant.get("DW") === "number" ? (descendant.get("DW") as number) / 1000 : 1;
-  const widths = new Map<number, number>();
-  const value = descendant.get("W");
-  const entries = value === undefined ? undefined : await reader.resolve(value);
-  if (Array.isArray(entries)) {
-    for (let index = 0; index < entries.length; ) {
-      const first = entries[index];
-      const next = entries[index + 1];
-      if (typeof first !== "number") break;
-      if (Array.isArray(next)) {
-        for (const [offset, width] of next.entries()) {
-          if (typeof width === "number") widths.set(first + offset, width / 1000);
-        }
-        index += 2;
-        continue;
-      }
-      const last = next;
-      const width = entries[index + 2];
-      if (typeof last !== "number" || typeof width !== "number") break;
-      for (let code = first; code <= last && code - first <= 65_536; code += 1) {
-        widths.set(code, width / 1000);
-      }
-      index += 3;
-    }
-  }
-  return (bytes) => {
-    let total = 0;
-    for (let index = 0; index + 1 < bytes.length; index += 2) {
-      const code = ((bytes[index] ?? 0) << 8) | (bytes[index + 1] ?? 0);
-      total += widths.get(code) ?? defaultWidth;
-    }
-    return total;
-  };
-}
-
 async function embeddedFontEncoding(
   reader: PdfObjectReader,
   font: PdfDict,
@@ -305,6 +287,7 @@ async function embeddedFontEncoding(
 }
 
 export function parseType1Encoding(bytes: Uint8Array): string[] | undefined {
+  bytes = unwrapType1Program(bytes);
   const eexec = new TextEncoder().encode("currentfile eexec");
   const marker = findBytes(bytes, eexec);
   const clearLength = marker < 0 ? Math.min(bytes.length, 64 * 1024) : marker;
@@ -322,16 +305,6 @@ export function parseType1Encoding(bytes: Uint8Array): string[] | undefined {
     }
   }
   return found ? table : undefined;
-}
-
-function findBytes(haystack: Uint8Array, needle: Uint8Array): number {
-  outer: for (let index = 0; index <= haystack.length - needle.length; index += 1) {
-    for (let offset = 0; offset < needle.length; offset += 1) {
-      if (haystack[index + offset] !== needle[offset]) continue outer;
-    }
-    return index;
-  }
-  return -1;
 }
 
 export function detectTrueTypeBaseEncoding(bytes: Uint8Array): string | undefined {

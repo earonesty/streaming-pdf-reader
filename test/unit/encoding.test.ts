@@ -7,6 +7,7 @@ import {
 } from "../../src/content/encoding.js";
 import type { PdfObjectReader } from "../../src/syntax/document.js";
 import type { PdfDict, PdfValue } from "../../src/syntax/values.js";
+import { buildTrueTypeFont } from "../support/truetype-font.js";
 
 describe("simple font encodings", () => {
   it("applies Differences names and ligatures over the base encoding", async () => {
@@ -134,6 +135,112 @@ describe("simple font encodings", () => {
       ]),
     );
     expect(decoder.advance?.(Uint8Array.of(0, 1, 0, 2, 0, 4, 0, 5, 0, 9))).toBeCloseTo(2.2);
+  });
+
+  it("uses vertical CID advances, origins, ranges, and defaults", async () => {
+    const descendant: PdfDict = new Map<string, PdfValue>([
+      ["DW", 800],
+      ["W", [65, [600]]],
+      ["DW2", [880, -1000]],
+      ["W2", [65, [-900, 300, 850], 66, 67, -1100, 350, 870]],
+    ]);
+    const reader = {
+      async resolve(value: PdfValue) {
+        return value;
+      },
+      async resolveDict(value: PdfValue | undefined) {
+        return value instanceof Map ? value : undefined;
+      },
+    } as PdfObjectReader;
+    const decoder = await loadFontEncoding(
+      reader,
+      new Map<string, PdfValue>([
+        ["Subtype", { type: "name", value: "Type0" }],
+        ["Encoding", { type: "name", value: "Identity-V" }],
+        ["DescendantFonts", [descendant]],
+      ]),
+    );
+    const codes = Uint8Array.of(0, 65, 0, 66, 0, 68);
+    expect(decoder.writingMode).toBe("vertical");
+    expect(decoder.advance?.(codes)).toBeCloseTo(2.2);
+    expect(decoder.verticalAdvance?.(codes)).toBeCloseTo(3);
+    expect(decoder.verticalOrigin?.(Uint8Array.of(0, 65))).toEqual({ x: 0.3, y: 0.85 });
+    expect(decoder.verticalOrigin?.(Uint8Array.of(0, 66))).toEqual({ x: 0.35, y: 0.87 });
+    expect(decoder.verticalOrigin?.(Uint8Array.of(0, 68))).toEqual({ x: 0.4, y: 0.88 });
+  });
+
+  it("detects WMode 1 in a CMap stream and tolerates missing vertical arrays", async () => {
+    const encoding = {
+      type: "stream",
+      dict: new Map(),
+      bytes: new TextEncoder().encode("/WMode 1 def"),
+    } as const;
+    const descendant: PdfDict = new Map();
+    const reader = {
+      async resolve(value: PdfValue) {
+        return value;
+      },
+      async resolveDict(value: PdfValue | undefined) {
+        return value instanceof Map ? value : undefined;
+      },
+      async decodeStream(stream: { bytes: Uint8Array }) {
+        return stream.bytes;
+      },
+    } as PdfObjectReader;
+    const decoder = await loadFontEncoding(
+      reader,
+      new Map<string, PdfValue>([
+        ["Subtype", { type: "name", value: "Type0" }],
+        ["Encoding", encoding],
+        ["DescendantFonts", [descendant]],
+      ]),
+    );
+    expect(decoder.writingMode).toBe("vertical");
+    expect(decoder.verticalAdvance?.(Uint8Array.of(0, 1))).toBe(1);
+    expect(decoder.verticalOrigin?.(Uint8Array.of(0, 1))).toEqual({ x: 0.5, y: 0.88 });
+  });
+
+  it("recovers CID Unicode text from an embedded TrueType cmap", async () => {
+    const fontFile = { type: "stream", dict: new Map(), bytes: buildTrueTypeFont() } as const;
+    const descriptor: PdfDict = new Map([["FontFile2", fontFile]]);
+    const descendant: PdfDict = new Map<string, PdfValue>([
+      ["Subtype", { type: "name", value: "CIDFontType2" }],
+      ["FontDescriptor", descriptor],
+    ]);
+    const reader = {
+      async resolve(value: PdfValue) {
+        return value;
+      },
+      async resolveDict(value: PdfValue | undefined) {
+        return value instanceof Map ? value : undefined;
+      },
+      async decodeStream(stream: { bytes: Uint8Array }) {
+        return stream.bytes;
+      },
+    } as PdfObjectReader;
+    const decoder = await loadFontEncoding(
+      reader,
+      new Map<string, PdfValue>([
+        ["Subtype", { type: "name", value: "Type0" }],
+        ["Encoding", { type: "name", value: "Identity-H" }],
+        ["DescendantFonts", [descendant]],
+      ]),
+    );
+    expect(decoder.decode(Uint8Array.of(0, 1, 0, 2, 0, 9))).toBe("AB�");
+    descendant.set("CIDToGIDMap", {
+      type: "stream",
+      dict: new Map(),
+      bytes: Uint8Array.of(0, 0, 0, 2, 0, 1),
+    });
+    const remapped = await loadFontEncoding(
+      reader,
+      new Map<string, PdfValue>([
+        ["Subtype", { type: "name", value: "Type0" }],
+        ["Encoding", { type: "name", value: "Identity-H" }],
+        ["DescendantFonts", [descendant]],
+      ]),
+    );
+    expect(remapped.decode(Uint8Array.of(0, 1, 0, 2))).toBe("BA");
   });
 
   it("omits advances for missing or malformed width structures", async () => {
