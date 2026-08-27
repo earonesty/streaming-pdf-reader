@@ -76,7 +76,9 @@ async function writePositionedPage(
     `<section class="pdf-page pdf-page--visual pdf-page--positioned" data-page="${page.number}" data-rotate="${page.rotate}" style="width:${number(displayWidth)}pt;height:${number(displayHeight)}pt">`,
   );
   const fontAliases = new Map(
-    (page.fonts ?? []).map((font) => [font.id, `boxpdf-${page.number}-${font.id}`]),
+    (page.fonts ?? [])
+      .filter((font) => !/courier|mono/i.test(font.family ?? ""))
+      .map((font) => [font.id, `boxpdf-${page.number}-${font.id}`]),
   );
   if ((options.includeStyles ?? true) && page.fonts?.length) {
     await write(`<style>${page.fonts.map((font) => fontFace(font, fontAliases)).join("")}</style>`);
@@ -84,8 +86,34 @@ async function writePositionedPage(
   await write(
     `<div class="pdf-page-content pdf-page-content--${page.rotate}" style="width:${number(page.width)}pt;height:${number(page.height)}pt">`,
   );
-  for (const span of page.spans) await write(positionedSpan(span, fontAliases));
+  await write(
+    `<svg class="pdf-visual-text" xmlns="http://www.w3.org/2000/svg" width="${number(page.width)}pt" height="${number(page.height)}pt" viewBox="0 0 ${number(page.width)} ${number(page.height)}">`,
+  );
+  for (const span of page.spans) {
+    if (!isMonospace(span.fontFamily)) await write(visualText(span, page.height, fontAliases));
+  }
+  await write("</svg>");
+  for (const span of page.spans) {
+    if (isMonospace(span.fontFamily)) await write(positionedSpan(span, fontAliases));
+  }
   await write("</div></section>");
+}
+
+function positionedSpan(span: TextSpan, fontAliases: Map<string, string>): string {
+  const direction = directionAttribute([span]);
+  const style = [
+    `left:${number(span.bounds.x)}pt`,
+    `bottom:${number(span.bounds.y)}pt`,
+    `width:${number(span.bounds.width)}pt`,
+    `height:${number(span.bounds.height)}pt`,
+    `font-size:${number(span.fontSize)}pt`,
+    ...(isCssHexColor(span.color) ? [`color:${span.color}`] : []),
+    ...fontStyles(
+      span.fontFamily,
+      span.fontAssetId ? fontAliases.get(span.fontAssetId) : undefined,
+    ),
+  ].join(";");
+  return `<span class="pdf-span"${direction} style="${style}">${escapeHtml(span.text)}</span>`;
 }
 
 async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<void> {
@@ -112,21 +140,20 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
   await write("</section>");
 }
 
-function positionedSpan(span: TextSpan, fontAliases: Map<string, string>): string {
+function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string, string>): string {
   const direction = directionAttribute([span]);
-  const style = [
-    `left:${number(span.bounds.x)}pt`,
-    `bottom:${number(span.bounds.y)}pt`,
-    `width:${number(span.bounds.width)}pt`,
-    `height:${number(span.bounds.height)}pt`,
-    `font-size:${number(span.fontSize)}pt`,
-    ...(isCssHexColor(span.color) ? [`color:${span.color}`] : []),
-    ...fontStyles(
-      span.fontFamily,
-      span.fontAssetId ? fontAliases.get(span.fontAssetId) : undefined,
-    ),
-  ].join(";");
-  return `<span class="pdf-span"${direction} style="${style}">${escapeHtml(span.text)}</span>`;
+  const font = fontStyles(
+    span.fontFamily,
+    span.fontAssetId ? fontAliases.get(span.fontAssetId) : undefined,
+  ).join(";");
+  const style = [isCssHexColor(span.color) ? `fill:${span.color}` : "", font]
+    .filter(Boolean)
+    .join(";");
+  const textLength =
+    span.bounds.width > 0
+      ? ` textLength="${number(span.bounds.width)}" lengthAdjust="spacingAndGlyphs"`
+      : "";
+  return `<text${direction} x="${number(span.bounds.x)}" y="${number(pageHeight - span.bounds.y)}" font-size="${number(span.fontSize)}"${textLength}${style ? ` style="${style}"` : ""}>${escapeHtml(span.text)}</text>`;
 }
 
 function isCssHexColor(value: string | undefined): value is string {
@@ -148,6 +175,10 @@ function fontStyles(fontFamily: string | undefined, alias?: string): string[] {
   if (/bold|black|semibold|demi/.test(normalized)) styles.push("font-weight:700");
   if (/italic|oblique/.test(normalized)) styles.push("font-style:italic");
   return styles;
+}
+
+function isMonospace(fontFamily: string | undefined): boolean {
+  return /courier|mono/i.test(fontFamily ?? "");
 }
 
 function fontFace(font: EmbeddedFont, aliases: Map<string, string>): string {

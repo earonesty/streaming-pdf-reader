@@ -184,7 +184,9 @@ function summarizeWriter(html) {
   return {
     pages: sections.map((section) => pageGeometry(attribute(section, "style"))),
     text: sections
-      .flatMap((section) => descendants(section).filter((node) => node.tagName === "span"))
+      .flatMap((section) =>
+        descendants(section).filter((node) => node.tagName === "span" || node.tagName === "text"),
+      )
       .map(textContent)
       .join(""),
   };

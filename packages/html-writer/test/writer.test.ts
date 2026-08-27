@@ -62,7 +62,7 @@ describe("HTML writer", () => {
       ...page,
       spans: [{ ...span("Red", 20, 700), color: "#ff0000" }],
     });
-    expect(colored).toContain("color:#ff0000");
+    expect(colored).toContain("fill:#ff0000");
     const unsafe = await pageToHtml({
       ...page,
       spans: [{ ...span("No", 20, 700), color: 'red" onmouseover="alert(1)' }],
@@ -157,7 +157,7 @@ describe("HTML writer", () => {
     };
     const positioned = await pageToHtml(rtlPage);
     const flow = await pageToHtml(rtlPage, { profile: "semantic" });
-    expect(positioned).toContain('<span class="pdf-span" dir="rtl"');
+    expect(positioned).toContain('<text dir="rtl"');
     expect(positioned).toContain("שלום עולם");
     expect(flow).toContain('<p dir="rtl">שלום עולם</p>');
   });

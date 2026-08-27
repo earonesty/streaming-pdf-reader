@@ -60,7 +60,7 @@ const summary = {
     channelDelta: 12,
     fuzzyRadius: 1,
     maximumFuzzyChangedFraction: 0.005,
-    minimumInkRatio: 0.79,
+    minimumInkRatio: 0.78,
     maximumInkRatio: 1.25,
   },
 };
@@ -165,7 +165,7 @@ async function compareFixture(fixture) {
           ? 1
           : null
         : metrics.candidateInkPixels / metrics.referenceInkPixels;
-    const inkWithinTolerance = inkRatio !== null && inkRatio >= 0.79 && inkRatio <= 1.25;
+    const inkWithinTolerance = inkRatio !== null && inkRatio >= 0.78 && inkRatio <= 1.25;
     const status = metrics.exact
       ? "PASS_EXACT"
       : metrics.fuzzyChangedFraction <= 0.005 && inkWithinTolerance

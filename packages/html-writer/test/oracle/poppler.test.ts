@@ -85,14 +85,23 @@ function parseWriterHtml(html: string): HtmlSummary {
       /<span[^>]+left:([\d.]+)pt;bottom:([\d.]+)pt;width:[\d.]+pt;height:([\d.]+)pt[^>]*>([\s\S]*?)<\/span>/g,
     ),
   ];
+  const svgText = [
+    ...html.matchAll(
+      /<text(?:\s+dir="[^"]+")?\s+x="([\d.-]+)"\s+y="([\d.-]+)"\s+font-size="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g,
+    ),
+  ];
   const firstPage = pages[0];
-  const firstSpan = spans[0];
+  const firstSpan = spans[0] ?? svgText[0];
   return {
     pages,
-    text: spans.map((match) => decodeEntities(stripTags(match[4] ?? ""))).join(""),
+    text: [...spans, ...svgText].map((match) => decodeEntities(stripTags(match[4] ?? ""))).join(""),
     ...(firstSpan ? { firstLeft: Number(firstSpan[1]) } : {}),
     ...(firstSpan && firstPage
-      ? { firstTop: firstPage.height - Number(firstSpan[2]) - Number(firstSpan[3]) }
+      ? {
+          firstTop: spans[0]
+            ? firstPage.height - Number(firstSpan[2]) - Number(firstSpan[3])
+            : Number(firstSpan[2]) - Number(firstSpan[3]),
+        }
       : {}),
   };
 }
