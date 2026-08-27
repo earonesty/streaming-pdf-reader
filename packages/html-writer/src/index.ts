@@ -154,7 +154,9 @@ function visualImage(image: RasterImage, pageHeight: number): string {
   const [a, b, c, d, e, f] = image.transform;
   const transform = [a, -b, -c, d, c + e, pageHeight - d - f].map(number).join(" ");
   const opacity = isUnitInterval(image.opacity) ? ` opacity="${number(image.opacity)}"` : "";
-  return `<image width="1" height="1" preserveAspectRatio="none" transform="matrix(${transform})" href="data:image/bmp;base64,${base64(rgbBmp(image))}"${opacity}/>`;
+  const mime = image.format === "jpeg" ? "image/jpeg" : "image/bmp";
+  const data = image.format === "jpeg" ? image.data : rgbBmp(image);
+  return `<image width="1" height="1" preserveAspectRatio="none" transform="matrix(${transform})" href="data:${mime};base64,${base64(data)}"${opacity}/>`;
 }
 
 function rgbBmp(image: RasterImage): Uint8Array {

@@ -66,7 +66,7 @@ export interface VectorPath {
 export interface RasterImage {
   width: number;
   height: number;
-  format: "rgb";
+  format: "rgb" | "jpeg";
   data: Uint8Array;
   /** PDF image-space CTM `[a,b,c,d,e,f]`. */
   transform: [number, number, number, number, number, number];

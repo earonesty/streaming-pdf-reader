@@ -115,11 +115,19 @@ describe("HTML writer", () => {
           data: Uint8Array.of(255, 0, 0),
           transform: [30, 0, 0, 40, 10, 20],
         },
+        {
+          width: 1,
+          height: 1,
+          format: "jpeg",
+          data: Uint8Array.of(0xff, 0xd8, 0xff, 0xd9),
+          transform: [1, 0, 0, 1, 0, 0],
+        },
       ],
     });
 
     expect(html).toContain('transform="matrix(30 0 0 40 10 732)"');
     expect(html).toContain('href="data:image/bmp;base64,');
+    expect(html).toContain('href="data:image/jpeg;base64,/9j/2Q=="');
     expect(html.indexOf("<image")).toBeLessThan(html.indexOf("<text"));
   });
 

@@ -426,6 +426,7 @@ async function rasterImage(
   const width = stream.dict.get("Width");
   const height = stream.dict.get("Height");
   const bits = stream.dict.get("BitsPerComponent");
+  const filter = stream.dict.get("Filter");
   if (
     typeof width !== "number" ||
     typeof height !== "number" ||
@@ -433,10 +434,21 @@ async function rasterImage(
     !Number.isSafeInteger(height) ||
     width <= 0 ||
     height <= 0 ||
-    bits !== 8 ||
-    !isName(stream.dict.get("ColorSpace"), "DeviceRGB") ||
-    !supportedRasterFilters(stream.dict.get("Filter"))
+    bits !== 8
   ) {
+    return undefined;
+  }
+  if (isName(filter, "DCTDecode") || isName(filter, "DCT")) {
+    return {
+      width,
+      height,
+      format: "jpeg",
+      data: stream.bytes,
+      transform: [...state.ctm],
+      ...(state.fillOpacity !== 1 ? { opacity: state.fillOpacity } : {}),
+    };
+  }
+  if (!isName(stream.dict.get("ColorSpace"), "DeviceRGB") || !supportedRasterFilters(filter)) {
     return undefined;
   }
   const data = await reader.decodeStream(stream);
