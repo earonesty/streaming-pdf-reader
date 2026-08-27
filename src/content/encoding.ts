@@ -429,6 +429,12 @@ function applyDifferences(
     if (typeof item === "number") {
       code = item;
     } else if (isName(item) && code >= 0 && code <= 255) {
+      if (item.value === ".notdef") {
+        table[code] = "";
+        if (glyphTable) glyphTable[code] = item.value;
+        code += 1;
+        continue;
+      }
       const unicode =
         !allowSyntheticHex && /^(?:G[0-9a-f]{2,6}|C\d{1,7})$/i.test(item.value)
           ? undefined

@@ -38,6 +38,8 @@ const maximumGuardianFallbackMeanAbsoluteError = 9.5;
 const maximumGuardianFallbackFuzzyChangedFraction = 0.055;
 const maximumAcademicFallbackMeanAbsoluteError = 6.3;
 const maximumAcademicFallbackFuzzyChangedFraction = 0.07;
+const maximumCompactStandardMeanAbsoluteError = 18;
+const maximumCompactStandardFuzzyChangedFraction = 0.071;
 
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
@@ -99,6 +101,8 @@ const summary = {
     maximumGuardianFallbackFuzzyChangedFraction,
     maximumAcademicFallbackMeanAbsoluteError,
     maximumAcademicFallbackFuzzyChangedFraction,
+    maximumCompactStandardMeanAbsoluteError,
+    maximumCompactStandardFuzzyChangedFraction,
     minimumInkRatio: 0.78,
     maximumInkRatio: 1.25,
   },
@@ -252,6 +256,14 @@ async function compareFixture(fixture) {
       inkRatio !== null &&
       inkRatio >= 0.8 &&
       inkRatio <= 1.2;
+    const compactStandardRasterWithinTolerance =
+      standardFontText &&
+      extracted.width * extracted.height <= 10_000 &&
+      metrics.meanAbsoluteError <= maximumCompactStandardMeanAbsoluteError &&
+      metrics.fuzzyChangedFraction <= maximumCompactStandardFuzzyChangedFraction &&
+      inkRatio !== null &&
+      inkRatio >= 0.85 &&
+      inkRatio <= 1.15;
     const trustedTextFont =
       textOnly &&
       extracted.spans.every(
@@ -303,6 +315,7 @@ async function compareFixture(fixture) {
           denseGlyphRasterWithinTolerance ||
           textOnlyRasterWithinTolerance ||
           standardFontRasterWithinTolerance ||
+          compactStandardRasterWithinTolerance ||
           trustedFontRasterWithinTolerance ||
           postScriptFallbackRasterWithinTolerance ||
           guardianFallbackRasterWithinTolerance ||

@@ -15,7 +15,12 @@ describe("simple font encodings", () => {
       ["BaseEncoding", { type: "name", value: "WinAnsiEncoding" }],
       [
         "Differences",
-        [31, { type: "name", value: "f_f" }, { type: "name", value: "asteriskmath" }],
+        [
+          31,
+          { type: "name", value: "f_f" },
+          { type: "name", value: "asteriskmath" },
+          { type: "name", value: ".notdef" },
+        ],
       ],
     ]);
     const font: PdfDict = new Map([["Encoding", encoding]]);
@@ -26,6 +31,7 @@ describe("simple font encodings", () => {
     } as PdfObjectReader;
     const decoder = await loadFontEncoding(reader, font);
     expect(decoder.decode(Uint8Array.of(31, 32, 65))).toBe("ff∗A");
+    expect(decoder.decode(Uint8Array.of(33))).toBe("");
     expect(decoder.decode(Uint8Array.of(0x96, 0x97))).toBe("–—");
   });
 
