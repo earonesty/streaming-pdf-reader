@@ -3,6 +3,7 @@ import { ValueParser } from "../syntax/parser.js";
 import { isDict, isName, isRef, isStream, type PdfDict, type PdfValue } from "../syntax/values.js";
 import type { VectorFill, VectorPath } from "../types.js";
 import { textFillColor } from "./color.js";
+import { resolveExtendedGraphicsState } from "./extgstate.js";
 import { contentStreams } from "./streams.js";
 
 type Matrix = [number, number, number, number, number, number];
@@ -101,6 +102,11 @@ async function applyOperator(
   activeForms: Set<number>,
 ): Promise<void> {
   if (applyGraphicsState(operator, args, state)) return;
+  if (operator === "gs") {
+    const extended = await resolveExtendedGraphicsState(reader, resources, args.at(-1));
+    if (extended?.lineWidth !== undefined) state.lineWidth = extended.lineWidth;
+    return;
+  }
   if (applyPathConstruction(operator, args, state)) return;
   if (["f", "F", "f*", "B", "B*", "b", "b*", "S", "s"].includes(operator)) {
     paintPath(operator, state, fills, paths);

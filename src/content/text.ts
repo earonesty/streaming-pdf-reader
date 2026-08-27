@@ -18,6 +18,7 @@ import {
   parseToUnicode,
 } from "./cmap.js";
 import { textFillColor } from "./color.js";
+import { resolveExtendedGraphicsState } from "./extgstate.js";
 import { extractTrueTypeFont } from "./font-assets.js";
 import { decodePdfString, isPdfString } from "./pdf-string.js";
 import { contentStreams } from "./streams.js";
@@ -184,6 +185,14 @@ async function applyOperator(
     case "cm":
       if (args.length >= 6 && args.slice(-6).every((value) => typeof value === "number")) {
         state.ctm = multiply(state.ctm, args.slice(-6) as Matrix);
+      }
+      return;
+    case "gs":
+      {
+        const extended = await resolveExtendedGraphicsState(reader, resources, args.at(-1));
+        if (extended?.lineWidth !== undefined) state.lineWidth = extended.lineWidth;
+        if (extended?.fontName !== undefined) state.font = extended.fontName;
+        if (extended?.fontSize !== undefined) state.fontSize = extended.fontSize;
       }
       return;
     case "g":
