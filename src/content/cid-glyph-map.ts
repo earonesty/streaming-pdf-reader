@@ -10,22 +10,28 @@ export async function loadCidUnicodeGlyphMap(
   if (!isName(font.get("Subtype"), "Type0") || toUnicodeValue === undefined) return new Map();
   const encodingValue = font.get("Encoding");
   if (encodingValue === undefined) return new Map();
-  const [encoding, toUnicode] = await Promise.all([
-    reader.resolve(encodingValue),
-    reader.resolve(toUnicodeValue),
-  ]);
-  if (!isStream(encoding) || !isStream(toUnicode)) return new Map();
-  const [encodingBytes, unicodeBytes] = await Promise.all([
-    reader.decodeStream(encoding),
-    reader.decodeStream(toUnicode),
-  ]);
-  const cids = parseCidCharacters(encodingBytes);
+  const toUnicode = await reader.resolve(toUnicodeValue);
+  if (!isStream(toUnicode)) return new Map();
+  const unicodeBytes = await reader.decodeStream(toUnicode);
   const unicode = parseToUnicode(unicodeBytes).mapping;
+  if (isName(encodingValue) && /^Identity-[HV]$/.test(encodingValue.value)) {
+    return unicodeGlyphMap(unicode, (source) => source);
+  }
+  const encoding = await reader.resolve(encodingValue);
+  if (!isStream(encoding)) return new Map();
+  const cids = parseCidCharacters(await reader.decodeStream(encoding));
+  return unicodeGlyphMap(unicode, (source) => cids.get(source));
+}
+
+function unicodeGlyphMap(
+  unicode: ReadonlyMap<number, string>,
+  glyphForSource: (source: number) => number | undefined,
+): Map<number, number> {
   const output = new Map<number, number>();
-  for (const [source, cid] of cids) {
-    const text = unicode.get(source);
+  for (const [source, text] of unicode) {
     const codePoint = text?.codePointAt(0);
-    if (codePoint !== undefined) output.set(codePoint, cid);
+    const glyph = glyphForSource(source);
+    if (codePoint !== undefined && glyph !== undefined) output.set(codePoint, glyph);
   }
   return output;
 }

@@ -26,6 +26,29 @@ describe("CID browser glyph mapping", () => {
     );
   });
 
+  it("maps named Identity encodings directly from Unicode to glyph IDs", async () => {
+    const unicode: PdfStream = {
+      type: "stream",
+      dict: new Map(),
+      bytes: new TextEncoder().encode("2 beginbfchar\n<0001> <0054>\n<0010> <003a>\nendbfchar"),
+    };
+    const font: PdfDict = new Map<string, PdfValue>([
+      ["Subtype", { type: "name", value: "Type0" }],
+      ["Encoding", { type: "name", value: "Identity-H" }],
+    ]);
+    const reader = {
+      resolve: async (value: PdfValue) => value,
+      decodeStream: async (value: PdfStream) => value.bytes,
+    } as unknown as PdfObjectReader;
+
+    await expect(loadCidUnicodeGlyphMap(reader, font, unicode)).resolves.toEqual(
+      new Map([
+        [0x54, 1],
+        [0x3a, 16],
+      ]),
+    );
+  });
+
   it("does not remap simple fonts without a ToUnicode stream", async () => {
     const reader = {} as PdfObjectReader;
     await expect(loadCidUnicodeGlyphMap(reader, new Map(), undefined)).resolves.toEqual(new Map());

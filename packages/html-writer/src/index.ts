@@ -85,7 +85,7 @@ async function writePositionedPage(
   );
   const fontAliases = new Map(
     (page.fonts ?? [])
-      .filter((font) => font.format === "truetype" && !/courier|mono/i.test(font.family ?? ""))
+      .filter((font) => font.format === "truetype" && !/courier/i.test(font.family ?? ""))
       .map((font) => [font.id, `boxpdf-${page.number}-${font.id}`]),
   );
   const type3Fonts = new Map(

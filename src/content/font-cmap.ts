@@ -13,13 +13,18 @@ export function remapTrueTypeCmap(
   if (!tables || mappings.size === 0 || !tables.some((table) => table.tag === "head")) {
     return undefined;
   }
-  const cmap = format12Cmap(mappings);
+  const glyphCount = maxGlyphCount(tables);
+  const validMappings = new Map(
+    [...mappings].filter(([, glyph]) => glyph >= 0 && glyph < glyphCount),
+  );
+  if (validMappings.size === 0) return undefined;
+  const cmap = format12Cmap(validMappings);
   const records = tables.map((table) =>
     table.tag === "cmap" ? { tag: "cmap", data: cmap } : table,
   );
   if (!records.some((table) => table.tag === "cmap")) records.push({ tag: "cmap", data: cmap });
   if (!records.some((table) => table.tag === "OS/2")) {
-    records.push({ tag: "OS/2", data: minimalOs2(records, mappings) });
+    records.push({ tag: "OS/2", data: minimalOs2(records, validMappings) });
   }
   if (!records.some((table) => table.tag === "name")) {
     records.push({ tag: "name", data: minimalName() });
@@ -27,8 +32,13 @@ export function remapTrueTypeCmap(
   if (!records.some((table) => table.tag === "post")) {
     records.push({ tag: "post", data: minimalPost() });
   }
-  records.sort((left, right) => left.tag.localeCompare(right.tag));
+  records.sort((left, right) => (left.tag < right.tag ? -1 : left.tag > right.tag ? 1 : 0));
   return buildFont(font, records);
+}
+
+function maxGlyphCount(tables: TableRecord[]): number {
+  const maxp = tables.find((table) => table.tag === "maxp")?.data;
+  return maxp && maxp.length >= 6 ? u16(maxp, 4) : 0;
 }
 
 function minimalOs2(tables: TableRecord[], mappings: ReadonlyMap<number, number>): Uint8Array {
