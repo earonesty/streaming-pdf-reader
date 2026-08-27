@@ -37,6 +37,11 @@ export interface EmbeddedFont {
   data: Uint8Array;
 }
 
+export interface VectorFill {
+  points: Array<[number, number]>;
+  color: string;
+}
+
 export interface ExtractedPage {
   number: number;
   width: number;
@@ -44,4 +49,5 @@ export interface ExtractedPage {
   rotate: 0 | 90 | 180 | 270;
   spans: TextSpan[];
   fonts?: EmbeddedFont[] | undefined;
+  fills?: VectorFill[] | undefined;
 }

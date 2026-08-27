@@ -55,6 +55,25 @@ describe("HTML writer", () => {
     expect(html).toContain('transform="matrix(0 -1 1 0 20 92)"');
   });
 
+  it("paints transformed vector fills beneath visual text", async () => {
+    const html = await pageToHtml({
+      ...page,
+      fills: [
+        {
+          points: [
+            [10, 20],
+            [40, 20],
+            [40, 60],
+            [10, 60],
+          ],
+          color: "#00ff00",
+        },
+      ],
+    });
+    expect(html).toContain('<polygon points="10,772 40,772 40,732 10,732" fill="#00ff00"/>');
+    expect(html.indexOf("<polygon")).toBeLessThan(html.indexOf("<text"));
+  });
+
   it("maps resolved PDF font evidence to safe visual CSS", async () => {
     const html = await pageToHtml({
       ...page,

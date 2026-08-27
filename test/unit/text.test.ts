@@ -141,7 +141,8 @@ endbfchar`),
   });
 
   it("interprets text-state, positioning, array, and quote operators", async () => {
-    const content = `0.2 0.4 0.6 rg q
+    const content = `q 0 1 0 rg 10 20 30 40 re f Q
+0.2 0.4 0.6 rg q
 0 2 -2 0 300 0 cm
 BT /F1 10 Tf 1 Tc 2 Tw 80 Tz 12 TL 3 Ts
 1 0 0 1 10 100 Tm (A) Tj
@@ -195,6 +196,17 @@ trailer
       "#808080",
       "#ff0000",
       "#ff0000",
+    ]);
+    expect(pages[0]?.fills).toEqual([
+      {
+        points: [
+          [10, 20],
+          [40, 20],
+          [40, 60],
+          [10, 60],
+        ],
+        color: "#00ff00",
+      },
     ]);
     reader.close();
   });

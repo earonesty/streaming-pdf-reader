@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 9,
+  "passed": 10,
   "passingFixtureIds": [
     "bug1947248-text",
     "issue10301",
@@ -9,6 +9,7 @@
     "issue11713",
     "issue16221",
     "issue19800",
+    "issue20930",
     "issue7878",
     "operator-in-tj-array",
     "rotated"
