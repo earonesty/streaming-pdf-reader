@@ -1,0 +1,71 @@
+<article>
+  <header>
+    <h1>Avery Chen</h1>
+    <p><strong>Senior Software Engineer</strong></p>
+    <address>
+      San Francisco, CA ·
+      <a href="mailto:avery.chen@example.com">avery.chen@example.com</a> ·
+      <a href="tel:+14155550182">+1 (415) 555-0182</a> ·
+      <a href="https://averychen.dev">averychen.dev</a>
+    </address>
+  </header>
+
+  <section aria-labelledby="summary-heading">
+    <h2 id="summary-heading">Summary</h2>
+    <p>Software engineer with 9 years building backend and platform systems at the edge — payments, identity, and developer tooling. Currently focused on serverless infrastructure and the developer experience of running stateful workloads outside long-lived VMs.</p>
+  </section>
+
+  <section aria-labelledby="experience-heading">
+    <h2 id="experience-heading">Experience</h2>
+
+    <section>
+      <h3>Staff Engineer · Platform</h3>
+      <p>Edgeworth Labs · Remote</p>
+      <p><time datetime="2023-01">Jan 2023</time> — Present</p>
+      <ul>
+        <li>Owned the migration of the request-path from Kubernetes to Cloudflare Workers, cutting cold-start P99 by 78% and infrastructure cost by ~40%.</li>
+        <li>Designed and shipped the per-request idempotency layer used by every customer-facing API; reduced duplicate-charge incidents to zero in the trailing 9 months.</li>
+        <li>Mentored five engineers, including two who were promoted to senior during the period.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>Senior Engineer · Payments</h3>
+      <p>Brightline Systems · San Francisco, CA</p>
+      <p><time datetime="2019-03">Mar 2019</time> — <time datetime="2022-12">Dec 2022</time></p>
+      <ul>
+        <li>Led the rollout of 3D-Secure 2.x across all card-acceptance flows; preserved approval rates while satisfying European SCA mandates.</li>
+        <li>Built the fraud-rules engine used to evaluate ~12M transactions a day at peak with sub-50ms median latency.</li>
+        <li>Designed the reconciliation pipeline that closes books to within $0.01 across 23 acquirers.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>Software Engineer</h3>
+      <p>Halcyon · Boston, MA</p>
+      <p><time datetime="2016-08">Aug 2016</time> — <time datetime="2019-02">Feb 2019</time></p>
+      <ul>
+        <li>Shipped the first version of the bookings API now serving over 4M concurrent connections.</li>
+        <li>Built the team's continuous deployment pipeline; cut release lead time from 8 days to under 30 minutes.</li>
+      </ul>
+    </section>
+  </section>
+
+  <section aria-labelledby="education-heading">
+    <h2 id="education-heading">Education</h2>
+    <h3>University of California, Berkeley</h3>
+    <p>B.A. Computer Science</p>
+    <p>Graduated 2016 · Departmental honors</p>
+  </section>
+
+  <section aria-labelledby="skills-heading">
+    <h2 id="skills-heading">Skills</h2>
+    <ul>
+      <li>TypeScript, Rust, Go</li>
+      <li>Cloudflare Workers, AWS Lambda, Kubernetes</li>
+      <li>PostgreSQL, Redis, ClickHouse</li>
+      <li>OpenTelemetry, distributed tracing, SLO design</li>
+      <li>Card-present and card-not-present payments, SCA/3DS, PSD2</li>
+    </ul>
+  </section>
+</article>
