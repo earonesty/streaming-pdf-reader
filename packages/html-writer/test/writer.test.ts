@@ -72,6 +72,9 @@ describe("HTML writer", () => {
     const html = await pageToHtml({ ...page, rotate: 90 });
     expect(html).toContain("width:792pt;height:612pt");
     expect(html).toContain("pdf-page-content--90");
+    expect(html).toContain("transform:translate(792pt,0) rotate(90deg)");
+    const counterclockwise = await pageToHtml({ ...page, rotate: 270 });
+    expect(counterclockwise).toContain("transform:translate(0,612pt) rotate(270deg)");
   });
 
   it("applies extracted text orientation as an SVG matrix", async () => {

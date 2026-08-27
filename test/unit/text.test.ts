@@ -196,6 +196,7 @@ endbfchar`),
   it("interprets text-state, positioning, array, and quote operators", async () => {
     const content = `q 0 1 0 rg 10 20 30 40 re f Q
 q 1 0 0 RG 2 w 50 50 m 60 70 l 70 50 l h S Q
+q .25 0 0 .25 0 0 cm 4 w 440 400 m 480 400 l S Q
 q 0 0 1 rg 80 50 m 85 60 95 60 100 50 c f Q
 0.2 0.4 0.6 rg q
 0 2 -2 0 300 0 cm
@@ -277,6 +278,7 @@ trailer
     ]);
     expect(pages[0]?.paths).toEqual([
       { d: "M50 50L60 70L70 50Z", stroke: "#ff0000", strokeWidth: 2 },
+      { d: "M110 100L120 100", stroke: "#000000", strokeWidth: 1 },
       { d: "M80 50C85 60 95 60 100 50", fill: "#0000ff" },
     ]);
     reader.close();

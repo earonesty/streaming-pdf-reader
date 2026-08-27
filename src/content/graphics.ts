@@ -6,7 +6,7 @@ import { textFillColor } from "./color.js";
 import { componentColor } from "./color-space.js";
 import { resolveExtendedGraphicsState } from "./extgstate.js";
 import { contentStreams } from "./streams.js";
-import { pageOriginMatrix } from "./text-matrix.js";
+import { effectiveLineWidth, pageOriginMatrix } from "./text-matrix.js";
 
 type Matrix = [number, number, number, number, number, number];
 interface GraphicsState {
@@ -328,7 +328,12 @@ function paintPath(
       d: state.path.join(""),
       ...(fillsPath ? { fill: state.fillColor } : {}),
       ...(fillsPath && state.fillOpacity !== 1 ? { fillOpacity: state.fillOpacity } : {}),
-      ...(strokesPath ? { stroke: state.strokeColor, strokeWidth: state.lineWidth } : {}),
+      ...(strokesPath
+        ? {
+            stroke: state.strokeColor,
+            strokeWidth: effectiveLineWidth(state.ctm, state.lineWidth),
+          }
+        : {}),
       ...(strokesPath && state.strokeOpacity !== 1 ? { strokeOpacity: state.strokeOpacity } : {}),
       ...(operator.includes("*") ? { fillRule: "evenodd" as const } : {}),
     });

@@ -22,7 +22,7 @@ export interface HtmlWriterOptions {
   includeStyles?: boolean;
 }
 
-const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--visual,.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-page-content--90{transform:translateX(100%) rotate(90deg)}.pdf-page-content--180{transform:translate(100%,100%) rotate(180deg)}.pdf-page-content--270{transform:translateY(100%) rotate(270deg)}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom;unicode-bidi:isolate}.pdf-span[data-direction=ttb]{writing-mode:vertical-rl}.pdf-page--semantic,.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--semantic p,.pdf-page--flow p{white-space:pre-wrap;unicode-bidi:plaintext}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
+const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--visual,.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom;unicode-bidi:isolate}.pdf-span[data-direction=ttb]{writing-mode:vertical-rl}.pdf-page--semantic,.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--semantic p,.pdf-page--flow p{white-space:pre-wrap;unicode-bidi:plaintext}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
 
 export async function writeHtmlDocument(
   pages: AsyncIterable<ExtractedPage> | Iterable<ExtractedPage>,
@@ -96,7 +96,7 @@ async function writePositionedPage(
     await write(`<style>${page.fonts.map((font) => fontFace(font, fontAliases)).join("")}</style>`);
   }
   await write(
-    `<div class="pdf-page-content pdf-page-content--${page.rotate}" style="width:${number(page.width)}pt;height:${number(page.height)}pt">`,
+    `<div class="pdf-page-content pdf-page-content--${page.rotate}" style="width:${number(page.width)}pt;height:${number(page.height)}pt${rotationTransform(page)}">`,
   );
   await write(
     `<svg class="pdf-visual-text" xmlns="http://www.w3.org/2000/svg" width="${number(page.width)}pt" height="${number(page.height)}pt" viewBox="0 0 ${number(page.width)} ${number(page.height)}">`,
@@ -146,6 +146,19 @@ async function writePositionedPage(
     if (usesPositionedSpan(span)) await write(positionedSpan(span, fontAliases));
   }
   await write("</div></section>");
+}
+
+function rotationTransform(page: ExtractedPage): string {
+  switch (page.rotate) {
+    case 90:
+      return `;transform:translate(${number(page.height)}pt,0) rotate(90deg)`;
+    case 180:
+      return `;transform:translate(${number(page.width)}pt,${number(page.height)}pt) rotate(180deg)`;
+    case 270:
+      return `;transform:translate(0,${number(page.width)}pt) rotate(270deg)`;
+    default:
+      return "";
+  }
 }
 
 function positionedSpan(span: TextSpan, fontAliases: Map<string, string>): string {
