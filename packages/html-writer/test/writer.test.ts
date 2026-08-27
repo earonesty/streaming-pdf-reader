@@ -237,6 +237,26 @@ describe("HTML writer", () => {
     expect(html).toContain("font-family:Arial,Helvetica,sans-serif");
   });
 
+  it("normalizes reflected visual overlays independently of full-page images", async () => {
+    const html = await pageToHtml({
+      ...page,
+      rotate: 180,
+      spans: [{ ...span("Reflected", 90, 700), transform: [-1, 0, 0, 1] }],
+      paths: [{ d: "M90 700L20 700", stroke: "#ff0000" }],
+      images: [
+        {
+          width: 1,
+          height: 1,
+          format: "rgb",
+          data: Uint8Array.of(255, 255, 255),
+          transform: [100, 0, 0, 100, 0, 0],
+        },
+      ],
+    });
+    expect(html).toContain('transform="matrix(-1 0 0 -1 90 92)"');
+    expect(html.indexOf("<image")).toBeLessThan(html.indexOf("<path"));
+  });
+
   it("substitutes legacy TTE font programs with bold sans text", async () => {
     const html = await pageToHtml({
       ...page,

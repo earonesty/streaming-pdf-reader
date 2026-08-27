@@ -77,6 +77,7 @@ async function writePositionedPage(
   options: HtmlWriterOptions,
 ): Promise<void> {
   const visualSpans = page.visualSpans ?? page.spans;
+  const reflectedOverlay = usesReflectedVisualOverlay(page, visualSpans);
   const quarterTurn = page.rotate === 90 || page.rotate === 270;
   const displayWidth = quarterTurn ? page.height : page.width;
   const displayHeight = quarterTurn ? page.width : page.height;
@@ -102,6 +103,9 @@ async function writePositionedPage(
   await write(
     `<svg class="pdf-visual-text" xmlns="http://www.w3.org/2000/svg" width="${number(page.width)}pt" height="${number(page.height)}pt" viewBox="0 0 ${number(page.width)} ${number(page.height)}">`,
   );
+  if (reflectedOverlay) {
+    for (const image of page.images ?? []) await write(visualImage(image, page.height));
+  }
   for (const fill of page.fills ?? []) {
     const points = fill.points.map(([x, y]) => `${number(x)},${number(page.height - y)}`).join(" ");
     if (isCssHexColor(fill.color)) {
@@ -140,14 +144,16 @@ async function writePositionedPage(
     }
     await write("</g>");
   }
-  for (const image of page.images ?? []) await write(visualImage(image, page.height));
+  if (!reflectedOverlay) {
+    for (const image of page.images ?? []) await write(visualImage(image, page.height));
+  }
   for (const span of visualSpans) {
     if (!usesPositionedSpan(span)) {
       const type3 = span.fontAssetId ? type3Fonts.get(span.fontAssetId) : undefined;
       await write(
         type3
           ? visualType3Text(span, type3, page.height)
-          : visualText(span, page.height, fontAliases),
+          : visualText(span, page.height, fontAliases, reflectedOverlay && page.rotate === 180),
       );
     }
   }
@@ -156,6 +162,22 @@ async function writePositionedPage(
     if (usesPositionedSpan(span)) await write(positionedSpan(span, fontAliases));
   }
   await write("</div></section>");
+}
+
+function usesReflectedVisualOverlay(page: ExtractedPage, spans: TextSpan[]): boolean {
+  return (
+    Boolean(page.images?.length) &&
+    Boolean(page.paths?.length || page.fills?.length) &&
+    spans.length > 0 &&
+    spans.every(
+      (span) =>
+        span.transform !== undefined &&
+        Math.abs(span.transform[0] + 1) < 0.000_001 &&
+        Math.abs(span.transform[1]) < 0.000_001 &&
+        Math.abs(span.transform[2]) < 0.000_001 &&
+        Math.abs(span.transform[3] - 1) < 0.000_001,
+    )
+  );
 }
 
 function visualImage(image: RasterImage, pageHeight: number): string {
@@ -248,7 +270,12 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
   await write("</section>");
 }
 
-function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string, string>): string {
+function visualText(
+  span: TextSpan,
+  pageHeight: number,
+  fontAliases: Map<string, string>,
+  counterRotateReflectedText = false,
+): string {
   if (span.renderingMode === 3 || span.renderingMode === 7) return "";
   if (!span.fontAssetId && isAdobeCjkFont(span.fontFamily)) return "";
   const direction = directionAttribute([span]);
@@ -285,14 +312,23 @@ function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string,
     textExtent > 0 && !isHebrewPaintOrder(span)
       ? ` textLength="${number(textExtent)}" lengthAdjust="${span.direction === "ttb" || usesSpacingAdjustment(span) ? "spacing" : "spacingAndGlyphs"}"`
       : "";
-  const transformed = hasNonIdentityTransform(span.transform);
+  const transform =
+    counterRotateReflectedText && span.transform
+      ? ([
+          span.transform[0],
+          span.transform[1],
+          span.transform[2],
+          -span.transform[3],
+        ] as TextSpan["transform"])
+      : span.transform;
+  const transformed = hasNonIdentityTransform(transform);
   const rtlOffset = span.direction === "rtl" ? span.bounds.width : 0;
-  const basisX = span.transform?.[0] ?? 1;
-  const basisY = span.transform?.[1] ?? 0;
+  const basisX = transform?.[0] ?? 1;
+  const basisY = transform?.[1] ?? 0;
   const anchorX = span.bounds.x + basisX * rtlOffset;
   const anchorY = pageHeight - span.bounds.y + basisY * rtlOffset;
   const position = transformed
-    ? ` x="0" y="0" transform="matrix(${span.transform?.map(number).join(" ")} ${number(anchorX)} ${number(anchorY)})"`
+    ? ` x="0" y="0" transform="matrix(${transform?.map(number).join(" ")} ${number(anchorX)} ${number(anchorY)})"`
     : ` x="${number(anchorX)}" y="${number(anchorY)}"`;
   return `<text${direction}${position} font-size="${number(span.fontSize)}"${textLength}${style ? ` style="${style}"` : ""}>${escapeHtml(span.text)}</text>`;
 }
