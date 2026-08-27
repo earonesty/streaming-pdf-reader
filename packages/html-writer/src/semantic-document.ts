@@ -82,6 +82,14 @@ export async function writeSemanticDocument(
         activeTable = { table: block.table, header };
         continue;
       }
+      if (activeTable && block.type === "definitionList" && isFinancialSummary(block)) {
+        const columns = activeTable.table.columns.length;
+        await write(
+          `<tfoot>${block.entries.map((entry) => financialSummaryRow(entry, columns)).join("")}</tfoot>`,
+        );
+        await closeTable();
+        continue;
+      }
       await closeTable();
       if (block.type === "heading") {
         await closeSections(block.level);
@@ -184,6 +192,25 @@ function sameRow(left: string[] | undefined, right: string[] | undefined): boole
 function tableRow(row: string[], header: boolean): string {
   const cell = header ? "th" : "td";
   return `<tr>${row.map((value) => `<${cell}>${escapeHtml(value)}</${cell}>`).join("")}</tr>`;
+}
+
+function isFinancialSummary(block: Extract<SemanticBlock, { type: "definitionList" }>): boolean {
+  return (
+    block.entries.length > 0 &&
+    block.entries.every((entry) =>
+      /^(?:sub\s*total|tax|shipping|discount|tip|fee|amount due|balance due|total)(?:\s*\([^)]*\))?$/i.test(
+        entry.term.trim(),
+      ),
+    )
+  );
+}
+
+function financialSummaryRow(
+  entry: Extract<SemanticBlock, { type: "definitionList" }>["entries"][number],
+  columns: number,
+): string {
+  const colspan = columns > 2 ? ` colspan="${columns - 1}"` : "";
+  return `<tr><th scope="row"${colspan}>${escapeHtml(entry.term)}</th><td>${escapeHtml(entry.description)}</td></tr>`;
 }
 
 function semanticBlockHtml(block: Exclude<SemanticBlock, { type: "table" }>): string {

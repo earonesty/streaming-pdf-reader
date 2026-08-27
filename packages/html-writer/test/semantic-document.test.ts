@@ -92,7 +92,10 @@ describe("semantic document flow", () => {
     expect(html.match(/Service line item #/g)).toHaveLength(80);
     expect(html).toContain("<th>Description</th><th>Qty</th><th>Unit</th><th>Amount</th>");
     expect(html).toContain("Subtotal");
-    expect(html).toContain("<dl>");
+    expect(html).toContain(
+      '<tfoot><tr><th scope="row" colspan="3">Subtotal</th><td>$21,000.00</td></tr>',
+    );
+    expect(html).not.toContain("<dl>");
     expect(html).not.toContain("Page 1 of 3");
     expect(html).not.toContain("Page 2 of 3");
     expect(html).not.toContain("Page 3 of 3");
@@ -102,6 +105,32 @@ describe("semantic document flow", () => {
       peakBufferedPages: 3,
       mergedTables: 2,
     });
+  });
+
+  it("keeps receipt totals with the purchased items", async () => {
+    const source = await fileSource(
+      fileURLToPath(new URL("../../../fixtures/semantic/receipt.pdf", import.meta.url)),
+    );
+    const pdf = await openPdf(source);
+    let html = "";
+    try {
+      await writeHtmlDocument(
+        pdf.pages(),
+        (chunk) => {
+          html += chunk;
+        },
+        { profile: "semantic" },
+      );
+    } finally {
+      pdf.close();
+      await source.close();
+    }
+
+    expect(html.match(/<table>/g)).toHaveLength(1);
+    expect(html).toContain("<tfoot>");
+    expect(html).toContain('<th scope="row" colspan="2">Subtotal</th>');
+    expect(html).toContain('<th scope="row" colspan="2">Total</th>');
+    expect(html).not.toContain("<dl>");
   });
 
   it("keeps a thousand-page semantic conversion inside the configured window", async () => {
