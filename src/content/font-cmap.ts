@@ -10,19 +10,20 @@ export function remapTrueTypeCmap(
   mappings: ReadonlyMap<number, number>,
 ): Uint8Array | undefined {
   const tables = readTables(font);
-  if (!tables || mappings.size === 0 || !tables.some((table) => table.tag === "head")) {
+  if (!tables?.some((table) => table.tag === "head")) {
     return undefined;
   }
   const glyphCount = maxGlyphCount(tables);
   const validMappings = new Map(
     [...mappings].filter(([, glyph]) => glyph >= 0 && glyph < glyphCount),
   );
-  if (validMappings.size === 0) return undefined;
-  const cmap = format12Cmap(validMappings);
+  const cmap = validMappings.size > 0 ? format12Cmap(validMappings) : undefined;
   const records = tables.map((table) =>
-    table.tag === "cmap" ? { tag: "cmap", data: cmap } : table,
+    table.tag === "cmap" && cmap ? { tag: "cmap", data: cmap } : table,
   );
-  if (!records.some((table) => table.tag === "cmap")) records.push({ tag: "cmap", data: cmap });
+  if (cmap && !records.some((table) => table.tag === "cmap")) {
+    records.push({ tag: "cmap", data: cmap });
+  }
   if (!records.some((table) => table.tag === "OS/2")) {
     records.push({ tag: "OS/2", data: minimalOs2(records, validMappings) });
   }

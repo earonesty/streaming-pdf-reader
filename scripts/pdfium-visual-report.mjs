@@ -42,6 +42,8 @@ const maximumCompactStandardMeanAbsoluteError = 18;
 const maximumCompactStandardFuzzyChangedFraction = 0.071;
 const maximumCompactSansFallbackMeanAbsoluteError = 14;
 const maximumCompactSansFallbackFuzzyChangedFraction = 0.06;
+const maximumEmbeddedCompositeMeanAbsoluteError = 4;
+const maximumEmbeddedCompositeFuzzyChangedFraction = 0.025;
 
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
@@ -107,6 +109,8 @@ const summary = {
     maximumCompactStandardFuzzyChangedFraction,
     maximumCompactSansFallbackMeanAbsoluteError,
     maximumCompactSansFallbackFuzzyChangedFraction,
+    maximumEmbeddedCompositeMeanAbsoluteError,
+    maximumEmbeddedCompositeFuzzyChangedFraction,
     minimumInkRatio: 0.78,
     maximumInkRatio: 1.25,
   },
@@ -184,6 +188,16 @@ async function compareFixture(fixture) {
       await browserPage.evaluate(() => document.fonts.ready);
       await browserPage.evaluate(() =>
         Promise.all([...document.images].map((image) => image.decode())),
+      );
+      await browserPage.evaluate(() =>
+        Promise.all(
+          [...document.querySelectorAll("svg image")].map(async (image) => {
+            const href = image.getAttribute("href");
+            if (!href) return;
+            const bitmap = await createImageBitmap(await (await fetch(href)).blob());
+            bitmap.close();
+          }),
+        ),
       );
       candidatePng = await browserPage.locator(".pdf-page").screenshot({ animations: "disabled" });
     } finally {
@@ -289,6 +303,14 @@ async function compareFixture(fixture) {
       inkRatio !== null &&
       inkRatio >= 0.85 &&
       inkRatio <= 1.15;
+    const embeddedCompositeRasterWithinTolerance =
+      extracted.spans.length > 0 &&
+      extracted.spans.every((span) => Boolean(span.fontAssetId)) &&
+      metrics.meanAbsoluteError <= maximumEmbeddedCompositeMeanAbsoluteError &&
+      metrics.fuzzyChangedFraction <= maximumEmbeddedCompositeFuzzyChangedFraction &&
+      inkRatio !== null &&
+      inkRatio >= 0.85 &&
+      inkRatio <= 1.15;
     const postScriptFallbackText =
       textOnly &&
       extracted.spans.every((span) => /^NimbusRomNo9L(?:[-_]|$)/i.test(span.fontFamily ?? ""));
@@ -331,6 +353,7 @@ async function compareFixture(fixture) {
           compactStandardRasterWithinTolerance ||
           compactSansFallbackRasterWithinTolerance ||
           trustedFontRasterWithinTolerance ||
+          embeddedCompositeRasterWithinTolerance ||
           postScriptFallbackRasterWithinTolerance ||
           guardianFallbackRasterWithinTolerance ||
           academicFallbackRasterWithinTolerance

@@ -4,6 +4,21 @@ import { parseTrueTypeMetrics } from "../../src/content/truetype.js";
 import { buildFormat4TrueTypeFont, buildTrueTypeFont } from "../support/truetype-font.js";
 
 describe("embedded TrueType metrics", () => {
+  it("rebuilds browser-required sfnt metadata without cmap remapping", () => {
+    const rebuilt = remapTrueTypeCmap(buildTrueTypeFont(), new Map());
+    expect(rebuilt).toBeDefined();
+    const bytes = rebuilt ?? new Uint8Array();
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const tableCount = view.getUint16(4);
+    const maximumPower = 2 ** Math.floor(Math.log2(tableCount));
+    expect(view.getUint16(6)).toBe(maximumPower * 16);
+    expect(view.getUint16(8)).toBe(Math.log2(maximumPower));
+    const tags = Array.from({ length: tableCount }, (_, index) =>
+      new TextDecoder("latin1").decode(bytes.subarray(12 + index * 16, 16 + index * 16)),
+    );
+    expect(tags).toContain("OS/2");
+  });
+
   it("rebuilds a browser cmap with supplementary Unicode-to-glyph mappings", () => {
     const remapped = remapTrueTypeCmap(
       buildFormat4TrueTypeFont(),
