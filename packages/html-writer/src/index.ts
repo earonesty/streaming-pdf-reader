@@ -272,7 +272,7 @@ function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string,
     .join(";");
   const textLength =
     span.bounds.width > 0 && !isHebrewPaintOrder(span)
-      ? ` textLength="${number(span.bounds.width)}" lengthAdjust="spacingAndGlyphs"`
+      ? ` textLength="${number(span.bounds.width)}" lengthAdjust="${usesSpacingAdjustment(span) ? "spacing" : "spacingAndGlyphs"}"`
       : "";
   const transformed = hasNonIdentityTransform(span.transform);
   const rtlOffset = span.direction === "rtl" ? span.bounds.width : 0;
@@ -307,6 +307,10 @@ function visualType3Text(span: TextSpan, font: EmbeddedType3Font, pageHeight: nu
 
 function isHebrewPaintOrder(span: TextSpan): boolean {
   return span.direction === "ltr" && /[\u0590-\u05ff]/u.test(span.text);
+}
+
+function usesSpacingAdjustment(span: TextSpan): boolean {
+  return !span.fontAssetId && /arial/i.test(span.fontFamily ?? "");
 }
 
 function type3Glyph(glyph: Type3Glyph): string {

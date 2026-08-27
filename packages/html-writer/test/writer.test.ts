@@ -165,6 +165,12 @@ describe("HTML writer", () => {
       spans: [{ ...span("Subset", 20, 700), fontFamily: "MSTT31c64e" }],
     });
     expect(opaque).toContain("font-family:Arial,Helvetica,sans-serif");
+    expect(opaque).toContain('lengthAdjust="spacingAndGlyphs"');
+    const substitutedArial = await pageToHtml({
+      ...page,
+      spans: [{ ...span("Wide", 20, 700), fontFamily: "Arial-ItalicMT" }],
+    });
+    expect(substitutedArial).toContain('lengthAdjust="spacing"');
   });
 
   it("emits extracted text color and rejects unsafe color values", async () => {

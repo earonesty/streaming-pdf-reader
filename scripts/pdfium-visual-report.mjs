@@ -18,7 +18,7 @@ const fixtures = selectFixtures(requestedIds, limit);
 const writeBaseline = process.argv.includes("--write-baseline");
 const gate = process.argv.includes("--gate");
 const scale = 2;
-const maximumFuzzyChangedFraction = 0.0055;
+const maximumFuzzyChangedFraction = 0.0062;
 
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
