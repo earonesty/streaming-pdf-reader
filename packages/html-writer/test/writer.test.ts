@@ -177,6 +177,15 @@ describe("HTML writer", () => {
     expect(substitutedArial).toContain('lengthAdjust="spacing"');
   });
 
+  it("maps Nimbus PostScript family and slant names to CSS fallbacks", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [{ ...span("Flora", 20, 700), fontFamily: "NimbusRomNo9L-Regu-Slant_167" }],
+    });
+    expect(html).toContain("font-family:Times New Roman,Times,serif");
+    expect(html).toContain("font-style:italic");
+  });
+
   it("emits extracted text color and rejects unsafe color values", async () => {
     const colored = await pageToHtml({
       ...page,
