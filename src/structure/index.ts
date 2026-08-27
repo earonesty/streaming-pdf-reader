@@ -93,19 +93,15 @@ function tableHasHeader(table: Table): boolean {
   const rows = tableToRows(table);
   const first = rows[0] ?? [];
   const rest = rows.slice(1).flat();
-  const knownHeader = first.some((value) =>
-    /^(?:item|description|feature|qty|quantity|unit|price|amount|total|basic|pro)$/i.test(value),
-  );
   return (
-    knownHeader ||
-    (first.length > 0 &&
-      first.every((value) => /[A-Za-z]/.test(value)) &&
-      rest.some(isNumericField))
+    first.length > 0 &&
+    first.every((value) => /\p{L}/u.test(value) && !isNumericField(value)) &&
+    rest.some(isNumericField)
   );
 }
 
 function isNumericField(value: string): boolean {
-  return /^(?:[$€£]\s*)?[\d,.]+(?:\s*%)?$/.test(value.trim());
+  return /^(?:\p{Sc}\s*)?[\d.,'’\s]+(?:\s*%)?$/u.test(value.trim());
 }
 
 function groupLines(spans: TextSpan[], tolerance: number): TextLine[] {

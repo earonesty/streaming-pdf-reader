@@ -41,7 +41,7 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
     .flatMap((line) => line.spans.map((span) => span.fontSize))
     .filter((size) => Number.isFinite(size) && size > 0)
     .sort((left, right) => left - right);
-  const bodySize = fontSizes[Math.floor(fontSizes.length / 2)] ?? 12;
+  const bodySize = dominantFontSize(fontSizes) ?? 12;
   const largestSize = fontSizes.at(-1) ?? bodySize;
   const blocks: SemanticBlock[] = [];
   const emittedTables = new Set<Table>();
@@ -172,19 +172,31 @@ function tableDefinitions(table: Table): Array<{ term: string; description: stri
   }
   if (
     rows.length < 2 ||
-    !rows.some(([term]) =>
-      /^(?:subtotal|tax|shipping|total|amount due|balance)$/i.test(term ?? ""),
+    !table.cells.some((cell) =>
+      cell.spans.some((span) => /(?:bold|semibold|demi)/i.test(span.fontFamily ?? "")),
     ) ||
     !rows.every(
       ([term, description]) =>
         Boolean(term) &&
-        /[A-Za-z]/.test(term ?? "") &&
-        /^(?:[$€£]\s*)?[\d,.]+$/.test(description ?? ""),
+        /\p{L}/u.test(term ?? "") &&
+        /^(?:\p{Sc}\s*)?[\d.,'’\s]+(?:\s*%)?$/u.test(description ?? ""),
     )
   ) {
     return undefined;
   }
   return rows.map(([term, description]) => ({ term: term ?? "", description: description ?? "" }));
+}
+
+function dominantFontSize(sizes: number[]): number | undefined {
+  const counts = new Map<number, number>();
+  for (const size of sizes) {
+    const bucket = Math.round(size * 2) / 2;
+    counts.set(bucket, (counts.get(bucket) ?? 0) + 1);
+  }
+  return [...counts].sort(
+    ([leftSize, leftCount], [rightSize, rightCount]) =>
+      rightCount - leftCount || leftSize - rightSize,
+  )[0]?.[0];
 }
 
 function cardRun(
@@ -248,15 +260,15 @@ function employmentEntry(
   if (tableForLine.has(title) || tableForLine.has(organization) || tableForLine.has(date)) {
     return undefined;
   }
-  const looksLikeRole = /\b(?:engineer|developer|designer|manager|director|analyst)\b/i.test(
-    title.text,
+  const titleEmphasized = title.spans.some((span) =>
+    /(?:bold|semibold|demi)/i.test(span.fontFamily ?? ""),
   );
-  const looksLikeDate =
-    /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b.*\b(?:\d{4}|Present)\b/.test(
-      date.text,
-    );
+  const looksLikeDate = /\b(?:19|20)\d{2}\b/.test(date.text);
   const organizationBelow = Math.abs(title.bounds.x - organization.bounds.x) <= 12;
-  return looksLikeRole && looksLikeDate && organizationBelow
+  const dateBesideTitle =
+    date.bounds.x > title.bounds.x + title.bounds.width &&
+    Math.abs(date.bounds.y - title.bounds.y) <= Math.max(title.bounds.height, date.bounds.height);
+  return titleEmphasized && looksLikeDate && organizationBelow && dateBesideTitle
     ? {
         role: title.text,
         organization: organization.text,
@@ -313,7 +325,6 @@ function inferHeadingLevel(
   if (!text || text.length > 100) return undefined;
   const size = Math.max(...line.spans.map((span) => span.fontSize));
   if (size >= largestSize * 0.94 && size >= bodySize * 1.35) return 1;
-  if (/^(?:abstract|summary|experience|education|plan comparison)$/i.test(text)) return 2;
   if (
     /^\d+(?:\.\d+)*\.?(?:\s+|$)/.test(text) &&
     /[A-Za-z]/.test(text) &&

@@ -90,7 +90,7 @@ describe("semantic document flow", () => {
       "<section><h2>Ship to</h2><address><strong>Sam Reyes</strong><br>482 Page Street, Apt 2B",
     );
     expect(html).toContain("<section><h2>Billed to</h2><p><strong>Sam Reyes</strong></p>");
-    expect(html).toContain("<section><h2>Order total</h2><dl>");
+    expect(html).toContain("<section><dl>");
     expect(html).toContain(
       "<footer><p>Most orders arrive in 3–5 business days. You&#39;ll get a tracking email",
     );

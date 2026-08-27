@@ -577,7 +577,7 @@ describe("HTML writer", () => {
       ...page,
       spans: [
         { ...span("Document title", 20, 700), fontSize: 24 },
-        span("Summary", 20, 670),
+        { ...span("Summary", 20, 670), fontSize: 16, fontFamily: "Fixture-Bold" },
         span("A wrapped paragraph", 20, 645),
         span("continues on this line.", 20, 630),
         span("• First bullet with enough words", 20, 600),

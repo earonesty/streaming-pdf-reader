@@ -302,7 +302,9 @@ function tablesContinue(previous: Table, next: Table, pageWidth: number): boolea
 function tableHeader(rows: string[][]): string[] | undefined {
   const first = rows[0];
   if (!first) return undefined;
-  return first.some((value) => /^(?:item|description|feature|qty|unit|amount|total)$/i.test(value))
+  const later = rows.slice(1).flat();
+  return first.every((value) => /\p{L}/u.test(value) && !isNumericValue(value)) &&
+    later.some(isNumericValue)
     ? first
     : undefined;
 }
@@ -324,12 +326,13 @@ function tableRow(row: string[], header: boolean): string {
 function isFinancialSummary(block: Extract<SemanticBlock, { type: "definitionList" }>): boolean {
   return (
     block.entries.length > 0 &&
-    block.entries.every((entry) =>
-      /^(?:sub\s*total|tax|shipping|discount|tip|fee|amount due|balance due|total)(?:\s*\([^)]*\))?$/i.test(
-        entry.term.trim(),
-      ),
-    )
+    block.entries.every((entry) => isNumericValue(entry.description)) &&
+    block.entries.some((entry) => /\p{Sc}|%/u.test(entry.description))
   );
+}
+
+function isNumericValue(value: string): boolean {
+  return /^(?:\p{Sc}\s*)?[\d.,'’\s]+(?:\s*%)?$/u.test(value.trim());
 }
 
 function financialSummaryRow(
@@ -363,7 +366,7 @@ function semanticBlockHtml(block: Exclude<SemanticBlock, { type: "table" }>): st
           `<div><dt>${escapeHtml(entry.term)}</dt><dd>${escapeHtml(entry.description)}</dd></div>`,
       )
       .join("")}</dl>`;
-    return isFinancialSummary(block) ? `<section><h2>Order total</h2>${list}</section>` : list;
+    return isFinancialSummary(block) ? `<section>${list}</section>` : list;
   }
   if (block.type === "cardList") {
     return `<section><h2>Items ordered</h2><table><thead><tr><th scope="col">Item</th><th scope="col">Quantity</th><th scope="col">Amount</th></tr></thead><tbody>${block.items.map(cardTableRow).join("")}</tbody></table></section>`;
