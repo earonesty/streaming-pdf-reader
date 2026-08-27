@@ -1,6 +1,7 @@
 import { ValueParser } from "../syntax/parser.js";
 import type { PdfValue } from "../syntax/values.js";
 import type { VectorFill } from "../types.js";
+import { decodeGroup4Mask } from "./ccitt.js";
 import { type Matrix, multiply, transformPoint } from "./text-matrix.js";
 
 const latin1 = new TextDecoder("latin1");
@@ -11,6 +12,7 @@ export function extractInlineImageMaskFills(bytes: Uint8Array, initialCtm: Matri
   const stack: Matrix[] = [];
   let ctm = [...initialCtm] as Matrix;
   const fills: VectorFill[] = [];
+  const decodeCcitt = Math.max(...initialCtm.slice(0, 4).map(Math.abs)) >= 0.005;
   while (parser.offset < bytes.length) {
     parser.skipSpace();
     if (parser.offset >= bytes.length) break;
@@ -32,7 +34,7 @@ export function extractInlineImageMaskFills(bytes: Uint8Array, initialCtm: Matri
         ctm = multiply(ctm, tail as Matrix);
       }
     } else if (value === "BI") {
-      const image = readInlineMask(bytes, parser.offset);
+      const image = readInlineMask(bytes, parser.offset, decodeCcitt);
       if (!image) break;
       fills.push(...maskFills(image.data, image.width, image.height, image.paintZero, ctm));
       parser.offset = image.end;
@@ -50,7 +52,11 @@ interface InlineMask {
   end: number;
 }
 
-function readInlineMask(bytes: Uint8Array, offset: number): InlineMask | undefined {
+function readInlineMask(
+  bytes: Uint8Array,
+  offset: number,
+  decodeCcitt: boolean,
+): InlineMask | undefined {
   const id = findOperator(bytes, offset, "ID");
   if (id < 0) return undefined;
   const header = latin1.decode(bytes.subarray(offset, id));
@@ -64,13 +70,20 @@ function readInlineMask(bytes: Uint8Array, offset: number): InlineMask | undefin
   if (bytes[dataStart] === 0x0d && bytes[dataStart + 1] === 0x0a) dataStart += 2;
   else if (isWhitespace(bytes[dataStart])) dataStart += 1;
   const length = Math.ceil(width / 8) * height;
-  if (dataStart + length > bytes.length) return undefined;
-  const endImage = findOperator(bytes, dataStart + length, "EI");
+  const group4 = decodeCcitt && /(?:\/F|\/Filter)\s*\/?(?:CCF|CCITTFaxDecode)\b/.test(header);
+  if (!group4 && dataStart + length > bytes.length) return undefined;
+  const endImage = findOperator(bytes, dataStart + (group4 ? 0 : length), "EI");
+  if (group4 && endImage < 0) return undefined;
+  const encoded = bytes.subarray(dataStart, group4 ? endImage : dataStart + length);
+  const data = group4 ? decodeGroup4Mask(encoded, width, height) : encoded;
+  if (data.length !== length) return undefined;
   return {
     width,
     height,
-    paintZero: !/(?:\/D|\/Decode)\s*\[\s*1(?:\.0*)?\s+0(?:\.0*)?\s*\]/.test(header),
-    data: bytes.subarray(dataStart, dataStart + length),
+    paintZero: group4
+      ? !/(?:\/D|\/Decode)\s*\[\s*1(?:\.0*)?\s+0(?:\.0*)?\s*\]/.test(header)
+      : !/(?:\/D|\/Decode)\s+\[\s*1(?:\.0*)?\s+0(?:\.0*)?\s*\]/.test(header),
+    data,
     end: endImage < 0 ? dataStart + length : endImage + 2,
   };
 }

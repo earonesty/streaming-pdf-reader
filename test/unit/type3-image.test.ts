@@ -34,4 +34,24 @@ describe("Type3 inline image masks", () => {
       ),
     ).toEqual([]);
   });
+
+  it("decodes Group 4 compressed inline masks", () => {
+    const prefix = new TextEncoder().encode(
+      "BI /IM true /W 106 /H 100 /BPC 1 /D[1 0] /F/CCF /DP<</K -1 /Columns 106>> ID ",
+    );
+    const compressed = Uint8Array.from(
+      Buffer.from(
+        "JqCkeBS+n/6f6f/p/p/+n+n/6f6fOL7631++lfvrfX76316t9fvrfXq31++t9erfX76316t9fvrfX76V++t9fvrfT6318en+n/OBrdb69W+v31vr1b6/fW+vVvr99b6/fW+n1vr03yJrcSEBoJaG//4AIAI=",
+        "base64",
+      ),
+    );
+    const suffix = new TextEncoder().encode(" EI");
+    const bytes = new Uint8Array(prefix.length + compressed.length + suffix.length);
+    bytes.set(prefix);
+    bytes.set(compressed, prefix.length);
+    bytes.set(suffix, prefix.length + compressed.length);
+
+    const fills = extractInlineImageMaskFills(bytes, [1, 0, 0, 1, 0, 0]);
+    expect(fills.length).toBeGreaterThan(100);
+  });
 });

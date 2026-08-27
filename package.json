@@ -103,7 +103,8 @@
   },
   "dependencies": {
     "@pdf-lib/standard-fonts": "1.0.0",
-    "pako": "^2.1.0"
+    "pako": "^2.1.0",
+    "utif2": "4.1.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",

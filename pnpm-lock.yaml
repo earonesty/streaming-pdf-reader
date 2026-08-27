@@ -14,6 +14,9 @@ importers:
       pako:
         specifier: ^2.1.0
         version: 2.2.0
+      utif2:
+        specifier: 4.1.0
+        version: 4.1.0
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.5.10
@@ -1372,6 +1375,9 @@ packages:
       '@napi-rs/canvas':
         optional: true
 
+  utif2@4.1.0:
+    resolution: {integrity: sha512-+oknB9FHrJ7oW7A2WZYajOcv4FcDR4CfoGB0dPNfxbi4GO05RRnFmt5oa23+9w32EanrYcSJWspUiJkLMs+37w==}
+
   vite@8.2.2:
     resolution: {integrity: sha512-cFKLV/PRgAUlIRm5WjMjJ86jrftzpqcgH+Us+DS8mI3CDNiH30Whrz8uHL3+MOLPAgqbMBAqWdAHAphOAM+z/Q==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -2438,6 +2444,10 @@ snapshots:
   unpdf@1.8.1(@napi-rs/canvas@0.1.100):
     optionalDependencies:
       '@napi-rs/canvas': 0.1.100
+
+  utif2@4.1.0:
+    dependencies:
+      pako: 1.0.11
 
   vite@8.2.2(@types/node@24.13.3)(esbuild@0.27.7):
     dependencies:
