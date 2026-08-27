@@ -93,7 +93,8 @@ export async function writeSemanticDocument(
       }
       if (headerOpen) {
         if (block.type === "paragraph") {
-          await write(`<p>${escapeHtml(block.text)}</p>`);
+          const tag = isContactBlock(block) ? "address" : "p";
+          await write(`<${tag}>${escapeHtml(block.text)}</${tag}>`);
           headerHasParagraph = true;
           continue;
         }
@@ -136,14 +137,27 @@ export async function writeSemanticDocument(
       }
       await closeTable();
       if (block.type === "heading") {
-        await closeSections(block.level);
+        const level = contentStarted && block.level === 1 ? 2 : block.level;
+        await closeSections(level);
         await write(
-          `<section data-level="${block.level}"><h${block.level}>${escapeHtml(block.text)}</h${block.level}>`,
+          `<section data-level="${level}"><h${level}>${escapeHtml(block.text)}</h${level}>`,
         );
-        sectionLevels.push(block.level);
+        sectionLevels.push(level);
         continue;
       }
       if (block.type === "paragraph") {
+        if (isTitledRecord(block)) {
+          const [institution, ...details] = block.lines;
+          if (institution) await write(`<h3>${escapeHtml(institution.text)}</h3>`);
+          for (const detail of details) await write(`<p>${escapeHtml(detail.text)}</p>`);
+          continue;
+        }
+        if (isUnmarkedList(block)) {
+          await write(
+            `<ul>${block.lines.map((line) => `<li>${escapeHtml(line.text)}</li>`).join("")}</ul>`,
+          );
+          continue;
+        }
         pendingParagraph = { block, height: page.height };
         continue;
       }
@@ -190,6 +204,45 @@ export async function writeSemanticDocument(
   }
   await write("</article>");
   return stats;
+}
+
+function isContactBlock(block: Extract<SemanticBlock, { type: "paragraph" }>): boolean {
+  const text = block.text;
+  const signals = [
+    /@/.test(text),
+    /\+?\d[\d().\s-]{7,}/.test(text),
+    /\bhttps?:\/\//i.test(text),
+    /\b\w+\.\w{2,}\b/i.test(text),
+  ];
+  return signals.filter(Boolean).length >= 2;
+}
+
+function isTitledRecord(block: Extract<SemanticBlock, { type: "paragraph" }>): boolean {
+  if (block.lines.length < 2) return false;
+  const [first, ...rest] = block.lines;
+  if (!first || rest.length === 0) return false;
+  const firstSize = Math.max(...first.spans.map((span) => span.fontSize));
+  const restSize = Math.max(...rest.flatMap((line) => line.spans.map((span) => span.fontSize)));
+  const emphasized = first.spans.some((span) =>
+    /(?:bold|semibold|demi)/i.test(span.fontFamily ?? ""),
+  );
+  return emphasized || firstSize >= restSize * 1.08;
+}
+
+function isUnmarkedList(block: Extract<SemanticBlock, { type: "paragraph" }>): boolean {
+  if (block.lines.length < 3) return false;
+  const first = block.lines[0];
+  if (!first) return false;
+  const aligned = block.lines.every(
+    (line) => Math.abs(line.bounds.x - first.bounds.x) <= Math.max(8, first.bounds.height),
+  );
+  const separated = block.lines.slice(1).every((line, index) => {
+    const previous = block.lines[index];
+    if (!previous) return false;
+    const gap = previous.bounds.y - (line.bounds.y + line.bounds.height);
+    return gap >= Math.min(previous.bounds.height, line.bounds.height) * 0.55;
+  });
+  return aligned && separated;
 }
 
 function isFooterParagraph(

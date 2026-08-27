@@ -30,6 +30,34 @@ describe("semantic document flow", () => {
     );
   });
 
+  it("uses typography and spacing to structure résumé records and unmarked lists", async () => {
+    const source = await fileSource(
+      fileURLToPath(new URL("../../../fixtures/semantic/resume.pdf", import.meta.url)),
+    );
+    const pdf = await openPdf(source);
+    let html = "";
+    try {
+      await writeHtmlDocument(
+        pdf.pages(),
+        (chunk) => {
+          html += chunk;
+        },
+        { profile: "semantic" },
+      );
+    } finally {
+      pdf.close();
+      await source.close();
+    }
+
+    expect(html).toContain("<address>San Francisco, CA avery.chen@example.com");
+    expect(html).toContain(
+      "<h3>University of California, Berkeley</h3><p>B.A. Computer Science</p>",
+    );
+    expect(html).toContain(
+      "<ul><li>TypeScript, Rust, Go</li><li>Cloudflare Workers, AWS Lambda, Kubernetes</li>",
+    );
+  });
+
   it("renders product cards, address sections, and totals from the order fixture", async () => {
     const source = await fileSource(
       fileURLToPath(new URL("../../../fixtures/semantic/order-confirmation.pdf", import.meta.url)),
