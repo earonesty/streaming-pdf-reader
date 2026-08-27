@@ -1,6 +1,6 @@
 {
   "name": "@boxpdf/reader",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "A streaming, memory-bounded PDF reader and structured-data extractor for JavaScript.",
   "keywords": [
     "pdf",
