@@ -126,8 +126,16 @@ async function writePositionedPage(
       const strokeOpacity = isUnitInterval(path.strokeOpacity)
         ? ` stroke-opacity="${number(path.strokeOpacity)}"`
         : "";
+      const dasharray = path.strokeDasharray?.every((value) => Number.isFinite(value) && value >= 0)
+        ? ` stroke-dasharray="${path.strokeDasharray.map(number).join(" ")}"`
+        : "";
+      const dashoffset = Number.isFinite(path.strokeDashoffset)
+        ? ` stroke-dashoffset="${number(path.strokeDashoffset ?? 0)}"`
+        : "";
+      const linecap = path.strokeLinecap ? ` stroke-linecap="${path.strokeLinecap}"` : "";
+      const linejoin = path.strokeLinejoin ? ` stroke-linejoin="${path.strokeLinejoin}"` : "";
       await write(
-        `<path d="${path.d}" fill="${fill}" stroke="${stroke}"${strokeWidth}${fillOpacity}${strokeOpacity}${fillRule}/>`,
+        `<path d="${path.d}" fill="${fill}" stroke="${stroke}"${strokeWidth}${fillOpacity}${strokeOpacity}${dasharray}${dashoffset}${linecap}${linejoin}${fillRule}/>`,
       );
     }
     await write("</g>");

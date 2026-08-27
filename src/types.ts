@@ -60,6 +60,10 @@ export interface VectorPath {
   strokeWidth?: number | undefined;
   fillOpacity?: number | undefined;
   strokeOpacity?: number | undefined;
+  strokeDasharray?: number[] | undefined;
+  strokeDashoffset?: number | undefined;
+  strokeLinecap?: "butt" | "round" | "square" | undefined;
+  strokeLinejoin?: "miter" | "round" | "bevel" | undefined;
   fillRule?: "nonzero" | "evenodd" | undefined;
 }
 

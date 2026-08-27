@@ -3,6 +3,10 @@ import { isName, isRef, type PdfDict, type PdfValue } from "../syntax/values.js"
 
 export interface ResolvedExtendedGraphicsState {
   lineWidth?: number;
+  lineCap?: number;
+  lineJoin?: number;
+  dashArray?: number[];
+  dashPhase?: number;
   fontName?: string;
   fontSize?: number;
   fillOpacity?: number;
@@ -21,6 +25,20 @@ export async function resolveExtendedGraphicsState(
   const result: ResolvedExtendedGraphicsState = {};
   const lineWidth = extended.get("LW");
   if (typeof lineWidth === "number" && lineWidth >= 0) result.lineWidth = lineWidth;
+  const lineCap = extended.get("LC");
+  if (typeof lineCap === "number" && lineCap >= 0 && lineCap <= 2) result.lineCap = lineCap;
+  const lineJoin = extended.get("LJ");
+  if (typeof lineJoin === "number" && lineJoin >= 0 && lineJoin <= 2) result.lineJoin = lineJoin;
+  const dash = extended.get("D");
+  if (
+    Array.isArray(dash) &&
+    Array.isArray(dash[0]) &&
+    dash[0].every((value) => typeof value === "number" && value >= 0) &&
+    typeof dash[1] === "number"
+  ) {
+    result.dashArray = dash[0] as number[];
+    result.dashPhase = dash[1];
+  }
   const fillOpacity = normalizedOpacity(extended.get("ca"));
   const strokeOpacity = normalizedOpacity(extended.get("CA"));
   if (fillOpacity !== undefined) result.fillOpacity = fillOpacity;

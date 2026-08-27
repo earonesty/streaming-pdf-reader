@@ -14,6 +14,10 @@ interface GraphicsState {
   fillColor: string;
   strokeColor: string;
   lineWidth: number;
+  lineCap: number;
+  lineJoin: number;
+  dashArray: number[];
+  dashPhase: number;
   fillColorSpace: string | undefined;
   strokeColorSpace: string | undefined;
   fillOpacity: number;
@@ -23,6 +27,10 @@ interface GraphicsState {
     fillColor: string;
     strokeColor: string;
     lineWidth: number;
+    lineCap: number;
+    lineJoin: number;
+    dashArray: number[];
+    dashPhase: number;
     fillColorSpace: string | undefined;
     strokeColorSpace: string | undefined;
     fillOpacity: number;
@@ -72,6 +80,10 @@ function createState(): GraphicsState {
     fillColor: "#000000",
     strokeColor: "#000000",
     lineWidth: 1,
+    lineCap: 0,
+    lineJoin: 0,
+    dashArray: [],
+    dashPhase: 0,
     fillColorSpace: undefined,
     strokeColorSpace: undefined,
     fillOpacity: 1,
@@ -153,6 +165,10 @@ async function applyOperator(
   if (operator === "gs") {
     const extended = await resolveExtendedGraphicsState(reader, resources, args.at(-1));
     if (extended?.lineWidth !== undefined) state.lineWidth = extended.lineWidth;
+    if (extended?.lineCap !== undefined) state.lineCap = extended.lineCap;
+    if (extended?.lineJoin !== undefined) state.lineJoin = extended.lineJoin;
+    if (extended?.dashArray !== undefined) state.dashArray = extended.dashArray;
+    if (extended?.dashPhase !== undefined) state.dashPhase = extended.dashPhase;
     if (extended?.fillOpacity !== undefined) state.fillOpacity = extended.fillOpacity;
     if (extended?.strokeOpacity !== undefined) state.strokeOpacity = extended.strokeOpacity;
     return;
@@ -188,6 +204,10 @@ function applyGraphicsState(operator: string, args: PdfValue[], state: GraphicsS
       fillColor: state.fillColor,
       strokeColor: state.strokeColor,
       lineWidth: state.lineWidth,
+      lineCap: state.lineCap,
+      lineJoin: state.lineJoin,
+      dashArray: [...state.dashArray],
+      dashPhase: state.dashPhase,
       fillColorSpace: state.fillColorSpace,
       strokeColorSpace: state.strokeColorSpace,
       fillOpacity: state.fillOpacity,
@@ -201,6 +221,10 @@ function applyGraphicsState(operator: string, args: PdfValue[], state: GraphicsS
     state.fillColor = restored?.fillColor ?? "#000000";
     state.strokeColor = restored?.strokeColor ?? "#000000";
     state.lineWidth = restored?.lineWidth ?? 1;
+    state.lineCap = restored?.lineCap ?? 0;
+    state.lineJoin = restored?.lineJoin ?? 0;
+    state.dashArray = restored?.dashArray ?? [];
+    state.dashPhase = restored?.dashPhase ?? 0;
     state.fillColorSpace = restored?.fillColorSpace;
     state.strokeColorSpace = restored?.strokeColorSpace;
     state.fillOpacity = restored?.fillOpacity ?? 1;
@@ -231,6 +255,27 @@ function applyGraphicsState(operator: string, args: PdfValue[], state: GraphicsS
   if (operator === "w") {
     const width = numericTail(args, 1)?.[0];
     if (width !== undefined && width >= 0) state.lineWidth = width;
+    return true;
+  }
+  if (operator === "J" || operator === "j") {
+    const value = numericTail(args, 1)?.[0];
+    if (value !== undefined && value >= 0 && value <= 2) {
+      if (operator === "J") state.lineCap = value;
+      else state.lineJoin = value;
+    }
+    return true;
+  }
+  if (operator === "d") {
+    const array = args.at(-2);
+    const phase = args.at(-1);
+    if (
+      Array.isArray(array) &&
+      array.every((value) => typeof value === "number" && value >= 0) &&
+      typeof phase === "number"
+    ) {
+      state.dashArray = array as number[];
+      state.dashPhase = phase;
+    }
     return true;
   }
   return false;
@@ -346,6 +391,14 @@ function paintPath(
         ? {
             stroke: state.strokeColor,
             strokeWidth: effectiveLineWidth(state.ctm, state.lineWidth),
+            ...(state.dashArray.length > 0 ? { strokeDasharray: state.dashArray } : {}),
+            ...(state.dashPhase !== 0 ? { strokeDashoffset: state.dashPhase } : {}),
+            ...(state.lineCap !== 0
+              ? { strokeLinecap: (["butt", "round", "square"] as const)[state.lineCap] }
+              : {}),
+            ...(state.lineJoin !== 0
+              ? { strokeLinejoin: (["miter", "round", "bevel"] as const)[state.lineJoin] }
+              : {}),
           }
         : {}),
       ...(strokesPath && state.strokeOpacity !== 1 ? { strokeOpacity: state.strokeOpacity } : {}),

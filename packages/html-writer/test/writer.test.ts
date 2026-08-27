@@ -142,12 +142,16 @@ describe("HTML writer", () => {
           strokeWidth: 2,
           fillOpacity: 0.25,
           strokeOpacity: 0.5,
+          strokeDasharray: [1, 3],
+          strokeDashoffset: 0.5,
+          strokeLinecap: "round",
+          strokeLinejoin: "bevel",
         },
         { d: '" onload="alert(1)', fill: "#000000" },
       ],
     });
     expect(html).toContain(
-      '<path d="M10 20L30 40Z" fill="#112233" stroke="#445566" stroke-width="2" fill-opacity="0.25" stroke-opacity="0.5"/>',
+      '<path d="M10 20L30 40Z" fill="#112233" stroke="#445566" stroke-width="2" fill-opacity="0.25" stroke-opacity="0.5" stroke-dasharray="1 3" stroke-dashoffset="0.5" stroke-linecap="round" stroke-linejoin="bevel"/>',
     );
     expect(html).not.toContain("onload");
   });
