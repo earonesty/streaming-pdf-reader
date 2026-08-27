@@ -142,7 +142,7 @@ endbfchar`),
 
   it("interprets text-state, positioning, array, and quote operators", async () => {
     const content = `0.2 0.4 0.6 rg q
-2 0 0 2 0 0 cm
+0 2 -2 0 300 0 cm
 BT /F1 10 Tf 1 Tc 2 Tw 80 Tz 12 TL 3 Ts
 1 0 0 1 10 100 Tm (A) Tj
 0.5 g
@@ -188,6 +188,7 @@ trailer
     expect(pages[0]?.spans[0]?.bounds.width).toBeCloseTo(12.272, 5);
     expect(pages[0]?.spans[0]?.bounds.height).toBeCloseTo(20, 5);
     expect(pages[0]?.spans[0]?.fontSize).toBeCloseTo(20, 5);
+    expect(pages[0]?.spans[0]?.transform).toEqual([0, -1, 1, 0]);
     expect(pages[0]?.spans.map((span) => span.color)).toEqual([
       "#336699",
       "#808080",

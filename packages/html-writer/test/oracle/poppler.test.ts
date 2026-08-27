@@ -87,7 +87,7 @@ function parseWriterHtml(html: string): HtmlSummary {
   ];
   const svgText = [
     ...html.matchAll(
-      /<text(?:\s+dir="[^"]+")?\s+x="([\d.-]+)"\s+y="([\d.-]+)"\s+font-size="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g,
+      /<text(?:\s+dir="[^"]+")?\s+x="([\d.-]+)"\s+y="([\d.-]+)"[^>]*\sfont-size="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g,
     ),
   ];
   const firstPage = pages[0];

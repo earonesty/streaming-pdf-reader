@@ -25,6 +25,8 @@ export interface TextSpan {
   /** Text fill color serialized as a six-digit CSS hex value. */
   color?: string | undefined;
   fontSize: number;
+  /** Normalized top-down visual text basis `[a,b,c,d]`; translation remains in `bounds.x/y`. */
+  transform?: [number, number, number, number] | undefined;
   source: SourceRef;
 }
 

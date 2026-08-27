@@ -389,21 +389,33 @@ function showString(
     vertical ? 0 : Math.abs(state.fontSize),
   );
   const [topX, topY] = transformPoint(state.ctm, topMatrix[4], topMatrix[5] + state.rise);
+  const advanceLength = Math.hypot(endX - x, endY - y);
+  const ascentLength = Math.hypot(topX - x, topY - y);
   spans.push({
     text: visible.text,
     ...(hasLeadingSpace ? { hasLeadingSpace: true } : {}),
     bounds: {
       x,
       y,
-      width: vertical ? Math.hypot(topX - x, topY - y) : Math.hypot(endX - x, endY - y),
-      height: vertical ? Math.hypot(endX - x, endY - y) : Math.hypot(topX - x, topY - y),
+      width: vertical ? ascentLength : advanceLength,
+      height: vertical ? advanceLength : ascentLength,
     },
     direction: vertical ? "ttb" : "ltr",
     fontName: state.font,
     ...(font?.fontFamily ? { fontFamily: font.fontFamily } : {}),
     ...(font?.fontAssetId ? { fontAssetId: font.fontAssetId } : {}),
     color: state.fillColor,
-    fontSize: Math.hypot(topX - x, topY - y),
+    fontSize: ascentLength,
+    ...(!vertical && advanceLength > 0 && ascentLength > 0
+      ? {
+          transform: [
+            (endX - x) / advanceLength,
+            -(endY - y) / advanceLength,
+            -(topX - x) / ascentLength,
+            (topY - y) / ascentLength,
+          ] as [number, number, number, number],
+        }
+      : {}),
     source: { page: 0, objectNumber: page.ref.object },
   });
   state.textMatrix = translate(state.textMatrix, vertical ? 0 : width, vertical ? -width : 0);

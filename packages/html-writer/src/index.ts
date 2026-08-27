@@ -90,11 +90,11 @@ async function writePositionedPage(
     `<svg class="pdf-visual-text" xmlns="http://www.w3.org/2000/svg" width="${number(page.width)}pt" height="${number(page.height)}pt" viewBox="0 0 ${number(page.width)} ${number(page.height)}">`,
   );
   for (const span of page.spans) {
-    if (!isMonospace(span.fontFamily)) await write(visualText(span, page.height, fontAliases));
+    if (!usesPositionedSpan(span)) await write(visualText(span, page.height, fontAliases));
   }
   await write("</svg>");
   for (const span of page.spans) {
-    if (isMonospace(span.fontFamily)) await write(positionedSpan(span, fontAliases));
+    if (usesPositionedSpan(span)) await write(positionedSpan(span, fontAliases));
   }
   await write("</div></section>");
 }
@@ -153,7 +153,11 @@ function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string,
     span.bounds.width > 0
       ? ` textLength="${number(span.bounds.width)}" lengthAdjust="spacingAndGlyphs"`
       : "";
-  return `<text${direction} x="${number(span.bounds.x)}" y="${number(pageHeight - span.bounds.y)}" font-size="${number(span.fontSize)}"${textLength}${style ? ` style="${style}"` : ""}>${escapeHtml(span.text)}</text>`;
+  const transformed = hasNonIdentityTransform(span.transform);
+  const position = transformed
+    ? ` x="0" y="0" transform="matrix(${span.transform?.map(number).join(" ")} ${number(span.bounds.x)} ${number(pageHeight - span.bounds.y)})"`
+    : ` x="${number(span.bounds.x)}" y="${number(pageHeight - span.bounds.y)}"`;
+  return `<text${direction}${position} font-size="${number(span.fontSize)}"${textLength}${style ? ` style="${style}"` : ""}>${escapeHtml(span.text)}</text>`;
 }
 
 function isCssHexColor(value: string | undefined): value is string {
@@ -179,6 +183,16 @@ function fontStyles(fontFamily: string | undefined, alias?: string): string[] {
 
 function isMonospace(fontFamily: string | undefined): boolean {
   return /courier|mono/i.test(fontFamily ?? "");
+}
+
+function usesPositionedSpan(span: TextSpan): boolean {
+  return isMonospace(span.fontFamily) && !hasNonIdentityTransform(span.transform);
+}
+
+function hasNonIdentityTransform(transform: TextSpan["transform"]): boolean {
+  if (!transform) return false;
+  const identity: [number, number, number, number] = [1, 0, 0, 1];
+  return transform.some((value, index) => Math.abs(value - (identity[index] ?? 0)) > 0.000_001);
 }
 
 function fontFace(font: EmbeddedFont, aliases: Map<string, string>): string {

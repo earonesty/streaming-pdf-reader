@@ -47,6 +47,14 @@ describe("HTML writer", () => {
     expect(html).toContain("pdf-page-content--90");
   });
 
+  it("applies extracted text orientation as an SVG matrix", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [{ ...span("Turn", 20, 700), transform: [0, -1, 1, 0] }],
+    });
+    expect(html).toContain('transform="matrix(0 -1 1 0 20 92)"');
+  });
+
   it("maps resolved PDF font evidence to safe visual CSS", async () => {
     const html = await pageToHtml({
       ...page,
