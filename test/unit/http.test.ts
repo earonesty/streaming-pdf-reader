@@ -33,13 +33,46 @@ describe("httpSource", () => {
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
-  it.each([
-    [response([], 200, { "content-range": "bytes 0-0/2" })],
-    [response([], 206, { "content-range": "invalid" })],
-  ])("rejects an invalid range probe", async (probe) => {
-    await expect(
-      httpSource("https://example.test/file.pdf", { fetch: vi.fn(async () => probe) }),
-    ).rejects.toThrow("must support byte ranges");
+  it.each([[response([], 500)], [response([], 206, { "content-range": "invalid" })]])(
+    "rejects an invalid range probe",
+    async (probe) => {
+      await expect(
+        httpSource("https://example.test/file.pdf", { fetch: vi.fn(async () => probe) }),
+      ).rejects.toThrow("must support byte ranges");
+    },
+  );
+
+  it("uses bounded slices when the probe returns a complete response", async () => {
+    const warning = vi.fn();
+    let calls = 0;
+    const source = await httpSource("https://example.test/file.pdf", {
+      onWarning: warning,
+      fetch: vi.fn(async () => {
+        calls += 1;
+        return response([10, 20, 30, 40], 200, { "content-length": "4" });
+      }),
+    });
+    expect(source.size).toBe(4);
+    await expect(source.read(1, 2)).resolves.toEqual(Uint8Array.of(20, 30));
+    expect(calls).toBe(2);
+    expect(warning).toHaveBeenCalledOnce();
+  });
+
+  it("accepts and warns once when range reads over-return a complete response", async () => {
+    const warning = vi.fn();
+    let calls = 0;
+    const source = await httpSource("https://example.test/file.pdf", {
+      onWarning: warning,
+      fetch: vi.fn(async () => {
+        calls += 1;
+        return calls === 1
+          ? response([0], 206, { "content-range": "bytes 0-0/5" })
+          : response([10, 20, 30, 40, 50], 200);
+      }),
+    });
+    await expect(source.read(2, 2)).resolves.toEqual(Uint8Array.of(30, 40));
+    await expect(source.read(4, 1)).resolves.toEqual(Uint8Array.of(50));
+    expect(warning).toHaveBeenCalledOnce();
   });
 
   it("rejects invalid requested ranges", async () => {

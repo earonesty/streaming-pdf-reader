@@ -77,7 +77,9 @@ try {
 }
 ```
 
-HTTP sources require byte-range support:
+HTTP sources prefer byte-range support. Servers that return a complete HTTP 200 response are also
+supported: the reader keeps only the requested slice in memory and emits one transfer-efficiency
+warning per source.
 
 ```ts
 import { httpSource, openPdf } from "@boxpdf/reader";
