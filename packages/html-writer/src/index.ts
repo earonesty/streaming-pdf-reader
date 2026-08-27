@@ -270,6 +270,7 @@ function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string,
     : "";
   const style = [
     isHebrewPaintOrder(span) ? "unicode-bidi:bidi-override;direction:ltr" : "",
+    span.direction === "ttb" ? "writing-mode:vertical-rl" : "",
     strokeOnly ? "fill:none" : isCssHexColor(span.color) ? `fill:${span.color}` : "",
     stroke,
     strokeWidth,
@@ -279,9 +280,10 @@ function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string,
   ]
     .filter(Boolean)
     .join(";");
+  const textExtent = span.direction === "ttb" ? span.bounds.height : span.bounds.width;
   const textLength =
-    span.bounds.width > 0 && !isHebrewPaintOrder(span)
-      ? ` textLength="${number(span.bounds.width)}" lengthAdjust="${usesSpacingAdjustment(span) ? "spacing" : "spacingAndGlyphs"}"`
+    textExtent > 0 && !isHebrewPaintOrder(span)
+      ? ` textLength="${number(textExtent)}" lengthAdjust="${span.direction === "ttb" || usesSpacingAdjustment(span) ? "spacing" : "spacingAndGlyphs"}"`
       : "";
   const transformed = hasNonIdentityTransform(span.transform);
   const rtlOffset = span.direction === "rtl" ? span.bounds.width : 0;

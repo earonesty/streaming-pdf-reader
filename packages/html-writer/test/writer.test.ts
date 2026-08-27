@@ -496,6 +496,8 @@ describe("HTML writer", () => {
       spans: [{ ...span("vertical", 20, 700), direction: "ttb" }],
     });
     expect(vertical).toContain('data-direction="ttb"');
+    expect(vertical).toContain("writing-mode:vertical-rl");
+    expect(vertical).toContain('textLength="12" lengthAdjust="spacing"');
     expect(vertical).not.toContain('dir="rtl"');
   });
 
