@@ -1,6 +1,6 @@
 import type { ExtractedPage } from "@boxpdf/reader";
 import { describe, expect, it } from "vitest";
-import { pageToHtml, writeHtmlDocument } from "../src/index.js";
+import { pageToHtml, type SemanticDocumentStats, writeHtmlDocument } from "../src/index.js";
 
 const page: ExtractedPage = {
   number: 1,
@@ -516,7 +516,7 @@ describe("HTML writer", () => {
     );
     const html = chunks.join("");
     expect(html.startsWith('<main class="pdf-document">')).toBe(true);
-    expect(html).toContain("pdf-page--semantic");
+    expect(html).toContain("pdf-semantic-document");
     expect(html).toContain("<p>&lt;Hello &amp; &quot;world&quot;&gt;</p>");
     expect(html).not.toContain("<!doctype html>");
   });
@@ -602,6 +602,67 @@ describe("HTML writer", () => {
     );
     expect(html).toContain("<dl><div><dt>PASSENGER</dt><dd>Paula Ruiz</dd></div>");
     expect(html).toContain("<div><dt>SEAT</dt><dd>14A</dd></div></dl>");
+  });
+
+  it("merges continued tables and suppresses repeated furniture with bounded lookahead", async () => {
+    const first: ExtractedPage = {
+      ...page,
+      spans: [
+        span("Item", 20, 500),
+        span("Total", 180, 500),
+        span("Design", 20, 480),
+        span("$900", 180, 480),
+        span("Page 1 of 2", 20, 20),
+      ],
+    };
+    const second: ExtractedPage = {
+      ...page,
+      number: 2,
+      spans: [
+        span("Build", 20, 500),
+        span("$350", 180, 500),
+        span("Review", 20, 480),
+        span("$100", 180, 480),
+        span("Page 2 of 2", 20, 20),
+      ],
+    };
+    let html = "";
+    let observed: SemanticDocumentStats | undefined;
+    await writeHtmlDocument(
+      [first, second],
+      (chunk) => {
+        html += chunk;
+      },
+      {
+        profile: "semantic",
+        semanticLookaheadPages: 4,
+        onSemanticStats: (stats) => {
+          observed = stats;
+        },
+      },
+    );
+
+    expect(html.match(/<table>/g)).toHaveLength(1);
+    expect(html).toContain("<th>Item</th><th>Total</th>");
+    expect(html).toContain("<td>Review</td><td>$100</td>");
+    expect(html).not.toContain("Page 1 of 2");
+    expect(html).not.toContain("Page 2 of 2");
+    expect(observed).toEqual({
+      pagesProcessed: 2,
+      peakBufferedPages: 2,
+      peakBufferedLines: 6,
+      mergedTables: 1,
+      suppressedFurniture: 2,
+    });
+  });
+
+  it("validates the semantic lookahead window", async () => {
+    await expect(
+      writeHtmlDocument([page], () => undefined, {
+        profile: "semantic",
+        semanticLookaheadPages: 0,
+      }),
+    ).rejects.toThrow("semanticLookaheadPages must be an integer between 1 and 16");
   });
 });
 

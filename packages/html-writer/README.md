@@ -29,6 +29,25 @@ lines, nesting, and tables to produce reflowable HTML. The visual model comes
 first: semantic structure is derived from the complete page evidence rather
 than inferred after presentation information has been discarded.
 
+Document-level semantic output uses a bounded page window to merge tables that
+continue across page boundaries and suppress repeated margin furniture. The
+default window retains at most four extracted text models; configure it from
+one to sixteen pages without buffering PDF bytes, fonts, or raster images:
+
+```ts
+await writeHtmlDocument(pdf.pages(), write, {
+  profile: "semantic",
+  semanticLookaheadPages: 4,
+  onSemanticStats(stats) {
+    console.log(stats.peakBufferedPages, stats.mergedTables);
+  },
+});
+```
+
+The reported statistics also include processed pages, peak buffered lines, and
+suppressed furniture. Page-level `pageToHtml()` remains available when no
+cross-page inference is wanted.
+
 The legacy `layout: "positioned" | "flow"` option remains as an alias for
 `profile: "visual" | "semantic"`. The current visual output surface excludes
 images, vector graphics, and exact font reproduction; the PDFium parity report

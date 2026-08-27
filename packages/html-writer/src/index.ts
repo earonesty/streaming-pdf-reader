@@ -8,6 +8,9 @@ import type {
   VectorPath,
 } from "@boxpdf/reader";
 import { structurePage, tableToHtml } from "@boxpdf/reader/structure";
+import { type SemanticDocumentStats, writeSemanticDocument } from "./semantic-document.js";
+
+export type { SemanticDocumentStats } from "./semantic-document.js";
 
 export type HtmlLayout = "positioned" | "flow";
 export type HtmlProfile = "visual" | "semantic";
@@ -22,6 +25,10 @@ export interface HtmlWriterOptions {
   language?: string;
   includeDocument?: boolean;
   includeStyles?: boolean;
+  /** Maximum extracted page models retained for document-level semantic decisions. */
+  semanticLookaheadPages?: number;
+  /** Receives bounded-buffer and document-inference statistics after semantic output completes. */
+  onSemanticStats?: (stats: Readonly<SemanticDocumentStats>) => void;
 }
 
 const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--visual,.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom;unicode-bidi:isolate}.pdf-span[data-direction=ttb]{writing-mode:vertical-rl}.pdf-page--semantic,.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--semantic p,.pdf-page--flow p{white-space:pre-wrap;unicode-bidi:plaintext}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
@@ -43,9 +50,23 @@ export async function writeHtmlDocument(
     await write("</head><body>");
   }
   await write('<main class="pdf-document">');
-  for await (const page of pages) await writePage(page, write, options);
+  if (resolveProfile(options) === "semantic") {
+    const lookahead = semanticLookahead(options.semanticLookaheadPages);
+    const stats = await writeSemanticDocument(pages, write, lookahead);
+    options.onSemanticStats?.(stats);
+  } else {
+    for await (const page of pages) await writePage(page, write, options);
+  }
   await write("</main>");
   if (includeDocument) await write("</body></html>");
+}
+
+function semanticLookahead(value: number | undefined): number {
+  const lookahead = value ?? 4;
+  if (!Number.isSafeInteger(lookahead) || lookahead < 1 || lookahead > 16) {
+    throw new RangeError("semanticLookaheadPages must be an integer between 1 and 16");
+  }
+  return lookahead;
 }
 
 export async function writePage(
