@@ -152,7 +152,8 @@ BT /F1 10 Tf 1 Tc 2 Tw 80 Tz 12 TL 3 Ts
 5 -14 TD [(B) 100 ( C)] TJ
 0 1 1 0 k
 T* (D) '
-1 2 (E) " ET Q
+1 2 (E) "
+1 0 0 RG 3 w 1 Tr (S) Tj 3 Tr (X) Tj 2 Tr (B) Tj 0 Tr ET Q
 << /Truncated`;
     const pdf = `%PDF-1.4
 1 0 obj
@@ -187,7 +188,7 @@ trailer
         .map((span) => span.text)
         .join("")
         .replaceAll(" ", ""),
-    ).toBe("ABCDE");
+    ).toBe("ABCDESXB");
     expect(pages[0]?.spans[0]?.bounds.width).toBeCloseTo(12.272, 5);
     expect(pages[0]?.spans[0]?.bounds.height).toBeCloseTo(20, 5);
     expect(pages[0]?.spans[0]?.fontSize).toBeCloseTo(20, 5);
@@ -198,7 +199,18 @@ trailer
       "#808080",
       "#ff0000",
       "#ff0000",
+      "#ff0000",
+      "#ff0000",
+      "#ff0000",
     ]);
+    expect(pages[0]?.spans.at(-3)).toMatchObject({
+      text: "S",
+      renderingMode: 1,
+      strokeColor: "#ff0000",
+      strokeWidth: 6,
+    });
+    expect(pages[0]?.spans.at(-2)).toMatchObject({ text: "X", renderingMode: 3 });
+    expect(pages[0]?.spans.at(-1)).toMatchObject({ text: "B", renderingMode: 2 });
     expect(pages[0]?.fills).toEqual([
       {
         points: [

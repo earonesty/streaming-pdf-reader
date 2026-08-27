@@ -24,6 +24,12 @@ export interface TextSpan {
   fontAssetId?: string | undefined;
   /** Text fill color serialized as a six-digit CSS hex value. */
   color?: string | undefined;
+  /** Text stroke color serialized as a six-digit CSS hex value. */
+  strokeColor?: string | undefined;
+  /** Effective text stroke width in PDF points. */
+  strokeWidth?: number | undefined;
+  /** PDF text rendering mode (0-7). */
+  renderingMode?: number | undefined;
   fontSize: number;
   /** Normalized top-down visual text basis `[a,b,c,d]`; translation remains in `bounds.x/y`. */
   transform?: [number, number, number, number] | undefined;

@@ -19,7 +19,17 @@ import {
 } from "./cmap.js";
 import { textFillColor } from "./color.js";
 import { extractTrueTypeFont } from "./font-assets.js";
+import { decodePdfString, isPdfString } from "./pdf-string.js";
 import { contentStreams } from "./streams.js";
+import {
+  effectiveLineWidth,
+  identityMatrix as identity,
+  type Matrix,
+  multiply,
+  pdfMatrix,
+  transformPoint,
+  translate,
+} from "./text-matrix.js";
 
 export { reorderBidiLines, reorderMixedRtlCitation } from "./bidi.js";
 
@@ -37,12 +47,16 @@ interface TextState {
   lineMatrix: Matrix;
   ctm: Matrix;
   fillColor: string;
-  graphicsStack: Array<{ ctm: Matrix; fillColor: string }>;
+  strokeColor: string;
+  lineWidth: number;
+  renderingMode: number;
+  graphicsStack: Array<{
+    ctm: Matrix;
+    fillColor: string;
+    strokeColor: string;
+    lineWidth: number;
+  }>;
 }
-
-type Matrix = [number, number, number, number, number, number];
-
-const identity: Matrix = [1, 0, 0, 1, 0, 0];
 
 export async function extractPageText(
   reader: PdfObjectReader,
@@ -63,6 +77,9 @@ export async function extractPageText(
     lineMatrix: [...identity],
     ctm: [...identity],
     fillColor: "#000000",
+    strokeColor: "#000000",
+    lineWidth: 1,
+    renderingMode: 0,
     graphicsStack: [],
   };
 
@@ -148,13 +165,20 @@ async function applyOperator(
 ): Promise<void> {
   switch (operator) {
     case "q":
-      state.graphicsStack.push({ ctm: [...state.ctm], fillColor: state.fillColor });
+      state.graphicsStack.push({
+        ctm: [...state.ctm],
+        fillColor: state.fillColor,
+        strokeColor: state.strokeColor,
+        lineWidth: state.lineWidth,
+      });
       return;
     case "Q":
       {
         const restored = state.graphicsStack.pop();
         state.ctm = restored?.ctm ?? [...identity];
         state.fillColor = restored?.fillColor ?? "#000000";
+        state.strokeColor = restored?.strokeColor ?? "#000000";
+        state.lineWidth = restored?.lineWidth ?? 1;
       }
       return;
     case "cm":
@@ -168,6 +192,17 @@ async function applyOperator(
       state.fillColor = textFillColor(operator, args) ?? state.fillColor;
       return;
     }
+    case "G":
+    case "RG":
+    case "K": {
+      state.strokeColor = textFillColor(operator, args) ?? state.strokeColor;
+      return;
+    }
+    case "w":
+      if (typeof args.at(-1) === "number" && (args.at(-1) as number) >= 0) {
+        state.lineWidth = args.at(-1) as number;
+      }
+      return;
     case "BT":
       state.textMatrix = [...identity];
       state.lineMatrix = [...identity];
@@ -195,6 +230,12 @@ async function applyOperator(
       return;
     case "Ts":
       if (typeof args.at(-1) === "number") state.rise = args.at(-1) as number;
+      return;
+    case "Tr":
+      if (typeof args.at(-1) === "number") {
+        const mode = Math.trunc(args.at(-1) as number);
+        if (mode >= 0 && mode <= 7) state.renderingMode = mode;
+      }
       return;
     case "Tm":
       if (args.length >= 6 && args.slice(-6).every((value) => typeof value === "number")) {
@@ -312,23 +353,14 @@ function cloneState(state: TextState): TextState {
     graphicsStack: state.graphicsStack.map((entry) => ({
       ctm: [...entry.ctm],
       fillColor: entry.fillColor,
+      strokeColor: entry.strokeColor,
+      lineWidth: entry.lineWidth,
     })),
   };
 }
 
 function restoreState(state: TextState, saved: TextState): void {
   Object.assign(state, saved);
-}
-
-function pdfMatrix(value: PdfValue | undefined): Matrix | undefined {
-  if (
-    !Array.isArray(value) ||
-    value.length !== 6 ||
-    value.some((item) => typeof item !== "number")
-  ) {
-    return undefined;
-  }
-  return value as Matrix;
 }
 
 function showString(
@@ -405,6 +437,16 @@ function showString(
     ...(font?.fontFamily ? { fontFamily: font.fontFamily } : {}),
     ...(font?.fontAssetId ? { fontAssetId: font.fontAssetId } : {}),
     color: state.fillColor,
+    ...(state.renderingMode === 1 ||
+    state.renderingMode === 2 ||
+    state.renderingMode === 5 ||
+    state.renderingMode === 6
+      ? {
+          strokeColor: state.strokeColor,
+          strokeWidth: effectiveLineWidth(state.ctm, state.lineWidth),
+        }
+      : {}),
+    ...(state.renderingMode !== 0 ? { renderingMode: state.renderingMode } : {}),
     fontSize: ascentLength,
     ...(!vertical && advanceLength > 0 && ascentLength > 0
       ? {
@@ -542,51 +584,4 @@ async function loadFonts(
     output.set(name, encoding);
   }
   return output;
-}
-
-function decodePdfString(bytes: Uint8Array): string {
-  if (bytes[0] === 0xfe && bytes[1] === 0xff) {
-    let output = "";
-    for (let index = 2; index + 1 < bytes.length; index += 2) {
-      output += String.fromCharCode(((bytes[index] ?? 0) << 8) | (bytes[index + 1] ?? 0));
-    }
-    return output;
-  }
-  return new TextDecoder("windows-1252").decode(bytes);
-}
-
-function translate(matrix: Matrix, x: number, y: number): Matrix {
-  return [
-    matrix[0],
-    matrix[1],
-    matrix[2],
-    matrix[3],
-    matrix[4] + x * matrix[0] + y * matrix[2],
-    matrix[5] + x * matrix[1] + y * matrix[3],
-  ];
-}
-
-function multiply(left: Matrix, right: Matrix): Matrix {
-  return [
-    left[0] * right[0] + left[2] * right[1],
-    left[1] * right[0] + left[3] * right[1],
-    left[0] * right[2] + left[2] * right[3],
-    left[1] * right[2] + left[3] * right[3],
-    left[0] * right[4] + left[2] * right[5] + left[4],
-    left[1] * right[4] + left[3] * right[5] + left[5],
-  ];
-}
-
-function transformPoint(matrix: Matrix, x: number, y: number): [number, number] {
-  return [matrix[0] * x + matrix[2] * y + matrix[4], matrix[1] * x + matrix[3] * y + matrix[5]];
-}
-
-function isPdfString(value: PdfValue | undefined): value is PdfString {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    "type" in value &&
-    value.type === "string"
-  );
 }

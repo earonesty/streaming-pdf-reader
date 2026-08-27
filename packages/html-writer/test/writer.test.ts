@@ -111,6 +111,42 @@ describe("HTML writer", () => {
     expect(unsafe).not.toContain("onmouseover");
   });
 
+  it("preserves PDF fill and stroke text rendering modes", async () => {
+    const stroked = await pageToHtml({
+      ...page,
+      spans: [
+        {
+          ...span("Outline", 20, 700),
+          color: "#112233",
+          strokeColor: "#ff0000",
+          strokeWidth: 1.5,
+          renderingMode: 1,
+        },
+      ],
+    });
+    expect(stroked).toContain("fill:none;stroke:#ff0000;stroke-width:1.5");
+
+    const both = await pageToHtml({
+      ...page,
+      spans: [
+        {
+          ...span("Both", 20, 700),
+          color: "#112233",
+          strokeColor: "#445566",
+          strokeWidth: 2,
+          renderingMode: 2,
+        },
+      ],
+    });
+    expect(both).toContain("fill:#112233;stroke:#445566;stroke-width:2");
+
+    const invisible = await pageToHtml({
+      ...page,
+      spans: [{ ...span("Hidden", 20, 700), renderingMode: 3 }],
+    });
+    expect(invisible).not.toContain("Hidden");
+  });
+
   it("inlines page-scoped embedded fonts for visual spans", async () => {
     const html = await pageToHtml({
       ...page,

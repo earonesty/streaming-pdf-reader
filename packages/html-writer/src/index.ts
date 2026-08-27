@@ -163,12 +163,24 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
 }
 
 function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string, string>): string {
+  if (span.renderingMode === 3 || span.renderingMode === 7) return "";
   const direction = directionAttribute([span]);
   const font = fontStyles(
     span.fontFamily,
     span.fontAssetId ? fontAliases.get(span.fontAssetId) : undefined,
   ).join(";");
-  const style = [isCssHexColor(span.color) ? `fill:${span.color}` : "", font]
+  const stroke = isCssHexColor(span.strokeColor) ? `stroke:${span.strokeColor}` : "";
+  const strokeWidth =
+    stroke && Number.isFinite(span.strokeWidth) && (span.strokeWidth ?? -1) >= 0
+      ? `stroke-width:${number(span.strokeWidth ?? 0)}`
+      : "";
+  const strokeOnly = span.renderingMode === 1 || span.renderingMode === 5;
+  const style = [
+    strokeOnly ? "fill:none" : isCssHexColor(span.color) ? `fill:${span.color}` : "",
+    stroke,
+    strokeWidth,
+    font,
+  ]
     .filter(Boolean)
     .join(";");
   const textLength =
