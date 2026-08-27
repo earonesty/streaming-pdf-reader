@@ -48,7 +48,7 @@ jobs:
           sudo apt-get install --yes poppler-utils
           pdftohtml -v
       - name: Validate release
-        run: pnpm quality
+        run: pnpm release:quality
       - name: Publish reader
         run: npm publish --ignore-scripts --access public
       - name: Publish HTML writer
