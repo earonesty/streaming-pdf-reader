@@ -5,10 +5,18 @@ import type { RasterImage, VectorClip, VectorFill, VectorPath } from "../types.j
 import { textFillColor } from "./color.js";
 import { componentColor } from "./color-space.js";
 import { resolveExtendedGraphicsState } from "./extgstate.js";
+import {
+  coordinates,
+  identity,
+  type Matrix,
+  multiply,
+  numericTail,
+  pdfMatrix,
+  transformPoint,
+} from "./graphics-matrix.js";
 import { contentStreams } from "./streams.js";
 import { effectiveLineWidth, pageOriginMatrix } from "./text-matrix.js";
 
-type Matrix = [number, number, number, number, number, number];
 interface GraphicsState {
   ctm: Matrix;
   fillColor: string;
@@ -45,8 +53,6 @@ interface GraphicsState {
   start: [number, number] | undefined;
   hasGeneralPath: boolean;
 }
-
-const identity: Matrix = [1, 0, 0, 1, 0, 0];
 
 export async function extractPageGraphics(
   reader: PdfObjectReader,
@@ -571,42 +577,4 @@ function supportedRasterFilters(value: PdfValue | undefined): boolean {
       isName(filter) &&
       ["FlateDecode", "Fl", "LZWDecode", "LZW", "ASCIIHexDecode", "AHx"].includes(filter.value),
   );
-}
-
-function numericTail(values: PdfValue[], length: number): number[] | undefined {
-  const tail = values.slice(-length);
-  return tail.length === length && tail.every((value) => typeof value === "number")
-    ? (tail as number[])
-    : undefined;
-}
-
-function pdfMatrix(value: PdfValue | undefined): Matrix | undefined {
-  return Array.isArray(value) &&
-    value.length === 6 &&
-    value.every((item) => typeof item === "number")
-    ? (value as Matrix)
-    : undefined;
-}
-
-function multiply(left: Matrix, right: Matrix): Matrix {
-  return [
-    left[0] * right[0] + left[2] * right[1],
-    left[1] * right[0] + left[3] * right[1],
-    left[0] * right[2] + left[2] * right[3],
-    left[1] * right[2] + left[3] * right[3],
-    left[0] * right[4] + left[2] * right[5] + left[4],
-    left[1] * right[4] + left[3] * right[5] + left[5],
-  ];
-}
-
-function transformPoint(matrix: Matrix, x: number, y: number): [number, number] {
-  return [matrix[0] * x + matrix[2] * y + matrix[4], matrix[1] * x + matrix[3] * y + matrix[5]];
-}
-
-function coordinates([x, y]: [number, number]): string {
-  return `${number(x)} ${number(y)}`;
-}
-
-function number(value: number): string {
-  return String(Math.round(value * 1_000) / 1_000);
 }
