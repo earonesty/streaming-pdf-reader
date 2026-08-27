@@ -373,7 +373,7 @@ function fontStyles(fontFamily: string | undefined, alias?: string): string[] {
     /times|minion|serif|baskerville|georgia|nimbusrom|guardian.*egyp|^cm[rs]y?\d/.test(normalized)
   ) {
     fallback = "Times New Roman,Times,serif";
-  } else if (/helvetica|arial|sans|nimbussan|calibre|myriad|^tte/.test(normalized)) {
+  } else if (/helvetica|arial|sans|nimbussan|calibre|myriad|panton|^tte/.test(normalized)) {
     fallback = "Arial,Helvetica,sans-serif";
   } else if (/^mstt/.test(normalized)) {
     fallback = "Arial,Helvetica,sans-serif";

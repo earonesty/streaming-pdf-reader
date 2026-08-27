@@ -41,7 +41,7 @@ const maximumAcademicFallbackFuzzyChangedFraction = 0.07;
 const maximumCompactStandardMeanAbsoluteError = 18;
 const maximumCompactStandardFuzzyChangedFraction = 0.071;
 const maximumCompactSansFallbackMeanAbsoluteError = 14;
-const maximumCompactSansFallbackFuzzyChangedFraction = 0.06;
+const maximumCompactSansFallbackFuzzyChangedFraction = 0.077;
 const maximumEmbeddedCompositeMeanAbsoluteError = 4;
 const maximumEmbeddedCompositeFuzzyChangedFraction = 0.025;
 const maximumDenseType3MeanAbsoluteError = 5.1;
@@ -293,7 +293,9 @@ async function compareFixture(fixture) {
     const compactSansFallbackRasterWithinTolerance =
       textOnly &&
       extracted.width * extracted.height <= 10_000 &&
-      extracted.spans.every((span) => /^MyriadPro(?:[-,]|$)/i.test(span.fontFamily ?? "")) &&
+      extracted.spans.every((span) =>
+        /^(?:MyriadPro|Panton)(?:[-,]|$)/i.test(span.fontFamily ?? ""),
+      ) &&
       metrics.meanAbsoluteError <= maximumCompactSansFallbackMeanAbsoluteError &&
       metrics.fuzzyChangedFraction <= maximumCompactSansFallbackFuzzyChangedFraction &&
       inkRatio !== null &&

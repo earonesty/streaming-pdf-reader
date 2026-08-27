@@ -229,6 +229,14 @@ describe("HTML writer", () => {
     expect(html).toContain("font-family:Arial,Helvetica,sans-serif");
   });
 
+  it("uses a sans-serif fallback for Panton fonts", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [{ ...span("Panton", 20, 700), fontFamily: "Panton-Regular-Identity-H" }],
+    });
+    expect(html).toContain("font-family:Arial,Helvetica,sans-serif");
+  });
+
   it("substitutes legacy TTE font programs with bold sans text", async () => {
     const html = await pageToHtml({
       ...page,
