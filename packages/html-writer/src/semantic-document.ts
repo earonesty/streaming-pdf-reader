@@ -274,6 +274,18 @@ function semanticBlockHtml(block: Exclude<SemanticBlock, { type: "table" }>): st
     return `<h${block.level}>${escapeHtml(block.text)}</h${block.level}>`;
   if (block.type === "paragraph") return `<p>${escapeHtml(block.text)}</p>`;
   if (block.type === "definitionList") {
+    if (
+      block.entries.length <= 3 &&
+      block.entries.some((entry) => entry.description.trim().split(/\s+/).length >= 5) &&
+      block.entries.every((entry) => /^[A-Z][A-Z\s/-]*$/.test(entry.term.trim()))
+    ) {
+      return block.entries
+        .map(
+          (entry) =>
+            `<section><h2>${escapeHtml(titleCase(entry.term))}</h2><p>${escapeHtml(entry.description)}</p></section>`,
+        )
+        .join("");
+    }
     const list = `<dl>${block.entries
       .map(
         (entry) =>

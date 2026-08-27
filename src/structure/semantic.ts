@@ -268,6 +268,24 @@ function definitionRun(
     entries.push({ term: text, description: value.text });
     cursor += 2;
   }
+  if (entries.length >= 2) {
+    while (cursor < lines.length) {
+      const continuation = lines[cursor];
+      const previous = lines[cursor - 1];
+      if (
+        !continuation ||
+        tableForLine.has(continuation) ||
+        /^[A-Z][A-Z\s/-]*$/.test(continuation.text.trim()) ||
+        !isContinuation(previous, continuation)
+      ) {
+        break;
+      }
+      const last = entries.at(-1);
+      if (!last) break;
+      last.description = joinText(last.description, continuation.text);
+      cursor += 1;
+    }
+  }
   return entries.length >= 2 ? { entries, end: cursor } : undefined;
 }
 

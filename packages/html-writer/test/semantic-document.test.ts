@@ -5,6 +5,31 @@ import { describe, expect, it } from "vitest";
 import { type SemanticDocumentStats, writeHtmlDocument } from "../src/index.js";
 
 describe("semantic document flow", () => {
+  it("renders labeled invoice metadata as sections and preserves wrapped values", async () => {
+    const source = await fileSource(
+      fileURLToPath(new URL("../../../fixtures/semantic/acme-studio-invoice.pdf", import.meta.url)),
+    );
+    const pdf = await openPdf(source);
+    let html = "";
+    try {
+      await writeHtmlDocument(
+        pdf.pages(),
+        (chunk) => {
+          html += chunk;
+        },
+        { profile: "semantic" },
+      );
+    } finally {
+      pdf.close();
+      await source.close();
+    }
+
+    expect(html).toContain("<section><h2>Status</h2><p>Paid</p></section>");
+    expect(html).toContain(
+      "<section><h2>Notes</h2><p>Two fraction column should be wider and wrap later than the first column.</p></section>",
+    );
+  });
+
   it("renders product cards, address sections, and totals from the order fixture", async () => {
     const source = await fileSource(
       fileURLToPath(new URL("../../../fixtures/semantic/order-confirmation.pdf", import.meta.url)),
