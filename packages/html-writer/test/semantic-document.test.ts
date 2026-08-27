@@ -25,6 +25,9 @@ describe("semantic document flow", () => {
     }
 
     expect(html).toContain(
+      "<header><h1>Thanks for your order, Sam.</h1><p>Order OW-2026-018723 · placed May 14, 2026</p><p>Track your shipment · Support</p></header>",
+    );
+    expect(html).toContain(
       '<section><h2>Items ordered</h2><table><thead><tr><th scope="col">Item</th><th scope="col">Quantity</th><th scope="col">Amount</th></tr></thead>',
     );
     expect(html).toContain(
@@ -62,7 +65,7 @@ describe("semantic document flow", () => {
     );
 
     expect(html).toContain(
-      '<section data-level="1"><h1>Avery Chen</h1><section data-level="2"><h2>Summary</h2><p>An experienced systems engineer.</p></section><section data-level="2"><h2>Experience</h2><p>Built streaming document systems.</p></section></section>',
+      '<header><h1>Avery Chen</h1></header><section data-level="2"><h2>Summary</h2><p>An experienced systems engineer.</p></section><section data-level="2"><h2>Experience</h2><p>Built streaming document systems.</p></section>',
     );
   });
 
@@ -93,6 +96,9 @@ describe("semantic document flow", () => {
     }
 
     expect(html.match(/<table>/g)).toHaveLength(1);
+    expect(html).toContain(
+      "<header><h1>INVOICE</h1><h2>#2026-001872</h2><p>Issued: May 14, 2026 Bill to: Onward Travel, LLC.</p></header>",
+    );
     expect(html.match(/Service line item #/g)).toHaveLength(80);
     expect(html).toContain("<th>Description</th><th>Qty</th><th>Unit</th><th>Amount</th>");
     expect(html).toContain("Subtotal");
@@ -131,6 +137,9 @@ describe("semantic document flow", () => {
     }
 
     expect(html.match(/<table>/g)).toHaveLength(1);
+    expect(html).toContain(
+      "<header><h1>Acme Supply Co.</h1><p>Receipt · Order #18472 · May 14, 2026</p></header>",
+    );
     expect(html).toContain("<tfoot>");
     expect(html).toContain('<th scope="row" colspan="2">Subtotal</th>');
     expect(html).toContain('<th scope="row" colspan="2">Total</th>');

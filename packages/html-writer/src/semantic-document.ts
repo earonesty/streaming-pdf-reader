@@ -42,6 +42,9 @@ export async function writeSemanticDocument(
   const seenFurniture = new Set<string>();
   const sectionLevels: number[] = [];
   let activeTable: ActiveTable | undefined;
+  let headerOpen = false;
+  let headerHasParagraph = false;
+  let contentStarted = false;
   await write('<article class="pdf-semantic-document">');
 
   const closeTable = async () => {
@@ -64,6 +67,29 @@ export async function writeSemanticDocument(
       if (isRepeatedFurniture(block, page, repeatedFurniture)) {
         stats.suppressedFurniture += 1;
         continue;
+      }
+      if (!contentStarted && !headerOpen && block.type === "heading" && block.level === 1) {
+        await write(`<header><h1>${escapeHtml(block.text)}</h1>`);
+        headerOpen = true;
+        continue;
+      }
+      if (headerOpen) {
+        if (block.type === "paragraph") {
+          await write(`<p>${escapeHtml(block.text)}</p>`);
+          headerHasParagraph = true;
+          continue;
+        }
+        if (
+          block.type === "heading" &&
+          !headerHasParagraph &&
+          (block.level === 1 || block.text.trimStart().startsWith("#"))
+        ) {
+          await write(`<h${block.level}>${escapeHtml(block.text)}</h${block.level}>`);
+          continue;
+        }
+        await write("</header>");
+        headerOpen = false;
+        contentStarted = true;
       }
       if (block.type === "table") {
         const rows = tableToRows(block.table);
@@ -122,6 +148,7 @@ export async function writeSemanticDocument(
     const ready = buffer.shift();
     if (ready) await emitPage(ready, buffer);
   }
+  if (headerOpen) await write("</header>");
   await closeTable();
   await closeSections();
   await write("</article>");
