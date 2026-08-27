@@ -2,9 +2,13 @@ import type { ExtractedPage, TextSpan } from "@boxpdf/reader";
 import { structurePage, type Table, tableToHtml } from "@boxpdf/reader/structure";
 
 export type HtmlLayout = "positioned" | "flow";
+export type HtmlProfile = "visual" | "semantic";
 export type HtmlWrite = (chunk: string) => void | Promise<void>;
 
 export interface HtmlWriterOptions {
+  /** Output intent. Visual preserves page presentation; semantic prioritizes reading order. */
+  profile?: HtmlProfile;
+  /** @deprecated Use `profile: "visual"` or `profile: "semantic"`. */
   layout?: HtmlLayout;
   title?: string;
   language?: string;
@@ -12,7 +16,7 @@ export interface HtmlWriterOptions {
   includeStyles?: boolean;
 }
 
-const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-page-content--90{transform:translateX(100%) rotate(90deg)}.pdf-page-content--180{transform:translate(100%,100%) rotate(180deg)}.pdf-page-content--270{transform:translateY(100%) rotate(270deg)}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom;unicode-bidi:isolate}.pdf-span[data-direction=ttb]{writing-mode:vertical-rl}.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--flow p{white-space:pre-wrap;unicode-bidi:plaintext}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
+const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--visual,.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-page-content--90{transform:translateX(100%) rotate(90deg)}.pdf-page-content--180{transform:translate(100%,100%) rotate(180deg)}.pdf-page-content--270{transform:translateY(100%) rotate(270deg)}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom;unicode-bidi:isolate}.pdf-span[data-direction=ttb]{writing-mode:vertical-rl}.pdf-page--semantic,.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--semantic p,.pdf-page--flow p{white-space:pre-wrap;unicode-bidi:plaintext}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
 
 export async function writeHtmlDocument(
   pages: AsyncIterable<ExtractedPage> | Iterable<ExtractedPage>,
@@ -41,7 +45,7 @@ export async function writePage(
   write: HtmlWrite,
   options: HtmlWriterOptions = {},
 ): Promise<void> {
-  if ((options.layout ?? "positioned") === "flow") await writeFlowPage(page, write);
+  if (resolveProfile(options) === "semantic") await writeFlowPage(page, write);
   else await writePositionedPage(page, write);
 }
 
@@ -65,7 +69,7 @@ async function writePositionedPage(page: ExtractedPage, write: HtmlWrite): Promi
   const displayWidth = quarterTurn ? page.height : page.width;
   const displayHeight = quarterTurn ? page.width : page.height;
   await write(
-    `<section class="pdf-page pdf-page--positioned" data-page="${page.number}" data-rotate="${page.rotate}" style="width:${number(displayWidth)}pt;height:${number(displayHeight)}pt">`,
+    `<section class="pdf-page pdf-page--visual pdf-page--positioned" data-page="${page.number}" data-rotate="${page.rotate}" style="width:${number(displayWidth)}pt;height:${number(displayHeight)}pt">`,
   );
   await write(
     `<div class="pdf-page-content pdf-page-content--${page.rotate}" style="width:${number(page.width)}pt;height:${number(page.height)}pt">`,
@@ -78,7 +82,9 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
   const structured = structurePage(page);
   const tables = [...structured.tables].sort((left, right) => right.bounds.y - left.bounds.y);
   const emittedTables = new Set<Table>();
-  await write(`<section class="pdf-page pdf-page--flow" data-page="${page.number}">`);
+  await write(
+    `<section class="pdf-page pdf-page--semantic pdf-page--flow" data-page="${page.number}">`,
+  );
   for (const line of structured.lines) {
     const table = tables.find((candidate) => containsY(candidate, line.bounds.y));
     if (table) {
@@ -104,8 +110,25 @@ function positionedSpan(span: TextSpan): string {
     `width:${number(span.bounds.width)}pt`,
     `height:${number(span.bounds.height)}pt`,
     `font-size:${number(span.fontSize)}pt`,
+    ...fontStyles(span.fontFamily),
   ].join(";");
   return `<span class="pdf-span"${direction} style="${style}">${escapeHtml(span.text)}</span>`;
+}
+
+function fontStyles(fontFamily: string | undefined): string[] {
+  if (!fontFamily) return [];
+  const normalized = fontFamily.toLowerCase();
+  const styles: string[] = [];
+  if (/courier|mono/.test(normalized)) {
+    styles.push("font-family:Courier New,Courier,monospace");
+  } else if (/times|minion|serif|baskerville|georgia/.test(normalized)) {
+    styles.push("font-family:Times New Roman,Times,serif");
+  } else if (/helvetica|arial|sans/.test(normalized)) {
+    styles.push("font-family:Arial,Helvetica,sans-serif");
+  }
+  if (/bold|black|semibold|demi/.test(normalized)) styles.push("font-weight:700");
+  if (/italic|oblique/.test(normalized)) styles.push("font-style:italic");
+  return styles;
 }
 
 function directionAttribute(spans: TextSpan[]): string {
@@ -150,4 +173,14 @@ function isForbiddenControl(codePoint: number): boolean {
     (codePoint >= 14 && codePoint <= 31) ||
     codePoint === 127
   );
+}
+
+function resolveProfile(options: HtmlWriterOptions): HtmlProfile {
+  const legacyProfile = options.layout === "flow" ? "semantic" : "visual";
+  if (options.profile && options.layout && options.profile !== legacyProfile) {
+    throw new Error(
+      `conflicting HTML output options: profile "${options.profile}" does not match layout "${options.layout}"`,
+    );
+  }
+  return options.profile ?? legacyProfile;
 }

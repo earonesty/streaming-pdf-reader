@@ -1,6 +1,6 @@
 # `@boxpdf/html-writer`
 
-Streams text-oriented HTML from pages produced by `@boxpdf/reader`.
+Streams visual or semantic HTML from pages produced by `@boxpdf/reader`.
 
 ```ts
 import { open } from "node:fs/promises";
@@ -15,7 +15,7 @@ const output = await open("output.html", "w");
 try {
   await writeHtmlDocument(pdf.pages(), async (chunk) => {
     await output.write(chunk);
-  });
+  }, { profile: "visual" });
 } finally {
   await output.close();
   pdf.close();
@@ -23,9 +23,16 @@ try {
 }
 ```
 
-The default `positioned` layout preserves text coordinates. The optional
-`flow` layout uses the reader's inferred lines and tables. The current output
-surface excludes images, vector graphics, and exact font reproduction.
+The default `visual` profile preserves page dimensions and text coordinates for
+display presentation. The `semantic` profile uses inferred reading order,
+lines, nesting, and tables to produce reflowable HTML. The visual model comes
+first: semantic structure is derived from the complete page evidence rather
+than inferred after presentation information has been discarded.
+
+The legacy `layout: "positioned" | "flow"` option remains as an alias for
+`profile: "visual" | "semantic"`. The current visual output surface excludes
+images, vector graphics, and exact font reproduction; the PDFium parity report
+tracks progress toward complete display presentation.
 
 The callback is awaited for every chunk, so a file stream, HTTP response, or
 Web `WritableStream` can apply backpressure. The caller owns and closes the PDF
@@ -41,7 +48,7 @@ Poppler's `pdftohtml -c -hidden -noframes -zoom 1` output. Poppler serves as an
 independent test oracle. The writer's memory contract covers the reader and
 HTML serialization.
 
-`pnpm poppler:report` runs the positioned writer over all 62 text fixtures in
+`pnpm poppler:report` runs the visual writer over all 62 text fixtures in
 the pinned PDF.js corpus. The checked-in baseline currently records exact text
 and geometry agreement on 51 fixtures. The remaining cases are retained in the
 denominator; most exercise intentional PDF.js/Poppler differences in RTL text,

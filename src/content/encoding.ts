@@ -8,6 +8,7 @@ import { parseType1Metrics, unwrapType1Program } from "./type1.js";
 
 export interface FontDecoder {
   decode(bytes: Uint8Array): string;
+  fontFamily?: string;
   advance?(bytes: Uint8Array): number;
   verticalAdvance?(bytes: Uint8Array): number;
   verticalOrigin?(bytes: Uint8Array): { x: number; y: number };
@@ -94,6 +95,7 @@ export async function loadFontEncoding(
   font: PdfDict,
   recoverCidUnicode = true,
 ): Promise<FontDecoder> {
+  const fontFamily = baseFontName(font);
   const encodingValue = font.get("Encoding");
   const encoding = encodingValue === undefined ? undefined : await reader.resolve(encodingValue);
   const baseEncoding = isDict(encoding) ? encoding.get("BaseEncoding") : undefined;
@@ -121,6 +123,7 @@ export async function loadFontEncoding(
   const widths = cidMetrics?.advance ?? (await loadFontWidths(reader, font, table, glyphTable));
   return {
     decode: cidUnicode ?? ((bytes) => [...bytes].map((byte) => table[byte] as string).join("")),
+    ...(fontFamily ? { fontFamily } : {}),
     ...(widths ? { advance: (bytes: Uint8Array) => widths(bytes) } : {}),
     ...(cidMetrics?.verticalAdvance
       ? {
@@ -130,6 +133,11 @@ export async function loadFontEncoding(
         }
       : {}),
   };
+}
+
+function baseFontName(font: PdfDict): string | undefined {
+  const value = font.get("BaseFont");
+  return isName(value) ? value.value.replace(/^[A-Z]{6}\+/, "") : undefined;
 }
 
 async function loadFontWidths(

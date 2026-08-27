@@ -366,6 +366,7 @@ function showString(
     },
     direction: vertical ? "ttb" : "ltr",
     fontName: state.font,
+    ...(font?.fontFamily ? { fontFamily: font.fontFamily } : {}),
     fontSize: Math.hypot(topX - x, topY - y),
     source: { page: 0, objectNumber: page.ref.object },
   });
@@ -484,6 +485,7 @@ async function loadFonts(
         const codeBytes = unicodeMap.codeBytes ?? (isName(font.get("Subtype"), "Type0") ? 2 : 1);
         output.set(name, {
           decode: (bytes) => decodeWithMap(bytes, unicodeMap, codeBytes, encoding),
+          ...(encoding.fontFamily ? { fontFamily: encoding.fontFamily } : {}),
           ...(encoding.advance ? { advance: encoding.advance } : {}),
           ...(encoding.verticalAdvance ? { verticalAdvance: encoding.verticalAdvance } : {}),
           ...(encoding.verticalOrigin ? { verticalOrigin: encoding.verticalOrigin } : {}),
@@ -500,6 +502,7 @@ async function loadFonts(
     ) {
       output.set(name, {
         decode: decodeUtf16Bytes,
+        ...(encoding.fontFamily ? { fontFamily: encoding.fontFamily } : {}),
         ...(encoding.advance ? { advance: encoding.advance } : {}),
         ...(encoding.verticalAdvance ? { verticalAdvance: encoding.verticalAdvance } : {}),
         ...(encoding.verticalOrigin ? { verticalOrigin: encoding.verticalOrigin } : {}),

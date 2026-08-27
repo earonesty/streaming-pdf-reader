@@ -1,7 +1,7 @@
 {
   "name": "@boxpdf/html-writer",
   "version": "0.1.3",
-  "description": "Stream PDF pages from @boxpdf/reader to accessible or positioned HTML.",
+  "description": "Stream PDF pages from @boxpdf/reader to visual or semantic HTML.",
   "keywords": [
     "pdf",
     "pdf-to-html",

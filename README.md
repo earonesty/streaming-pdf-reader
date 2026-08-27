@@ -35,7 +35,7 @@ interface PdfSource {
 └── structure       optional reading order, paragraphs, lists, and tables
 
 separate output packages
-├── @boxpdf/html-writer  streaming positioned or flow HTML output
+├── @boxpdf/html-writer  streaming visual or semantic HTML output
 └── render               future Canvas, SVG, or bitmap rendering
 ```
 
@@ -47,8 +47,9 @@ text or table extraction.
 ## HTML writer
 
 `@boxpdf/html-writer` streams PDF pages to HTML through an awaited write
-callback. Positioned output preserves text coordinates; flow output uses
-inferred lines and tables. See `packages/html-writer`.
+callback. The default `visual` profile preserves display presentation; the
+`semantic` profile prioritizes reading order, nesting, inferred lines, and
+tables. See `packages/html-writer`.
 
 ## Usage
 

@@ -19,8 +19,9 @@ const page: ExtractedPage = {
 };
 
 describe("HTML writer", () => {
-  it("writes positioned, escaped page HTML", async () => {
+  it("writes visual, escaped page HTML by default", async () => {
     const html = await pageToHtml(page);
+    expect(html).toContain("pdf-page--visual");
     expect(html).toContain('data-page="1"');
     expect(html).toContain('data-rotate="0"');
     expect(html).toContain("width:612pt;height:792pt");
@@ -44,6 +45,16 @@ describe("HTML writer", () => {
     const html = await pageToHtml({ ...page, rotate: 90 });
     expect(html).toContain("width:792pt;height:612pt");
     expect(html).toContain("pdf-page-content--90");
+  });
+
+  it("maps resolved PDF font evidence to safe visual CSS", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [{ ...span("Bold", 20, 700), fontFamily: "ABCDEF+Times-BoldItalic" }],
+    });
+    expect(html).toContain("font-family:Times New Roman,Times,serif");
+    expect(html).toContain("font-weight:700");
+    expect(html).toContain("font-style:italic");
   });
 
   it("awaits output chunks and supports document metadata", async () => {
@@ -80,7 +91,7 @@ describe("HTML writer", () => {
     expect(writes.length).toBeGreaterThan(1);
   });
 
-  it("writes flow HTML without a document wrapper", async () => {
+  it("writes semantic HTML without a document wrapper", async () => {
     const chunks: string[] = [];
     await writeHtmlDocument(
       [page],
@@ -88,14 +99,23 @@ describe("HTML writer", () => {
         chunks.push(chunk);
       },
       {
-        layout: "flow",
+        profile: "semantic",
         includeDocument: false,
       },
     );
     const html = chunks.join("");
     expect(html.startsWith('<main class="pdf-document">')).toBe(true);
+    expect(html).toContain("pdf-page--semantic");
     expect(html).toContain("<p>&lt;Hello &amp; &quot;world&quot;&gt;</p>");
     expect(html).not.toContain("<!doctype html>");
+  });
+
+  it("supports legacy layout aliases and rejects conflicting output intents", async () => {
+    expect(await pageToHtml(page, { layout: "positioned" })).toContain("pdf-page--visual");
+    expect(await pageToHtml(page, { layout: "flow" })).toContain("pdf-page--semantic");
+    await expect(pageToHtml(page, { profile: "visual", layout: "flow" })).rejects.toThrow(
+      'profile "visual" does not match layout "flow"',
+    );
   });
 
   it("preserves logical RTL text and marks positioned and flow direction", async () => {
@@ -104,7 +124,7 @@ describe("HTML writer", () => {
       spans: [{ ...span("שלום עולם", 20, 700), direction: "rtl" as const }],
     };
     const positioned = await pageToHtml(rtlPage);
-    const flow = await pageToHtml(rtlPage, { layout: "flow" });
+    const flow = await pageToHtml(rtlPage, { profile: "semantic" });
     expect(positioned).toContain('<span class="pdf-span" dir="rtl"');
     expect(positioned).toContain("שלום עולם");
     expect(flow).toContain('<p dir="rtl">שלום עולם</p>');
@@ -130,7 +150,7 @@ describe("HTML writer", () => {
       (chunk) => {
         chunks.push(chunk);
       },
-      { layout: "flow", includeStyles: false },
+      { profile: "semantic", includeStyles: false },
     );
     const html = chunks.join("");
     expect(html).toContain("<table><tr><td>A</td><td>B</td></tr>");
