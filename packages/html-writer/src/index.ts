@@ -2,6 +2,7 @@ import type {
   EmbeddedFont,
   EmbeddedType3Font,
   ExtractedPage,
+  RasterImage,
   TextSpan,
   Type3Glyph,
 } from "@boxpdf/reader";
@@ -101,6 +102,7 @@ async function writePositionedPage(
   await write(
     `<svg class="pdf-visual-text" xmlns="http://www.w3.org/2000/svg" width="${number(page.width)}pt" height="${number(page.height)}pt" viewBox="0 0 ${number(page.width)} ${number(page.height)}">`,
   );
+  for (const image of page.images ?? []) await write(visualImage(image, page.height));
   for (const fill of page.fills ?? []) {
     const points = fill.points.map(([x, y]) => `${number(x)},${number(page.height - y)}`).join(" ");
     if (isCssHexColor(fill.color)) {
@@ -146,6 +148,39 @@ async function writePositionedPage(
     if (usesPositionedSpan(span)) await write(positionedSpan(span, fontAliases));
   }
   await write("</div></section>");
+}
+
+function visualImage(image: RasterImage, pageHeight: number): string {
+  const [a, b, c, d, e, f] = image.transform;
+  const transform = [a, -b, -c, d, c + e, pageHeight - d - f].map(number).join(" ");
+  const opacity = isUnitInterval(image.opacity) ? ` opacity="${number(image.opacity)}"` : "";
+  return `<image width="1" height="1" preserveAspectRatio="none" transform="matrix(${transform})" href="data:image/bmp;base64,${base64(rgbBmp(image))}"${opacity}/>`;
+}
+
+function rgbBmp(image: RasterImage): Uint8Array {
+  const stride = Math.ceil((image.width * 3) / 4) * 4;
+  const output = new Uint8Array(54 + stride * image.height);
+  const view = new DataView(output.buffer);
+  output[0] = 0x42;
+  output[1] = 0x4d;
+  view.setUint32(2, output.length, true);
+  view.setUint32(10, 54, true);
+  view.setUint32(14, 40, true);
+  view.setInt32(18, image.width, true);
+  view.setInt32(22, -image.height, true);
+  view.setUint16(26, 1, true);
+  view.setUint16(28, 24, true);
+  view.setUint32(34, stride * image.height, true);
+  for (let row = 0; row < image.height; row += 1) {
+    for (let column = 0; column < image.width; column += 1) {
+      const source = (row * image.width + column) * 3;
+      const target = 54 + row * stride + column * 3;
+      output[target] = image.data[source + 2] ?? 0;
+      output[target + 1] = image.data[source + 1] ?? 0;
+      output[target + 2] = image.data[source] ?? 0;
+    }
+  }
+  return output;
 }
 
 function rotationTransform(page: ExtractedPage): string {

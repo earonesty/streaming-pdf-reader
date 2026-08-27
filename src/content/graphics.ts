@@ -1,7 +1,7 @@
 import type { ParsedPage, PdfObjectReader } from "../syntax/document.js";
 import { ValueParser } from "../syntax/parser.js";
 import { isDict, isName, isRef, isStream, type PdfDict, type PdfValue } from "../syntax/values.js";
-import type { VectorFill, VectorPath } from "../types.js";
+import type { RasterImage, VectorFill, VectorPath } from "../types.js";
 import { textFillColor } from "./color.js";
 import { componentColor } from "./color-space.js";
 import { resolveExtendedGraphicsState } from "./extgstate.js";
@@ -40,15 +40,16 @@ const identity: Matrix = [1, 0, 0, 1, 0, 0];
 export async function extractPageGraphics(
   reader: PdfObjectReader,
   page: ParsedPage,
-): Promise<{ fills: VectorFill[]; paths: VectorPath[] }> {
+): Promise<{ fills: VectorFill[]; paths: VectorPath[]; images: RasterImage[] }> {
   const fills: VectorFill[] = [];
   const paths: VectorPath[] = [];
+  const images: RasterImage[] = [];
   const state = createState();
   state.ctm = pageOriginMatrix(page.mediaBox);
   for (const bytes of await contentStreams(reader, page.dict.get("Contents"))) {
-    await interpret(reader, bytes, state, page.resources, fills, paths, 0, new Set());
+    await interpret(reader, bytes, state, page.resources, fills, paths, images, 0, new Set());
   }
-  return { fills, paths };
+  return { fills, paths, images };
 }
 
 export async function extractGraphicsStream(
@@ -61,7 +62,7 @@ export async function extractGraphicsStream(
   const paths: VectorPath[] = [];
   const state = createState();
   state.ctm = [...initialCtm];
-  await interpret(reader, bytes, state, resources, fills, paths, 0, new Set());
+  await interpret(reader, bytes, state, resources, fills, paths, [], 0, new Set());
   return { fills, paths };
 }
 
@@ -91,6 +92,7 @@ async function interpret(
   resources: PdfDict | undefined,
   fills: VectorFill[],
   paths: VectorPath[],
+  images: RasterImage[],
   depth: number,
   activeForms: Set<number>,
 ): Promise<void> {
@@ -117,6 +119,7 @@ async function interpret(
       resources,
       fills,
       paths,
+      images,
       depth,
       activeForms,
     );
@@ -132,6 +135,7 @@ async function applyOperator(
   resources: PdfDict | undefined,
   fills: VectorFill[],
   paths: VectorPath[],
+  images: RasterImage[],
   depth: number,
   activeForms: Set<number>,
 ): Promise<void> {
@@ -163,7 +167,17 @@ async function applyOperator(
     return;
   }
   if (operator === "Do") {
-    await interpretForm(reader, args, state, resources, fills, paths, depth, activeForms);
+    await interpretXObject(
+      reader,
+      args,
+      state,
+      resources,
+      fills,
+      paths,
+      images,
+      depth,
+      activeForms,
+    );
   }
 }
 
@@ -349,13 +363,14 @@ function resetPath(state: GraphicsState): void {
   state.hasGeneralPath = false;
 }
 
-async function interpretForm(
+async function interpretXObject(
   reader: PdfObjectReader,
   args: PdfValue[],
   state: GraphicsState,
   resources: PdfDict | undefined,
   fills: VectorFill[],
   paths: VectorPath[],
+  images: RasterImage[],
   depth: number,
   activeForms: Set<number>,
 ): Promise<void> {
@@ -368,7 +383,13 @@ async function interpretForm(
   const objectNumber = isRef(value) ? value.object : undefined;
   if (objectNumber !== undefined && activeForms.has(objectNumber)) return;
   const form = await reader.resolve(value);
-  if (!isStream(form) || !isName(form.dict.get("Subtype"), "Form")) return;
+  if (!isStream(form)) return;
+  if (isName(form.dict.get("Subtype"), "Image")) {
+    const image = await rasterImage(reader, form, state);
+    if (image) images.push(image);
+    return;
+  }
+  if (!isName(form.dict.get("Subtype"), "Form")) return;
   const resourceValue = form.dict.get("Resources");
   const resolvedResources =
     resourceValue === undefined ? undefined : await reader.resolve(resourceValue);
@@ -391,8 +412,52 @@ async function interpretForm(
     formResources,
     fills,
     paths,
+    images,
     depth + 1,
     nestedForms,
+  );
+}
+
+async function rasterImage(
+  reader: PdfObjectReader,
+  stream: Extract<Awaited<ReturnType<PdfObjectReader["resolve"]>>, { type: "stream" }>,
+  state: GraphicsState,
+): Promise<RasterImage | undefined> {
+  const width = stream.dict.get("Width");
+  const height = stream.dict.get("Height");
+  const bits = stream.dict.get("BitsPerComponent");
+  if (
+    typeof width !== "number" ||
+    typeof height !== "number" ||
+    !Number.isSafeInteger(width) ||
+    !Number.isSafeInteger(height) ||
+    width <= 0 ||
+    height <= 0 ||
+    bits !== 8 ||
+    !isName(stream.dict.get("ColorSpace"), "DeviceRGB") ||
+    !supportedRasterFilters(stream.dict.get("Filter"))
+  ) {
+    return undefined;
+  }
+  const data = await reader.decodeStream(stream);
+  if (data.length !== width * height * 3) return undefined;
+  return {
+    width,
+    height,
+    format: "rgb",
+    data,
+    transform: [...state.ctm],
+    ...(state.fillOpacity !== 1 ? { opacity: state.fillOpacity } : {}),
+  };
+}
+
+function supportedRasterFilters(value: PdfValue | undefined): boolean {
+  if (value === undefined) return true;
+  const filters = Array.isArray(value) ? value : [value];
+  return filters.every(
+    (filter) =>
+      isName(filter) &&
+      ["FlateDecode", "Fl", "LZWDecode", "LZW", "ASCIIHexDecode", "AHx"].includes(filter.value),
   );
 }
 

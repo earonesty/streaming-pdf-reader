@@ -7,6 +7,7 @@ export type {
   EmbeddedTrueTypeFont,
   EmbeddedType3Font,
   ExtractedPage,
+  RasterImage,
   Rect,
   SourceRef,
   TextSpan,

@@ -104,6 +104,25 @@ describe("HTML writer", () => {
     expect(html.indexOf("<polygon")).toBeLessThan(html.indexOf("<text"));
   });
 
+  it("embeds transformed RGB images beneath visual text", async () => {
+    const html = await pageToHtml({
+      ...page,
+      images: [
+        {
+          width: 1,
+          height: 1,
+          format: "rgb",
+          data: Uint8Array.of(255, 0, 0),
+          transform: [30, 0, 0, 40, 10, 20],
+        },
+      ],
+    });
+
+    expect(html).toContain('transform="matrix(30 0 0 40 10 732)"');
+    expect(html).toContain('href="data:image/bmp;base64,');
+    expect(html.indexOf("<image")).toBeLessThan(html.indexOf("<text"));
+  });
+
   it("paints validated vector paths with fill and stroke", async () => {
     const html = await pageToHtml({
       ...page,

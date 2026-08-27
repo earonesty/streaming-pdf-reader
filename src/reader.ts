@@ -51,7 +51,7 @@ export class StreamingPdfReader {
       const fonts: EmbeddedFont[] = [];
       const visualSpans: ExtractedPage["spans"] = [];
       const spans = await extractPageText(this.#objects, page, fonts, visualSpans);
-      const { fills, paths } = await extractPageGraphics(this.#objects, page);
+      const { fills, paths, images } = await extractPageGraphics(this.#objects, page);
       for (const span of spans) span.source.page = index + 1;
       for (const span of visualSpans) span.source.page = index + 1;
       return {
@@ -64,6 +64,7 @@ export class StreamingPdfReader {
         ...(fonts.length > 0 ? { fonts } : {}),
         ...(fills.length > 0 ? { fills } : {}),
         ...(paths.length > 0 ? { paths } : {}),
+        ...(images.length > 0 ? { images } : {}),
       };
     } catch (error) {
       throw normalizePdfError(error);

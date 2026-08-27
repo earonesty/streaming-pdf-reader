@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 26,
+  "passed": 27,
   "passingFixtureIds": [
     "bug1513120-reduced",
     "bug1947248-text",
@@ -11,6 +11,7 @@
     "issue11656",
     "issue11713",
     "issue14497",
+    "issue14627",
     "issue15629",
     "issue15910",
     "issue16221",

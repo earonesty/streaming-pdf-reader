@@ -63,6 +63,16 @@ export interface VectorPath {
   fillRule?: "nonzero" | "evenodd" | undefined;
 }
 
+export interface RasterImage {
+  width: number;
+  height: number;
+  format: "rgb";
+  data: Uint8Array;
+  /** PDF image-space CTM `[a,b,c,d,e,f]`. */
+  transform: [number, number, number, number, number, number];
+  opacity?: number | undefined;
+}
+
 export interface Type3Glyph {
   code: number;
   advance: number;
@@ -90,4 +100,5 @@ export interface ExtractedPage {
   fonts?: EmbeddedFont[] | undefined;
   fills?: VectorFill[] | undefined;
   paths?: VectorPath[] | undefined;
+  images?: RasterImage[] | undefined;
 }

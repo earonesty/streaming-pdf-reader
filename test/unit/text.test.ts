@@ -197,6 +197,7 @@ endbfchar`),
     const content = `q 0 1 0 rg 10 20 30 40 re f Q
 q 1 0 0 RG 2 w 50 50 m 60 70 l 70 50 l h S Q
 q .25 0 0 .25 0 0 cm 4 w 440 400 m 480 400 l S Q
+q 10 0 0 20 5 6 cm /Im Do Q
 q 0 0 1 rg 80 50 m 85 60 95 60 100 50 c f Q
 0.2 0.4 0.6 rg q
 0 2 -2 0 300 0 cm
@@ -218,7 +219,8 @@ endobj
 endobj
 3 0 obj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 400 300] /Rotate -90 /Contents 4 0 R
-   /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+   /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >>
+                 /XObject << /Im 5 0 R >> >> >>
 endobj
 4 0 obj
 << /Length 999 >>
@@ -226,8 +228,14 @@ stream
 ${content}
 endstream
 endobj
+5 0 obj
+<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Length 3 >>
+stream
+RGB
+endstream
+endobj
 trailer
-<< /Root 1 0 R /Size 5 >>
+<< /Root 1 0 R /Size 6 >>
 %%EOF`;
     const reader = await openPdf(memorySource(new TextEncoder().encode(pdf)), {
       chunkSize: 128,
@@ -280,6 +288,15 @@ trailer
       { d: "M50 50L60 70L70 50Z", stroke: "#ff0000", strokeWidth: 2 },
       { d: "M110 100L120 100", stroke: "#000000", strokeWidth: 1 },
       { d: "M80 50C85 60 95 60 100 50", fill: "#0000ff" },
+    ]);
+    expect(pages[0]?.images).toEqual([
+      {
+        width: 1,
+        height: 1,
+        format: "rgb",
+        data: new Uint8Array([82, 71, 66]),
+        transform: [10, 0, 0, 20, 5, 6],
+      },
     ]);
     reader.close();
   });
