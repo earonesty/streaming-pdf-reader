@@ -130,6 +130,31 @@ describe("semantic flow fixture gate", () => {
       await source.close();
     }
   });
+
+  it("does not skip consecutive résumé bullets", async () => {
+    const fixture = manifest.fixtures.find((candidate) => candidate.id === "resume");
+    if (!fixture) throw new Error("missing resume semantic fixture");
+    const source = await fileSource(resolve(fixtureRoot, fixture.file));
+    const pdf = await openPdf(source);
+    try {
+      const pages = [];
+      for await (const page of pdf.pages()) pages.push(structurePage(page));
+      const items = pages
+        .flatMap((page) => page.blocks)
+        .filter((block) => block.type === "list")
+        .flatMap((block) => block.items.map((item) => item.text));
+
+      expect(items).toContain(
+        "Designed the reconciliation pipeline that closes books to within $0.01 across 23 acquirers.",
+      );
+      expect(items).toContain(
+        "Built the team's continuous deployment pipeline; cut release lead time from 8 days to under 30 minutes.",
+      );
+    } finally {
+      pdf.close();
+      await source.close();
+    }
+  });
 });
 
 function normalize(value: string): string {

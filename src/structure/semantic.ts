@@ -119,9 +119,9 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
         const itemLines = [itemLine];
         let text = marker.text;
         while (cursor + 1 < lines.length && isContinuation(itemLine, lines[cursor + 1])) {
-          const continuation = lines[++cursor];
-          if (!continuation || listMarker(continuation.text) || tableForLine.has(continuation))
-            break;
+          const continuation = lines[cursor + 1];
+          if (!continuation || listMarker(continuation.text) || tableForLine.has(continuation)) break;
+          cursor += 1;
           itemLines.push(continuation);
           text = joinText(text, continuation.text);
         }
