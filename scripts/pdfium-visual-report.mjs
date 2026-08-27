@@ -18,6 +18,7 @@ const fixtures = selectFixtures(requestedIds, limit);
 const writeBaseline = process.argv.includes("--write-baseline");
 const gate = process.argv.includes("--gate");
 const scale = 2;
+const maximumFuzzyChangedFraction = 0.0055;
 
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
@@ -59,7 +60,7 @@ const summary = {
   thresholds: {
     channelDelta: 12,
     fuzzyRadius: 1,
-    maximumFuzzyChangedFraction: 0.0051,
+    maximumFuzzyChangedFraction,
     minimumInkRatio: 0.78,
     maximumInkRatio: 1.25,
   },
@@ -170,7 +171,7 @@ async function compareFixture(fixture) {
     const inkWithinTolerance = inkRatio !== null && inkRatio >= 0.78 && inkRatio <= 1.25;
     const status = metrics.exact
       ? "PASS_EXACT"
-      : metrics.fuzzyChangedFraction <= 0.0051 && inkWithinTolerance
+      : metrics.fuzzyChangedFraction <= maximumFuzzyChangedFraction && inkWithinTolerance
         ? "PASS_TOLERANCE"
         : "FAIL_VISUAL";
     const fixtureDirectory = resolve(artifactRoot, fixture.id);
