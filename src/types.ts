@@ -65,6 +65,12 @@ export interface VectorPath {
   strokeLinecap?: "butt" | "round" | "square" | undefined;
   strokeLinejoin?: "miter" | "round" | "bevel" | undefined;
   fillRule?: "nonzero" | "evenodd" | undefined;
+  clips?: VectorClip[] | undefined;
+}
+
+export interface VectorClip {
+  d: string;
+  fillRule?: "nonzero" | "evenodd" | undefined;
 }
 
 export interface RasterImage {
@@ -75,6 +81,8 @@ export interface RasterImage {
   /** PDF image-space CTM `[a,b,c,d,e,f]`. */
   transform: [number, number, number, number, number, number];
   opacity?: number | undefined;
+  /** Active PDF clipping paths in page coordinates. */
+  clips?: VectorClip[] | undefined;
 }
 
 export interface Type3Glyph {

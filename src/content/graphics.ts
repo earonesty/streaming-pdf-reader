@@ -1,7 +1,7 @@
 import type { ParsedPage, PdfObjectReader } from "../syntax/document.js";
 import { ValueParser } from "../syntax/parser.js";
 import { isDict, isName, isRef, isStream, type PdfDict, type PdfValue } from "../syntax/values.js";
-import type { RasterImage, VectorFill, VectorPath } from "../types.js";
+import type { RasterImage, VectorClip, VectorFill, VectorPath } from "../types.js";
 import { textFillColor } from "./color.js";
 import { componentColor } from "./color-space.js";
 import { resolveExtendedGraphicsState } from "./extgstate.js";
@@ -22,6 +22,8 @@ interface GraphicsState {
   strokeColorSpace: string | undefined;
   fillOpacity: number;
   strokeOpacity: number;
+  clips: VectorClip[];
+  pendingClipRule: "nonzero" | "evenodd" | undefined;
   stack: Array<{
     ctm: Matrix;
     fillColor: string;
@@ -35,6 +37,7 @@ interface GraphicsState {
     strokeColorSpace: string | undefined;
     fillOpacity: number;
     strokeOpacity: number;
+    clips: VectorClip[];
   }>;
   rectangles: Array<Array<[number, number]>>;
   path: string[];
@@ -88,6 +91,8 @@ function createState(): GraphicsState {
     strokeColorSpace: undefined,
     fillOpacity: 1,
     strokeOpacity: 1,
+    clips: [],
+    pendingClipRule: undefined,
     stack: [],
     rectangles: [],
     path: [],
@@ -174,11 +179,17 @@ async function applyOperator(
     return;
   }
   if (applyPathConstruction(operator, args, state)) return;
+  if (operator === "W" || operator === "W*") {
+    state.pendingClipRule = operator === "W*" ? "evenodd" : "nonzero";
+    return;
+  }
   if (["f", "F", "f*", "B", "B*", "b", "b*", "S", "s"].includes(operator)) {
+    commitClip(state);
     paintPath(operator, state, fills, paths);
     return;
   }
   if (operator === "n") {
+    commitClip(state);
     resetPath(state);
     return;
   }
@@ -212,6 +223,7 @@ function applyGraphicsState(operator: string, args: PdfValue[], state: GraphicsS
       strokeColorSpace: state.strokeColorSpace,
       fillOpacity: state.fillOpacity,
       strokeOpacity: state.strokeOpacity,
+      clips: state.clips.map((clip) => ({ ...clip })),
     });
     return true;
   }
@@ -229,6 +241,8 @@ function applyGraphicsState(operator: string, args: PdfValue[], state: GraphicsS
     state.strokeColorSpace = restored?.strokeColorSpace;
     state.fillOpacity = restored?.fillOpacity ?? 1;
     state.strokeOpacity = restored?.strokeOpacity ?? 1;
+    state.clips = restored?.clips ?? [];
+    state.pendingClipRule = undefined;
     return true;
   }
   if (operator === "cm") {
@@ -403,6 +417,7 @@ function paintPath(
         : {}),
       ...(strokesPath && state.strokeOpacity !== 1 ? { strokeOpacity: state.strokeOpacity } : {}),
       ...(operator.includes("*") ? { fillRule: "evenodd" as const } : {}),
+      ...(state.clips.length > 0 ? { clips: state.clips.map((clip) => ({ ...clip })) } : {}),
     });
   }
   resetPath(state);
@@ -414,6 +429,16 @@ function resetPath(state: GraphicsState): void {
   state.current = undefined;
   state.start = undefined;
   state.hasGeneralPath = false;
+}
+
+function commitClip(state: GraphicsState): void {
+  if (state.pendingClipRule && state.path.length > 0) {
+    state.clips.push({
+      d: state.path.join(""),
+      ...(state.pendingClipRule === "evenodd" ? { fillRule: "evenodd" as const } : {}),
+    });
+  }
+  state.pendingClipRule = undefined;
 }
 
 async function interpretXObject(
@@ -458,6 +483,7 @@ async function interpretXObject(
   nested.strokeColorSpace = state.strokeColorSpace;
   nested.fillOpacity = state.fillOpacity;
   nested.strokeOpacity = state.strokeOpacity;
+  nested.clips = state.clips.map((clip) => ({ ...clip }));
   await interpret(
     reader,
     await reader.decodeStream(form),
@@ -500,6 +526,7 @@ async function rasterImage(
       data: jpeg,
       transform: [...state.ctm],
       ...(state.fillOpacity !== 1 ? { opacity: state.fillOpacity } : {}),
+      ...(state.clips.length > 0 ? { clips: state.clips.map((clip) => ({ ...clip })) } : {}),
     };
   }
   if (!isName(stream.dict.get("ColorSpace"), "DeviceRGB") || !supportedRasterFilters(filter)) {
@@ -514,6 +541,7 @@ async function rasterImage(
     data,
     transform: [...state.ctm],
     ...(state.fillOpacity !== 1 ? { opacity: state.fillOpacity } : {}),
+    ...(state.clips.length > 0 ? { clips: state.clips.map((clip) => ({ ...clip })) } : {}),
   };
 }
 

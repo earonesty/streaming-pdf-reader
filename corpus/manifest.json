@@ -7,7 +7,7 @@
     "manifestSha256": "2bef2e312b1354854709357e41cb426852a717f8d072d252940250da102678a5"
   },
   "scoring": {
-    "fixtureCount": 120,
+    "fixtureCount": 121,
     "maximumPagesPerFixture": 5,
     "parityTarget": 0.98
   },
@@ -217,6 +217,24 @@
       "categories": [
         "font"
       ]
+    },
+    {
+      "id": "boxpdf-overflow-clipping",
+      "file": "boxpdf/overflow-clipping.pdf",
+      "mode": "text",
+      "md5": "8d26a66056d6337a6e0fe4996dc1c365",
+      "source": "https://raw.githubusercontent.com/earonesty/boxpdf/a480406869ce479fd40fb7f2ed7708cbe294b1bf/docs/gallery/pdf/overflow-clipping.pdf",
+      "firstPage": 1,
+      "lastPage": 1,
+      "categories": [
+        "geometry",
+        "clipping",
+        "boxpdf"
+      ],
+      "visualRequirements": {
+        "minimumClippedImages": 2,
+        "minimumClippedPaths": 1
+      }
     },
     {
       "id": "bug1020858",

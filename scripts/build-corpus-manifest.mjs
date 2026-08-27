@@ -48,6 +48,11 @@ if (selected.size !== config.targetFixtureCount) {
   );
 }
 
+for (const fixture of config.customFixtures ?? []) {
+  if (selected.has(fixture.file)) throw new Error(`duplicate custom fixture: ${fixture.file}`);
+  selected.set(fixture.file, fixture);
+}
+
 const output = {
   schemaVersion: 1,
   generatedFrom: {

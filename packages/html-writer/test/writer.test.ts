@@ -131,6 +131,29 @@ describe("HTML writer", () => {
     expect(html.indexOf("<image")).toBeLessThan(html.indexOf("<text"));
   });
 
+  it("applies extracted clipping paths to images and vector paths", async () => {
+    const clip = { d: "M10 20L40 20L40 60L10 60Z" };
+    const html = await pageToHtml({
+      ...page,
+      paths: [{ d: "M0 0L100 0L100 100Z", fill: "#ff0000", clips: [clip] }],
+      images: [
+        {
+          width: 1,
+          height: 1,
+          format: "rgb",
+          data: Uint8Array.of(255, 0, 0),
+          transform: [100, 0, 0, 100, 0, 0],
+          clips: [clip],
+        },
+      ],
+    });
+
+    expect(html).toContain('id="boxpdf-clip-1-0-0"');
+    expect(html).toContain('clip-path="url(#boxpdf-clip-1-0-0)"');
+    expect(html).toContain('id="boxpdf-path-clip-1-0-0"');
+    expect(html).toContain('clip-path="url(#boxpdf-path-clip-1-0-0)"');
+  });
+
   it("paints validated vector paths with fill and stroke", async () => {
     const html = await pageToHtml({
       ...page,

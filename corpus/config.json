@@ -12,6 +12,22 @@
     "lines": 90,
     "branches": 80
   },
+  "customFixtures": [
+    {
+      "id": "boxpdf-overflow-clipping",
+      "file": "boxpdf/overflow-clipping.pdf",
+      "mode": "text",
+      "md5": "8d26a66056d6337a6e0fe4996dc1c365",
+      "source": "https://raw.githubusercontent.com/earonesty/boxpdf/a480406869ce479fd40fb7f2ed7708cbe294b1bf/docs/gallery/pdf/overflow-clipping.pdf",
+      "firstPage": 1,
+      "lastPage": 1,
+      "categories": ["geometry", "clipping", "boxpdf"],
+      "visualRequirements": {
+        "minimumClippedImages": 2,
+        "minimumClippedPaths": 1
+      }
+    }
+  ],
   "curatedFiles": [
     "ContentStreamCycleType3insideType3.pdf",
     "ContentStreamNoCycleType3insideType3.pdf",

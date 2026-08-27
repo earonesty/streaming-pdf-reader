@@ -1,9 +1,10 @@
 {
   "schemaVersion": 1,
-  "fixtureCount": 62,
-  "passed": 62,
+  "fixtureCount": 63,
+  "passed": 63,
   "passingFixtureIds": [
     "arabiccidtruetype",
+    "boxpdf-overflow-clipping",
     "bug1245391-reduced",
     "bug1513120-reduced",
     "bug1627427-reduced",

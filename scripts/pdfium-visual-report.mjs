@@ -237,6 +237,14 @@ async function compareFixture(fixture) {
     }
 
     const metrics = comparePixels(reference, candidate, rendered.width, rendered.height);
+    const clippedImages = (extracted.images ?? []).filter((image) => image.clips?.length).length;
+    const clippedPaths = (extracted.paths ?? []).filter((path) => path.clips?.length).length;
+    const visualRequirements = fixture.visualRequirements;
+    const structuralRequirementsMet =
+      (!visualRequirements?.minimumClippedImages ||
+        clippedImages >= visualRequirements.minimumClippedImages) &&
+      (!visualRequirements?.minimumClippedPaths ||
+        clippedPaths >= visualRequirements.minimumClippedPaths);
     const inkRatio =
       metrics.referenceInkPixels === 0
         ? metrics.candidateInkPixels === 0
@@ -384,7 +392,7 @@ async function compareFixture(fixture) {
       inkRatio !== null &&
       inkRatio >= 0.8 &&
       inkRatio <= 1.2;
-    const status = metrics.exact
+    const pixelStatus = metrics.exact
       ? "PASS_EXACT"
       : (fuzzyWithinTolerance && inkWithinTolerance) ||
           lowErrorRasterWithinTolerance ||
@@ -404,6 +412,7 @@ async function compareFixture(fixture) {
           academicFallbackRasterWithinTolerance
         ? "PASS_TOLERANCE"
         : "FAIL_VISUAL";
+    const status = structuralRequirementsMet ? pixelStatus : "FAIL_VISUAL";
     const fixtureDirectory = resolve(artifactRoot, fixture.id);
     await mkdir(fixtureDirectory, { recursive: true });
     await Promise.all([
@@ -433,6 +442,9 @@ async function compareFixture(fixture) {
       referenceInkPixels: metrics.referenceInkPixels,
       candidateInkPixels: metrics.candidateInkPixels,
       inkRatio,
+      structuralRequirementsMet,
+      clippedImages,
+      clippedPaths,
     };
   } finally {
     referenceDocument.destroy();

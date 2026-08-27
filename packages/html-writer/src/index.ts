@@ -5,6 +5,7 @@ import type {
   RasterImage,
   TextSpan,
   Type3Glyph,
+  VectorPath,
 } from "@boxpdf/reader";
 import { structurePage, type Table, tableToHtml } from "@boxpdf/reader/structure";
 
@@ -103,8 +104,14 @@ async function writePositionedPage(
   await write(
     `<svg class="pdf-visual-text" xmlns="http://www.w3.org/2000/svg" width="${number(page.width)}pt" height="${number(page.height)}pt" viewBox="0 0 ${number(page.width)} ${number(page.height)}">`,
   );
+  const clipDefinitions =
+    imageClipDefinitions(page.images ?? [], page.number, page.height) +
+    pathClipDefinitions(page.paths ?? [], page.number);
+  if (clipDefinitions) await write(`<defs>${clipDefinitions}</defs>`);
   if (reflectedOverlay) {
-    for (const image of page.images ?? []) await write(visualImage(image, page.height));
+    for (const [index, image] of (page.images ?? []).entries()) {
+      await write(visualImage(image, page.height, page.number, index));
+    }
   }
   for (const fill of page.fills ?? []) {
     const points = fill.points.map(([x, y]) => `${number(x)},${number(page.height - y)}`).join(" ");
@@ -115,7 +122,7 @@ async function writePositionedPage(
   }
   if (page.paths?.length) {
     await write(`<g transform="translate(0 ${number(page.height)}) scale(1 -1)">`);
-    for (const path of page.paths) {
+    for (const [pathIndex, path] of page.paths.entries()) {
       if (!isSvgPath(path.d)) continue;
       const fill = isCssHexColor(path.fill) ? path.fill : "none";
       const stroke = isCssHexColor(path.stroke) ? path.stroke : "none";
@@ -138,14 +145,18 @@ async function writePositionedPage(
         : "";
       const linecap = path.strokeLinecap ? ` stroke-linecap="${path.strokeLinecap}"` : "";
       const linejoin = path.strokeLinejoin ? ` stroke-linejoin="${path.strokeLinejoin}"` : "";
-      await write(
-        `<path d="${path.d}" fill="${fill}" stroke="${stroke}"${strokeWidth}${fillOpacity}${strokeOpacity}${dasharray}${dashoffset}${linecap}${linejoin}${fillRule}/>`,
-      );
+      let output = `<path d="${path.d}" fill="${fill}" stroke="${stroke}"${strokeWidth}${fillOpacity}${strokeOpacity}${dasharray}${dashoffset}${linecap}${linejoin}${fillRule}/>`;
+      for (let index = (path.clips?.length ?? 0) - 1; index >= 0; index -= 1) {
+        output = `<g clip-path="url(#${pathClipId(page.number, pathIndex, index)})">${output}</g>`;
+      }
+      await write(output);
     }
     await write("</g>");
   }
   if (!reflectedOverlay) {
-    for (const image of page.images ?? []) await write(visualImage(image, page.height));
+    for (const [index, image] of (page.images ?? []).entries()) {
+      await write(visualImage(image, page.height, page.number, index));
+    }
   }
   for (const span of visualSpans) {
     if (!usesPositionedSpan(span)) {
@@ -180,13 +191,58 @@ function usesReflectedVisualOverlay(page: ExtractedPage, spans: TextSpan[]): boo
   );
 }
 
-function visualImage(image: RasterImage, pageHeight: number): string {
+function visualImage(
+  image: RasterImage,
+  pageHeight: number,
+  pageNumber: number,
+  imageIndex: number,
+): string {
   const [a, b, c, d, e, f] = image.transform;
   const transform = [a, -b, -c, d, c + e, pageHeight - d - f].map(number).join(" ");
   const opacity = isUnitInterval(image.opacity) ? ` opacity="${number(image.opacity)}"` : "";
   const mime = image.format === "jpeg" ? "image/jpeg" : "image/bmp";
   const data = image.format === "jpeg" ? image.data : rgbBmp(image);
-  return `<image width="1" height="1" preserveAspectRatio="none" transform="matrix(${transform})" href="data:${mime};base64,${base64(data)}"${opacity}/>`;
+  let output = `<image width="1" height="1" preserveAspectRatio="none" transform="matrix(${transform})" href="data:${mime};base64,${base64(data)}"${opacity}/>`;
+  for (let index = (image.clips?.length ?? 0) - 1; index >= 0; index -= 1) {
+    output = `<g clip-path="url(#${imageClipId(pageNumber, imageIndex, index)})">${output}</g>`;
+  }
+  return output;
+}
+
+function imageClipDefinitions(
+  images: RasterImage[],
+  pageNumber: number,
+  pageHeight: number,
+): string {
+  return images
+    .flatMap((image, imageIndex) =>
+      (image.clips ?? []).map((clip, clipIndex) => {
+        if (!isSvgPath(clip.d)) return "";
+        const fillRule = clip.fillRule ? ` clip-rule="${clip.fillRule}"` : "";
+        return `<clipPath id="${imageClipId(pageNumber, imageIndex, clipIndex)}" clipPathUnits="userSpaceOnUse"><path d="${clip.d}" transform="translate(0 ${number(pageHeight)}) scale(1 -1)"${fillRule}/></clipPath>`;
+      }),
+    )
+    .join("");
+}
+
+function imageClipId(pageNumber: number, imageIndex: number, clipIndex: number): string {
+  return `boxpdf-clip-${pageNumber}-${imageIndex}-${clipIndex}`;
+}
+
+function pathClipDefinitions(paths: VectorPath[], pageNumber: number): string {
+  return paths
+    .flatMap((path, pathIndex) =>
+      (path.clips ?? []).map((clip, clipIndex) => {
+        if (!isSvgPath(clip.d)) return "";
+        const fillRule = clip.fillRule ? ` clip-rule="${clip.fillRule}"` : "";
+        return `<clipPath id="${pathClipId(pageNumber, pathIndex, clipIndex)}" clipPathUnits="userSpaceOnUse"><path d="${clip.d}"${fillRule}/></clipPath>`;
+      }),
+    )
+    .join("");
+}
+
+function pathClipId(pageNumber: number, pathIndex: number, clipIndex: number): string {
+  return `boxpdf-path-clip-${pageNumber}-${pathIndex}-${clipIndex}`;
 }
 
 function rgbBmp(image: RasterImage): Uint8Array {
