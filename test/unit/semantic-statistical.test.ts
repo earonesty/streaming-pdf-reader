@@ -60,6 +60,26 @@ describe("language-independent semantic inference", () => {
       ],
     });
   });
+
+  it("preserves every consecutive list marker", () => {
+    const blocks = inferSemanticBlocks(
+      [
+        line("• Premier élément", 40, 200, 11),
+        line("• Deuxième élément", 40, 180, 11),
+        line("• Tercer elemento", 40, 160, 11),
+      ],
+      [],
+    );
+
+    expect(blocks[0]).toMatchObject({
+      type: "list",
+      items: [
+        { text: "Premier élément" },
+        { text: "Deuxième élément" },
+        { text: "Tercer elemento" },
+      ],
+    });
+  });
 });
 
 function line(
