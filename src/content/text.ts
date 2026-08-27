@@ -17,6 +17,7 @@ import {
   normalizeTextCompatibility,
   parseToUnicode,
 } from "./cmap.js";
+import { textFillColor } from "./color.js";
 
 export { reorderBidiLines, reorderMixedRtlCitation } from "./bidi.js";
 
@@ -33,7 +34,8 @@ interface TextState {
   textMatrix: Matrix;
   lineMatrix: Matrix;
   ctm: Matrix;
-  ctmStack: Matrix[];
+  fillColor: string;
+  graphicsStack: Array<{ ctm: Matrix; fillColor: string }>;
 }
 
 type Matrix = [number, number, number, number, number, number];
@@ -57,7 +59,8 @@ export async function extractPageText(
     textMatrix: [...identity],
     lineMatrix: [...identity],
     ctm: [...identity],
-    ctmStack: [],
+    fillColor: "#000000",
+    graphicsStack: [],
   };
 
   for (const bytes of streams) {
@@ -128,16 +131,26 @@ async function applyOperator(
 ): Promise<void> {
   switch (operator) {
     case "q":
-      state.ctmStack.push([...state.ctm]);
+      state.graphicsStack.push({ ctm: [...state.ctm], fillColor: state.fillColor });
       return;
     case "Q":
-      state.ctm = state.ctmStack.pop() ?? [...identity];
+      {
+        const restored = state.graphicsStack.pop();
+        state.ctm = restored?.ctm ?? [...identity];
+        state.fillColor = restored?.fillColor ?? "#000000";
+      }
       return;
     case "cm":
       if (args.length >= 6 && args.slice(-6).every((value) => typeof value === "number")) {
         state.ctm = multiply(state.ctm, args.slice(-6) as Matrix);
       }
       return;
+    case "g":
+    case "rg":
+    case "k": {
+      state.fillColor = textFillColor(operator, args) ?? state.fillColor;
+      return;
+    }
     case "BT":
       state.textMatrix = [...identity];
       state.lineMatrix = [...identity];
@@ -278,7 +291,10 @@ function cloneState(state: TextState): TextState {
     textMatrix: [...state.textMatrix],
     lineMatrix: [...state.lineMatrix],
     ctm: [...state.ctm],
-    ctmStack: state.ctmStack.map((matrix) => [...matrix]),
+    graphicsStack: state.graphicsStack.map((entry) => ({
+      ctm: [...entry.ctm],
+      fillColor: entry.fillColor,
+    })),
   };
 }
 
@@ -367,6 +383,7 @@ function showString(
     direction: vertical ? "ttb" : "ltr",
     fontName: state.font,
     ...(font?.fontFamily ? { fontFamily: font.fontFamily } : {}),
+    color: state.fillColor,
     fontSize: Math.hypot(topX - x, topY - y),
     source: { page: 0, objectNumber: page.ref.object },
   });

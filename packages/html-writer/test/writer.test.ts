@@ -57,6 +57,19 @@ describe("HTML writer", () => {
     expect(html).toContain("font-style:italic");
   });
 
+  it("emits extracted text color and rejects unsafe color values", async () => {
+    const colored = await pageToHtml({
+      ...page,
+      spans: [{ ...span("Red", 20, 700), color: "#ff0000" }],
+    });
+    expect(colored).toContain("color:#ff0000");
+    const unsafe = await pageToHtml({
+      ...page,
+      spans: [{ ...span("No", 20, 700), color: 'red" onmouseover="alert(1)' }],
+    });
+    expect(unsafe).not.toContain("onmouseover");
+  });
+
   it("awaits output chunks and supports document metadata", async () => {
     const chunks: string[] = [];
     let writes = 0;

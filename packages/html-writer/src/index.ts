@@ -110,9 +110,14 @@ function positionedSpan(span: TextSpan): string {
     `width:${number(span.bounds.width)}pt`,
     `height:${number(span.bounds.height)}pt`,
     `font-size:${number(span.fontSize)}pt`,
+    ...(isCssHexColor(span.color) ? [`color:${span.color}`] : []),
     ...fontStyles(span.fontFamily),
   ].join(";");
   return `<span class="pdf-span"${direction} style="${style}">${escapeHtml(span.text)}</span>`;
+}
+
+function isCssHexColor(value: string | undefined): value is string {
+  return /^#[\da-f]{6}$/i.test(value ?? "");
 }
 
 function fontStyles(fontFamily: string | undefined): string[] {

@@ -20,6 +20,8 @@ export interface TextSpan {
   fontName?: string | undefined;
   /** Resolved PDF BaseFont name with any subset prefix removed. */
   fontFamily?: string | undefined;
+  /** Text fill color serialized as a six-digit CSS hex value. */
+  color?: string | undefined;
   fontSize: number;
   source: SourceRef;
 }
