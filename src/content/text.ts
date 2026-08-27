@@ -79,8 +79,10 @@ export async function extractPageText(
 }
 
 function asVisualSpan(span: TextSpan): TextSpan {
+  const arabic = /[\u0600-\u08ff\ufb50-\ufdff\ufe70-\ufeff]/u.test(span.text);
   return {
     ...span,
+    ...(arabic ? { text: [...span.text].reverse().join("") } : {}),
     bounds: { ...span.bounds },
   };
 }

@@ -1,8 +1,9 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 42,
+  "passed": 43,
   "passingFixtureIds": [
+    "arabiccidtruetype",
     "bug1513120-reduced",
     "bug1627427-reduced",
     "bug1947248-text",
