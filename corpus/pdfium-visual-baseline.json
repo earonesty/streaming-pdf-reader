@@ -1,13 +1,16 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 18,
+  "passed": 22,
   "passingFixtureIds": [
     "bug1513120-reduced",
     "bug1947248-text",
     "issue10301",
     "issue10529",
+    "issue11651",
     "issue11713",
+    "issue15629",
+    "issue15910",
     "issue16221",
     "issue18059",
     "issue18117",
@@ -20,7 +23,8 @@
     "issue9655-reduced",
     "operator-in-tj-array",
     "rotated",
-    "simpletype3font"
+    "simpletype3font",
+    "zero-descent"
   ],
   "thresholds": {
     "channelDelta": 12,

@@ -111,7 +111,9 @@ async function compareFixture(fixture) {
     const pageIndex = Math.max(0, (fixture.firstPage ?? 1) - 1);
     const referencePage = referenceDocument.getPage(pageIndex);
     const rendered = await referencePage.render({ scale, colorSpace: "BGRA" });
-    const reference = bgraToRgba(rendered.data);
+    // @hyzyla/pdfium renders with PDFium's REVERSE_BYTE_ORDER flag, so its raw
+    // four-channel bitmap is already RGBA despite the allocation format name.
+    const reference = Buffer.from(rendered.data);
     const referencePng = await sharp(reference, {
       raw: { width: rendered.width, height: rendered.height, channels: 4 },
     })
@@ -273,16 +275,6 @@ function neighborhoodDelta(reference, candidate, pixel, width, height) {
     }
   }
   return best;
-}
-
-function bgraToRgba(input) {
-  const output = Buffer.from(input);
-  for (let offset = 0; offset < output.length; offset += 4) {
-    const blue = output[offset];
-    output[offset] = output[offset + 2];
-    output[offset + 2] = blue;
-  }
-  return output;
 }
 
 function selectFixtures(ids, maximum) {
