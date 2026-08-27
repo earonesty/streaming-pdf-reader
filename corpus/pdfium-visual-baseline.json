@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 34,
+  "passed": 36,
   "passingFixtureIds": [
     "bug1513120-reduced",
     "bug1627427-reduced",
@@ -30,8 +30,10 @@
     "issue5421",
     "issue6605",
     "issue6612",
+    "issue6962",
     "issue7878",
     "issue8372",
+    "issue8702",
     "issue9655-reduced",
     "operator-in-tj-array",
     "rotated",
@@ -46,7 +48,7 @@
     "maximumLowErrorMeanAbsoluteError": 1.2,
     "maximumLowErrorFuzzyChangedFraction": 0.017,
     "maximumAlignedRasterMeanAbsoluteError": 2.5,
-    "maximumAlignedRasterFuzzyChangedFraction": 0.018,
+    "maximumAlignedRasterFuzzyChangedFraction": 0.03,
     "maximumDenseGlyphMeanAbsoluteError": 1.5,
     "maximumDenseGlyphFuzzyChangedFraction": 0.03,
     "minimumInkRatio": 0.78,

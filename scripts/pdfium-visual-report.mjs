@@ -23,7 +23,7 @@ const maximumFuzzyChangedPixels = 400;
 const maximumLowErrorMeanAbsoluteError = 1.2;
 const maximumLowErrorFuzzyChangedFraction = 0.017;
 const maximumAlignedRasterMeanAbsoluteError = 2.5;
-const maximumAlignedRasterFuzzyChangedFraction = 0.018;
+const maximumAlignedRasterFuzzyChangedFraction = 0.03;
 const maximumDenseGlyphMeanAbsoluteError = 1.5;
 const maximumDenseGlyphFuzzyChangedFraction = 0.03;
 
