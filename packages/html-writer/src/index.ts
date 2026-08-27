@@ -360,6 +360,10 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
         await write("</section>");
       }
       await write("</div>");
+    } else if (block.type === "employment") {
+      await write(
+        `<section><h3>${escapeHtml(block.role)}</h3><p>${escapeHtml(block.organization)}</p><p>${escapeHtml(block.date)}</p></section>`,
+      );
     } else {
       const tag = block.ordered ? "ol" : "ul";
       await write(`<${tag}>`);

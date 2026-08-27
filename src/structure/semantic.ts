@@ -19,6 +19,13 @@ export type SemanticBlock =
       items: Array<{ label: string; content: string[] }>;
       lines: TextLine[];
     }
+  | {
+      type: "employment";
+      role: string;
+      organization: string;
+      date: string;
+      lines: TextLine[];
+    }
   | { type: "table"; table: Table; lines: TextLine[] };
 
 export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): SemanticBlock[] {
@@ -93,8 +100,10 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
     const employment = employmentEntry(lines, index, tableForLine);
     if (employment) {
       blocks.push({
-        type: "paragraph",
-        text: employment.text,
+        type: "employment",
+        role: employment.role,
+        organization: employment.organization,
+        date: employment.date,
         lines: lines.slice(index, employment.end),
       });
       index = employment.end - 1;
@@ -120,7 +129,8 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
         let text = marker.text;
         while (cursor + 1 < lines.length && isContinuation(itemLine, lines[cursor + 1])) {
           const continuation = lines[cursor + 1];
-          if (!continuation || listMarker(continuation.text) || tableForLine.has(continuation)) break;
+          if (!continuation || listMarker(continuation.text) || tableForLine.has(continuation))
+            break;
           cursor += 1;
           itemLines.push(continuation);
           text = joinText(text, continuation.text);
@@ -230,7 +240,7 @@ function employmentEntry(
   lines: TextLine[],
   start: number,
   tableForLine: Map<TextLine, Table>,
-): { text: string; end: number } | undefined {
+): { role: string; organization: string; date: string; end: number } | undefined {
   const title = lines[start];
   const organization = lines[start + 1];
   const date = lines[start + 2];
@@ -247,7 +257,12 @@ function employmentEntry(
     );
   const organizationBelow = Math.abs(title.bounds.x - organization.bounds.x) <= 12;
   return looksLikeRole && looksLikeDate && organizationBelow
-    ? { text: `${title.text} ${date.text} ${organization.text}`, end: start + 3 }
+    ? {
+        role: title.text,
+        organization: organization.text,
+        date: date.text,
+        end: start + 3,
+      }
     : undefined;
 }
 

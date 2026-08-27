@@ -46,6 +46,9 @@ describe("semantic flow fixture gate", () => {
               if (block.type === "sectionGroup") {
                 return block.items.flatMap((item) => [item.label, ...item.content]);
               }
+              if (block.type === "employment") {
+                return [block.role, block.organization, block.date];
+              }
               return [block.text];
             })
             .join(" "),

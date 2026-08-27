@@ -45,7 +45,10 @@ export async function writeSemanticDocument(
   let headerOpen = false;
   let headerHasParagraph = false;
   let contentStarted = false;
-  let pendingParagraph: { block: Extract<SemanticBlock, { type: "paragraph" }>; height: number } | undefined;
+  let employmentOpen = false;
+  let pendingParagraph:
+    | { block: Extract<SemanticBlock, { type: "paragraph" }>; height: number }
+    | undefined;
   await write('<article class="pdf-semantic-document">');
 
   const closeTable = async () => {
@@ -67,6 +70,12 @@ export async function writeSemanticDocument(
     pendingParagraph = undefined;
   };
 
+  const closeEmployment = async () => {
+    if (!employmentOpen) return;
+    await write("</section>");
+    employmentOpen = false;
+  };
+
   const emitPage = async (page: BufferedPage, future: BufferedPage[]) => {
     const futureFurniture = new Set(future.flatMap((candidate) => marginSignatures(candidate)));
     const repeatedFurniture = new Set([...seenFurniture, ...futureFurniture]);
@@ -76,6 +85,7 @@ export async function writeSemanticDocument(
         continue;
       }
       await flushPendingParagraph();
+      if (employmentOpen && block.type !== "list") await closeEmployment();
       if (!contentStarted && !headerOpen && block.type === "heading" && block.level === 1) {
         await write(`<header><h1>${escapeHtml(block.text)}</h1>`);
         headerOpen = true;
@@ -137,6 +147,13 @@ export async function writeSemanticDocument(
         pendingParagraph = { block, height: page.height };
         continue;
       }
+      if (block.type === "employment") {
+        await write(
+          `<section><h3>${escapeHtml(block.role)}</h3><p>${escapeHtml(block.organization)}</p><p>${escapeHtml(block.date)}</p>`,
+        );
+        employmentOpen = true;
+        continue;
+      }
       await write(semanticBlockHtml(block));
     }
     for (const signature of marginSignatures(page)) seenFurniture.add(signature);
@@ -162,6 +179,7 @@ export async function writeSemanticDocument(
   }
   if (headerOpen) await write("</header>");
   await closeTable();
+  await closeEmployment();
   if (pendingParagraph && isFooterParagraph(pendingParagraph.block, pendingParagraph.height)) {
     await closeSections();
     await write(`<footer>${semanticBlockHtml(pendingParagraph.block)}</footer>`);
@@ -300,6 +318,9 @@ function semanticBlockHtml(block: Exclude<SemanticBlock, { type: "table" }>): st
   if (block.type === "sectionGroup") {
     return block.items.map(labeledSectionHtml).join("");
   }
+  if (block.type === "employment") {
+    return `<section><h3>${escapeHtml(block.role)}</h3><p>${escapeHtml(block.organization)}</p><p>${escapeHtml(block.date)}</p></section>`;
+  }
   const tag = block.ordered ? "ol" : "ul";
   return `<${tag}>${block.items.map((item) => `<li>${escapeHtml(item.text)}</li>`).join("")}</${tag}>`;
 }
@@ -327,7 +348,10 @@ function labeledSectionHtml(
     return `<section><h2>${escapeHtml(heading)}</h2><address>${content}</address></section>`;
   }
   return `<section><h2>${escapeHtml(heading)}</h2>${item.content
-    .map((content, index) => `<p>${index === 0 ? `<strong>${escapeHtml(content)}</strong>` : escapeHtml(content)}</p>`)
+    .map(
+      (content, index) =>
+        `<p>${index === 0 ? `<strong>${escapeHtml(content)}</strong>` : escapeHtml(content)}</p>`,
+    )
     .join("")}</section>`;
 }
 
