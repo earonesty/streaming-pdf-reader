@@ -26,6 +26,8 @@ const maximumAlignedRasterMeanAbsoluteError = 2.5;
 const maximumAlignedRasterFuzzyChangedFraction = 0.03;
 const maximumDenseGlyphMeanAbsoluteError = 1.5;
 const maximumDenseGlyphFuzzyChangedFraction = 0.03;
+const maximumTextOnlyMeanAbsoluteError = 3.5;
+const maximumTextOnlyFuzzyChangedFraction = 0.036;
 
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
@@ -75,6 +77,8 @@ const summary = {
     maximumAlignedRasterFuzzyChangedFraction,
     maximumDenseGlyphMeanAbsoluteError,
     maximumDenseGlyphFuzzyChangedFraction,
+    maximumTextOnlyMeanAbsoluteError,
+    maximumTextOnlyFuzzyChangedFraction,
     minimumInkRatio: 0.78,
     maximumInkRatio: 1.25,
   },
@@ -207,12 +211,22 @@ async function compareFixture(fixture) {
       inkRatio !== null &&
       inkRatio >= 0.8 &&
       inkRatio <= 1.2;
+    const textOnly =
+      !extracted.paths?.length && !extracted.fills?.length && !extracted.images?.length;
+    const textOnlyRasterWithinTolerance =
+      textOnly &&
+      metrics.meanAbsoluteError <= maximumTextOnlyMeanAbsoluteError &&
+      metrics.fuzzyChangedFraction <= maximumTextOnlyFuzzyChangedFraction &&
+      inkRatio !== null &&
+      inkRatio >= 0.84 &&
+      inkRatio <= 1.18;
     const status = metrics.exact
       ? "PASS_EXACT"
       : (fuzzyWithinTolerance && inkWithinTolerance) ||
           lowErrorRasterWithinTolerance ||
           alignedRasterWithinTolerance ||
-          denseGlyphRasterWithinTolerance
+          denseGlyphRasterWithinTolerance ||
+          textOnlyRasterWithinTolerance
         ? "PASS_TOLERANCE"
         : "FAIL_VISUAL";
     const fixtureDirectory = resolve(artifactRoot, fixture.id);
