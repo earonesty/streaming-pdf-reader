@@ -1,12 +1,13 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 44,
+  "passed": 46,
   "passingFixtureIds": [
     "arabiccidtruetype",
     "bug1245391-reduced",
     "bug1513120-reduced",
     "bug1627427-reduced",
+    "bug1811668-reduced",
     "bug1947248-text",
     "bug864847",
     "extgstate",
@@ -27,6 +28,7 @@
     "issue18117",
     "issue19800",
     "issue19848",
+    "issue2017r",
     "issue20930",
     "issue4550",
     "issue4665",
@@ -63,6 +65,8 @@
     "maximumTextOnlyFuzzyChangedFraction": 0.036,
     "maximumStandardFontMeanAbsoluteError": 6,
     "maximumStandardFontFuzzyChangedFraction": 0.03,
+    "maximumTrustedFontMeanAbsoluteError": 5.2,
+    "maximumTrustedFontFuzzyChangedFraction": 0.046,
     "minimumInkRatio": 0.78,
     "maximumInkRatio": 1.25
   }

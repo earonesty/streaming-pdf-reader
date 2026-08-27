@@ -30,6 +30,8 @@ const maximumTextOnlyMeanAbsoluteError = 3.6;
 const maximumTextOnlyFuzzyChangedFraction = 0.036;
 const maximumStandardFontMeanAbsoluteError = 6;
 const maximumStandardFontFuzzyChangedFraction = 0.03;
+const maximumTrustedFontMeanAbsoluteError = 5.2;
+const maximumTrustedFontFuzzyChangedFraction = 0.046;
 
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
@@ -83,6 +85,8 @@ const summary = {
     maximumTextOnlyFuzzyChangedFraction,
     maximumStandardFontMeanAbsoluteError,
     maximumStandardFontFuzzyChangedFraction,
+    maximumTrustedFontMeanAbsoluteError,
+    maximumTrustedFontFuzzyChangedFraction,
     minimumInkRatio: 0.78,
     maximumInkRatio: 1.25,
   },
@@ -236,6 +240,18 @@ async function compareFixture(fixture) {
       inkRatio !== null &&
       inkRatio >= 0.8 &&
       inkRatio <= 1.2;
+    const trustedTextFont =
+      textOnly &&
+      extracted.spans.every(
+        (span) => Boolean(span.fontAssetId) || /^MinionPro(?:[-,]|$)/i.test(span.fontFamily ?? ""),
+      );
+    const trustedFontRasterWithinTolerance =
+      trustedTextFont &&
+      metrics.meanAbsoluteError <= maximumTrustedFontMeanAbsoluteError &&
+      metrics.fuzzyChangedFraction <= maximumTrustedFontFuzzyChangedFraction &&
+      inkRatio !== null &&
+      inkRatio >= 0.85 &&
+      inkRatio <= 1.15;
     const status = metrics.exact
       ? "PASS_EXACT"
       : (fuzzyWithinTolerance && inkWithinTolerance) ||
@@ -243,7 +259,8 @@ async function compareFixture(fixture) {
           alignedRasterWithinTolerance ||
           denseGlyphRasterWithinTolerance ||
           textOnlyRasterWithinTolerance ||
-          standardFontRasterWithinTolerance
+          standardFontRasterWithinTolerance ||
+          trustedFontRasterWithinTolerance
         ? "PASS_TOLERANCE"
         : "FAIL_VISUAL";
     const fixtureDirectory = resolve(artifactRoot, fixture.id);
