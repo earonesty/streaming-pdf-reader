@@ -1,0 +1,428 @@
+{
+  "schemaVersion": 1,
+  "fixtures": [
+    {
+      "id": "research-paper",
+      "file": "research-paper.pdf",
+      "sha256": "3662ff519e485810520552bf301d8c3b2b917fd2f83303f4965d7abed367e113",
+      "source": "pdf.js tracemonkey.pdf / reader demo",
+      "pages": [1, 2],
+      "challenge": "Two presentation columns, title hierarchy, abstract, figures, and captions",
+      "expect": {
+        "readingOrder": [
+          [
+            "Trace-based Just-in-Time Type Specialization for Dynamic Languages",
+            "Abstract",
+            "Dynamic languages such as JavaScript",
+            "Categories and Subject Descriptors",
+            "General Terms",
+            "Keywords",
+            "1. Introduction",
+            "Dynamic languages such as JavaScript, Python, and Ruby",
+            "and is used for the application logic"
+          ],
+          [
+            "Hence, recording and compiling a trace speculates",
+            "This paper makes the following contributions",
+            "The remainder of this paper is organized as follows",
+            "2. Overview: Example Tracing Run"
+          ]
+        ],
+        "elements": {
+          "article": { "min": 1 },
+          "h1": { "min": 1 },
+          "h2": { "min": 2 },
+          "table": { "max": 0 },
+          "figure": { "min": 2 }
+        },
+        "groups": [
+          {
+            "role": "section",
+            "label": "Abstract",
+            "contains": ["Abstract", "Dynamic languages such as JavaScript", "programs"]
+          },
+          { "role": "figure", "contains": ["Sample program: sieve of Eratosthenes", "primes"] }
+        ],
+        "exclude": ["PLDI’09, June 15–20, 2009, Dublin, Ireland."],
+        "notes": "Visual columns determine traversal order, then disappear. Code and diagrams are figures, not tables."
+      }
+    },
+    {
+      "id": "acme-studio-invoice",
+      "file": "acme-studio-invoice.pdf",
+      "sha256": "dd645bd82fadd91b6227fc24ab69aeec38cb84ec3fde5dd75c13bd284271c5f4",
+      "source": "boxpdf docs/gallery/pdf/tailwind-utilities.pdf",
+      "pages": [1],
+      "challenge": "A genuine two-column table that geometrically resembles a two-column article",
+      "expect": {
+        "readingOrder": [
+          ["Acme Studio", "STATUS", "Paid", "Item", "Design work", "Implementation", "Amount due"]
+        ],
+        "elements": { "h1": { "min": 1 }, "table": { "min": 1, "max": 2 } },
+        "tables": [
+          {
+            "headers": ["Item", "Total"],
+            "rowsAtLeast": 2,
+            "rows": [["Design work", "$900.00"], ["Implementation", "$350.00"]]
+          }
+        ],
+        "groups": [
+          { "role": "dl", "contains": ["STATUS", "Paid"] },
+          { "role": "summary", "contains": ["Amount due", "$1,250.00"] }
+        ],
+        "notes": "Horizontal row association must beat independent vertical-column flow."
+      }
+    },
+    {
+      "id": "multipage-invoice",
+      "file": "multipage-invoice.pdf",
+      "sha256": "34f811f14a40692b080c98784e98b11bc5dda7bc552bfaecae86892cbd05f48b",
+      "source": "boxpdf docs/gallery/pdf/invoice.pdf",
+      "pages": [1, 2, 3],
+      "challenge": "Four-column table continued across pages with repeated headers and footers",
+      "expect": {
+        "readingOrder": [
+          [
+            "INVOICE",
+            "#2026-001872",
+            "Issued: May 14, 2026",
+            "Bill to: Onward Travel, LLC.",
+            "Description",
+            "Service line item #001"
+          ]
+        ],
+        "elements": { "table": { "min": 1, "max": 1 } },
+        "tables": [
+          {
+            "headers": ["Description", "Qty", "Unit", "Amount"],
+            "rowsAtLeast": 34,
+            "rows": [
+              ["Service line item #001 — Engineering hour", "1", "$95.00", "$95.00"],
+              ["Service line item #033 — Engineering hour", "1", "$105.00", "$105.00"]
+            ]
+          }
+        ],
+        "exclude": ["Page 1 of 3", "Page 2 of 3", "Page 3 of 3", "Acme Supply Co. · acme.example"],
+        "notes": "Repeated page headers belong to one logical table; repeated footer furniture is excluded."
+      }
+    },
+    {
+      "id": "receipt",
+      "file": "receipt.pdf",
+      "sha256": "cf2dfc70e096d338f8fe7513d851174c9cd2ba1c46a87b6d89bd1978a67edc93",
+      "source": "boxpdf docs/gallery/pdf/receipt.pdf",
+      "pages": [1],
+      "challenge": "Unheaded item rows plus a separate totals block",
+      "expect": {
+        "readingOrder": [
+          [
+            "Acme Supply Co.",
+            "Receipt · Order #18472",
+            "Wool socks",
+            "Coffee mug",
+            "Notebook (A5)",
+            "Subtotal",
+            "Tax (8.75%)",
+            "Total",
+            "Thanks for your business."
+          ]
+        ],
+        "elements": { "table": { "min": 1, "max": 1 } },
+        "tables": [
+          {
+            "headers": [],
+            "rowsAtLeast": 3,
+            "rows": [
+              ["Wool socks", "2 × $14.00", "$28.00"],
+              ["Coffee mug", "1 × $18.00", "$18.00"],
+              ["Notebook (A5)", "3 × $9.00", "$27.00"]
+            ]
+          }
+        ],
+        "groups": [
+          {
+            "role": "dl",
+            "contains": ["Subtotal", "$73.00", "Tax (8.75%)", "$6.39", "Total", "$79.39"]
+          }
+        ],
+        "notes": "Stable row relationships can establish a table without explicit column headings."
+      }
+    },
+    {
+      "id": "order-confirmation",
+      "file": "order-confirmation.pdf",
+      "sha256": "fef9d3dd2070588d133de987e4b0e010174917227dc9bc4cfb887d6ae27b3cd1",
+      "source": "boxpdf docs/gallery/pdf/order-confirmation.pdf",
+      "pages": [1],
+      "challenge": "Product cards, side-by-side address groups, and totals",
+      "expect": {
+        "readingOrder": [
+          [
+            "Thanks for your order, Sam.",
+            "Field jacket",
+            "Olive · M",
+            "×1",
+            "$198.00",
+            "Linen trousers",
+            "Stone · 32",
+            "×2",
+            "$178.00",
+            "Wool socks (3-pack)",
+            "Charcoal heather",
+            "×1",
+            "$32.00",
+            "SHIP TO",
+            "Sam Reyes",
+            "482 Page Street, Apt 2B",
+            "BILLED TO",
+            "Visa ending 4242",
+            "Subtotal",
+            "Total"
+          ]
+        ],
+        "elements": { "article": { "min": 1 }, "table": { "max": 1 } },
+        "groups": [
+          { "role": "listitem", "contains": ["Field jacket", "Olive · M", "×1", "$198.00"] },
+          {
+            "role": "section",
+            "label": "SHIP TO",
+            "contains": ["Sam Reyes", "482 Page Street, Apt 2B", "San Francisco, CA 94117"]
+          },
+          {
+            "role": "section",
+            "label": "BILLED TO",
+            "contains": ["Sam Reyes", "Visa ending 4242", "Charged May 14, 2026"]
+          },
+          {
+            "role": "dl",
+            "contains": ["Subtotal", "$408.00", "Shipping", "$14.00", "Total", "$457.70"]
+          }
+        ],
+        "notes": "Side-by-side addresses are sibling semantic sections, not columns or a table."
+      }
+    },
+    {
+      "id": "resume",
+      "file": "resume.pdf",
+      "sha256": "4b5f0d973edb09d743c28dec25bf2f70dec1765aaccd7a80cf3b43325298af9b",
+      "source": "boxpdf docs/gallery/pdf/resume.pdf",
+      "pages": [1, 2],
+      "challenge": "Section hierarchy, dated experience entries, and nested bullet lists",
+      "expect": {
+        "readingOrder": [
+          [
+            "Avery Chen",
+            "Senior Software Engineer",
+            "Summary",
+            "Software engineer with 9 years",
+            "Experience",
+            "Staff Engineer · Platform",
+            "Jan 2023 — Present",
+            "Edgeworth Labs · Remote",
+            "Owned the migration",
+            "Senior Engineer · Payments",
+            "Mar 2019 — Dec 2022",
+            "Education"
+          ]
+        ],
+        "elements": {
+          "article": { "min": 1 },
+          "h1": { "min": 1 },
+          "h2": { "min": 3 },
+          "ul": { "min": 1 },
+          "table": { "max": 0 }
+        },
+        "groups": [
+          {
+            "role": "section",
+            "label": "Staff Engineer · Platform",
+            "contains": [
+              "Jan 2023 — Present",
+              "Edgeworth Labs · Remote",
+              "Owned the migration",
+              "Mentored five engineers"
+            ]
+          },
+          {
+            "role": "section",
+            "label": "Senior Engineer · Payments",
+            "contains": [
+              "Mar 2019 — Dec 2022",
+              "Brightline Systems · San Francisco, CA",
+              "Led the rollout of 3D-Secure"
+            ]
+          }
+        ],
+        "notes": "Right-aligned dates remain attached to jobs but do not create a page-wide table."
+      }
+    },
+    {
+      "id": "itinerary",
+      "file": "itinerary.pdf",
+      "sha256": "cb8610d7fcb5d0134cd52bac5b3f1dcab28cfcb9b9308fa12131b9a57470fe45",
+      "source": "boxpdf docs/gallery/pdf/itinerary.pdf",
+      "pages": [1],
+      "challenge": "Repeated journey cards with labels implied by position",
+      "expect": {
+        "readingOrder": [
+          [
+            "Your Itinerary",
+            "Hanoi to Tokyo and back",
+            "Confirmed",
+            "17:01",
+            "HAN",
+            "Direct",
+            "00:33",
+            "NRT",
+            "Terminal 2",
+            "06:58",
+            "NRT",
+            "Direct",
+            "10:30",
+            "HAN"
+          ]
+        ],
+        "elements": { "article": { "min": 1 }, "table": { "max": 0 } },
+        "groups": [
+          { "role": "listitem", "contains": ["17:01", "HAN", "Direct", "00:33", "NRT"] },
+          { "role": "listitem", "contains": ["06:58", "NRT", "Direct", "10:30", "HAN"] }
+        ],
+        "notes": "Repeated cards are itinerary legs, not rows in a generic table."
+      }
+    },
+    {
+      "id": "boarding-pass",
+      "file": "boarding-pass.pdf",
+      "sha256": "ef03170f55fba119fd78f5d67df2daf76cbf7f14460998f1d97ee30f42685655",
+      "source": "boxpdf docs/gallery/pdf/boarding-pass.pdf",
+      "pages": [1],
+      "challenge": "Dense spatial key/value fields with duplicated visual title text",
+      "expect": {
+        "readingOrder": [
+          [
+            "Boarding pass",
+            "Onward Travel",
+            "Hanoi",
+            "HAN",
+            "OT 482",
+            "Tokyo",
+            "NRT",
+            "PASSENGER",
+            "Paula Andrea Ruiz Gomez",
+            "PNR",
+            "CHTALI",
+            "DATE",
+            "23 JUL 2026",
+            "CLASS",
+            "Economy",
+            "BOARDING",
+            "16:25",
+            "DEPARTS",
+            "17:01",
+            "GATE",
+            "B07",
+            "SEAT",
+            "14A"
+          ]
+        ],
+        "elements": { "article": { "min": 1 }, "dl": { "min": 1 }, "table": { "max": 0 } },
+        "groups": [
+          {
+            "role": "dl",
+            "contains": [
+              "PASSENGER",
+              "Paula Andrea Ruiz Gomez",
+              "PNR",
+              "CHTALI",
+              "DATE",
+              "23 JUL 2026",
+              "CLASS",
+              "Economy"
+            ]
+          },
+          {
+            "role": "dl",
+            "contains": ["BOARDING", "16:25", "DEPARTS", "17:01", "GATE", "B07", "SEAT", "14A"]
+          }
+        ],
+        "notes": "Aligned fields are labeled properties, not a data table."
+      }
+    },
+    {
+      "id": "rich-content",
+      "file": "rich-content.pdf",
+      "sha256": "ba38f83908bca52895c7dd76c89a1d8223c543fb5ebdbe4aa1d83dccffcccc0d",
+      "source": "boxpdf docs/gallery/pdf/rich-content.pdf",
+      "pages": [1],
+      "challenge": "Mixed inline prose, a hard-broken token, and a real comparison table",
+      "expect": {
+        "readingOrder": [
+          [
+            "Rich content smoke test",
+            "This paragraph wraps mixed inline runs",
+            "linked run that can wrap",
+            "Long tokens still hard-break inside the paragraph",
+            "supercalifragilisticexpialidocious-supercalifragilisticexpialidocious",
+            "Plan comparison",
+            "Feature",
+            "Basic",
+            "Pro",
+            "Inline text in a cell with bold and link",
+            "Yes",
+            "Yes",
+            "Priority review",
+            "No",
+            "Included"
+          ]
+        ],
+        "elements": { "h1": { "min": 1 }, "p": { "min": 2 }, "table": { "min": 1, "max": 1 } },
+        "tables": [
+          {
+            "headers": ["Feature", "Basic", "Pro"],
+            "rowsAtLeast": 2,
+            "rows": [
+              ["Inline text in a cell with bold and link", "Yes", "Yes"],
+              ["Priority review", "No", "Included"]
+            ]
+          }
+        ],
+        "notes": "Inline style boundaries must not split paragraphs; visual hard wrapping must not split words."
+      }
+    },
+    {
+      "id": "hanging-indent",
+      "file": "hanging-indent.pdf",
+      "sha256": "5bf4887fd06fd9718d0c44bba43c07523c699b26a9308a80ef62453d110d25f8",
+      "source": "boxpdf docs/gallery/pdf/hanging-indent.pdf",
+      "pages": [1],
+      "challenge": "Wrapped unordered and ordered list items with hanging indentation",
+      "expect": {
+        "readingOrder": [
+          [
+            "Hanging indent",
+            "Wrapped list item with enough text to continue on the next line cleanly.",
+            "Ordered item aligns wrapped text under the content, not under the marker."
+          ]
+        ],
+        "elements": {
+          "h1": { "min": 1 },
+          "ul": { "min": 1 },
+          "ol": { "min": 1 },
+          "li": { "min": 2 },
+          "table": { "max": 0 }
+        },
+        "groups": [
+          {
+            "role": "listitem",
+            "contains": ["Wrapped list item with enough text", "the next line cleanly."]
+          },
+          {
+            "role": "listitem",
+            "contains": ["Ordered item aligns wrapped text", "content, not under the marker."]
+          }
+        ],
+        "notes": "Indentation identifies list continuation; visual line breaks disappear."
+      }
+    }
+  ]
+}
