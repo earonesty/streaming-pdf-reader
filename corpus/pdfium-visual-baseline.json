@@ -1,11 +1,12 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 30,
+  "passed": 31,
   "passingFixtureIds": [
     "bug1513120-reduced",
     "bug1947248-text",
     "bug864847",
+    "extgstate",
     "issue10301",
     "issue1045",
     "issue10529",

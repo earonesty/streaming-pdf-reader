@@ -179,7 +179,7 @@ async function applyOperator(
       {
         const extended = await resolveExtendedGraphicsState(reader, resources, args.at(-1));
         if (extended?.lineWidth !== undefined) state.lineWidth = extended.lineWidth;
-        if (extended?.fontName !== undefined) state.font = extended.fontName;
+        // PDFium applies the ExtGState size but retains the current font face.
         if (extended?.fontSize !== undefined) state.fontSize = extended.fontSize;
         if (extended?.fillOpacity !== undefined) state.fillOpacity = extended.fillOpacity;
         if (extended?.strokeOpacity !== undefined) state.strokeOpacity = extended.strokeOpacity;
