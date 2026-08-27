@@ -218,31 +218,54 @@ function semanticBlockHtml(block: Exclude<SemanticBlock, { type: "table" }>): st
     return `<h${block.level}>${escapeHtml(block.text)}</h${block.level}>`;
   if (block.type === "paragraph") return `<p>${escapeHtml(block.text)}</p>`;
   if (block.type === "definitionList") {
-    return `<dl>${block.entries
+    const list = `<dl>${block.entries
       .map(
         (entry) =>
           `<div><dt>${escapeHtml(entry.term)}</dt><dd>${escapeHtml(entry.description)}</dd></div>`,
       )
       .join("")}</dl>`;
+    return isFinancialSummary(block) ? `<section><h2>Order total</h2>${list}</section>` : list;
   }
   if (block.type === "cardList") {
-    return `<div class="pdf-semantic-cards">${block.items
-      .map(
-        (item) =>
-          `<article><h3>${escapeHtml(item.title)}</h3>${item.details.map((detail) => `<p>${escapeHtml(detail)}</p>`).join("")}</article>`,
-      )
-      .join("")}</div>`;
+    return `<section><h2>Items ordered</h2><table><thead><tr><th scope="col">Item</th><th scope="col">Quantity</th><th scope="col">Amount</th></tr></thead><tbody>${block.items.map(cardTableRow).join("")}</tbody></table></section>`;
   }
   if (block.type === "sectionGroup") {
-    return `<div class="pdf-semantic-sections">${block.items
-      .map(
-        (item) =>
-          `<section><h3>${escapeHtml(item.label)}</h3>${item.content.map((content) => `<p>${escapeHtml(content)}</p>`).join("")}</section>`,
-      )
-      .join("")}</div>`;
+    return block.items.map(labeledSectionHtml).join("");
   }
   const tag = block.ordered ? "ol" : "ul";
   return `<${tag}>${block.items.map((item) => `<li>${escapeHtml(item.text)}</li>`).join("")}</${tag}>`;
+}
+
+function cardTableRow(item: Extract<SemanticBlock, { type: "cardList" }>["items"][number]): string {
+  const trailing = item.details.at(-1) ?? "";
+  const match = /^\s*[×x]\s*(\d+)\s+(.+)$/u.exec(trailing);
+  const description = item.details.slice(0, -1).join(" ");
+  const detail = description ? `<br><span>${escapeHtml(description)}</span>` : "";
+  const quantity = match?.[1] ?? "";
+  const amount = match?.[2] ?? trailing;
+  return `<tr><th scope="row">${escapeHtml(item.title)}${detail}</th><td>${escapeHtml(quantity)}</td><td>${escapeHtml(amount)}</td></tr>`;
+}
+
+function labeledSectionHtml(
+  item: Extract<SemanticBlock, { type: "sectionGroup" }>["items"][number],
+): string {
+  const heading = titleCase(item.label);
+  const postal = /\b(?:ship|deliver|mail)(?:ed)?\b/i.test(item.label);
+  if (postal) {
+    const [name, ...address] = item.content;
+    const content = [name ? `<strong>${escapeHtml(name)}</strong>` : "", ...address.map(escapeHtml)]
+      .filter(Boolean)
+      .join("<br>");
+    return `<section><h2>${escapeHtml(heading)}</h2><address>${content}</address></section>`;
+  }
+  return `<section><h2>${escapeHtml(heading)}</h2>${item.content
+    .map((content, index) => `<p>${index === 0 ? `<strong>${escapeHtml(content)}</strong>` : escapeHtml(content)}</p>`)
+    .join("")}</section>`;
+}
+
+function titleCase(value: string): string {
+  const normalized = value.trim().toLocaleLowerCase("en");
+  return normalized.replace(/^\p{L}/u, (letter) => letter.toLocaleUpperCase("en"));
 }
 
 function escapeHtml(value: string): string {

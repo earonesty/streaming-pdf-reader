@@ -24,13 +24,17 @@ describe("semantic document flow", () => {
       await source.close();
     }
 
-    expect(html).toContain('<div class="pdf-semantic-cards">');
     expect(html).toContain(
-      "<article><h3>Field jacket</h3><p>Olive · M</p><p>× 1 $198.00</p></article>",
+      '<section><h2>Items ordered</h2><table><thead><tr><th scope="col">Item</th><th scope="col">Quantity</th><th scope="col">Amount</th></tr></thead>',
     );
-    expect(html).toContain('<div class="pdf-semantic-sections">');
-    expect(html).toContain("<section><h3>SHIP TO</h3><p>Sam Reyes</p>");
-    expect(html).toContain("<section><h3>BILLED TO</h3><p>Sam Reyes</p>");
+    expect(html).toContain(
+      '<tr><th scope="row">Field jacket<br><span>Olive · M</span></th><td>1</td><td>$198.00</td></tr>',
+    );
+    expect(html).toContain(
+      "<section><h2>Ship to</h2><address><strong>Sam Reyes</strong><br>482 Page Street, Apt 2B",
+    );
+    expect(html).toContain("<section><h2>Billed to</h2><p><strong>Sam Reyes</strong></p>");
+    expect(html).toContain("<section><h2>Order total</h2><dl>");
     expect(html).toContain("<dt>Subtotal</dt><dd>$408.00</dd>");
     expect(html).toContain("<dt>Total</dt><dd>$457.70</dd>");
   });
