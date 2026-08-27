@@ -136,6 +136,9 @@ async function compareFixture(fixture) {
     try {
       await browserPage.setContent(html, { waitUntil: "load" });
       await browserPage.evaluate(() => document.fonts.ready);
+      await browserPage.evaluate(() =>
+        Promise.all([...document.images].map((image) => image.decode())),
+      );
       candidatePng = await browserPage.locator(".pdf-page").screenshot({ animations: "disabled" });
     } finally {
       await browserPage.close();

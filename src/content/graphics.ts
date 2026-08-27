@@ -438,12 +438,13 @@ async function rasterImage(
   ) {
     return undefined;
   }
-  if (isName(filter, "DCTDecode") || isName(filter, "DCT")) {
+  const jpeg = await jpegBytes(reader, stream, filter);
+  if (jpeg) {
     return {
       width,
       height,
       format: "jpeg",
-      data: stream.bytes,
+      data: jpeg,
       transform: [...state.ctm],
       ...(state.fillOpacity !== 1 ? { opacity: state.fillOpacity } : {}),
     };
@@ -461,6 +462,24 @@ async function rasterImage(
     transform: [...state.ctm],
     ...(state.fillOpacity !== 1 ? { opacity: state.fillOpacity } : {}),
   };
+}
+
+async function jpegBytes(
+  reader: PdfObjectReader,
+  stream: Extract<Awaited<ReturnType<PdfObjectReader["resolve"]>>, { type: "stream" }>,
+  filter: PdfValue | undefined,
+): Promise<Uint8Array | undefined> {
+  const filters = Array.isArray(filter) ? filter : filter === undefined ? [] : [filter];
+  const terminal = filters.at(-1);
+  if (!isName(terminal) || !["DCTDecode", "DCT"].includes(terminal.value)) return undefined;
+  const prefix = filters.slice(0, -1);
+  if (!supportedRasterFilters(prefix)) return undefined;
+  if (prefix.length === 0) return stream.bytes;
+  const dict = new Map(stream.dict);
+  dict.set("Filter", prefix);
+  const parameters = stream.dict.get("DecodeParms") ?? stream.dict.get("DP");
+  if (Array.isArray(parameters)) dict.set("DecodeParms", parameters.slice(0, -1));
+  return reader.decodeStream({ ...stream, dict });
 }
 
 function supportedRasterFilters(value: PdfValue | undefined): boolean {

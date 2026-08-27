@@ -102,7 +102,6 @@ async function writePositionedPage(
   await write(
     `<svg class="pdf-visual-text" xmlns="http://www.w3.org/2000/svg" width="${number(page.width)}pt" height="${number(page.height)}pt" viewBox="0 0 ${number(page.width)} ${number(page.height)}">`,
   );
-  for (const image of page.images ?? []) await write(visualImage(image, page.height));
   for (const fill of page.fills ?? []) {
     const points = fill.points.map(([x, y]) => `${number(x)},${number(page.height - y)}`).join(" ");
     if (isCssHexColor(fill.color)) {
@@ -133,6 +132,7 @@ async function writePositionedPage(
     }
     await write("</g>");
   }
+  for (const image of page.images ?? []) await write(visualImage(image, page.height));
   for (const span of visualSpans) {
     if (!usesPositionedSpan(span)) {
       const type3 = span.fontAssetId ? type3Fonts.get(span.fontAssetId) : undefined;
