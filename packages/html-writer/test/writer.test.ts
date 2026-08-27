@@ -381,6 +381,24 @@ describe("HTML writer", () => {
     expect(hidden).not.toContain("hidden");
   });
 
+  it("paints dense Type3 bitmap masks with crisp SVG cells", async () => {
+    const fills = Array.from({ length: 65 }, (_, x) => ({
+      points: [
+        [x, 0],
+        [x + 1, 0],
+        [x + 1, 1],
+        [x, 1],
+      ] as Array<[number, number]>,
+      color: "#000000",
+    }));
+    const html = await pageToHtml({
+      ...page,
+      fonts: [{ id: "type3-1", format: "type3", glyphs: [{ code: 97, advance: 65, fills }] }],
+      spans: [{ ...span("a", 20, 700), fontAssetId: "type3-1", glyphCodes: [97] }],
+    });
+    expect(html).toContain('<g shape-rendering="crispEdges">');
+  });
+
   it("awaits output chunks and supports document metadata", async () => {
     const chunks: string[] = [];
     let writes = 0;

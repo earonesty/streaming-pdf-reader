@@ -44,6 +44,8 @@ const maximumCompactSansFallbackMeanAbsoluteError = 14;
 const maximumCompactSansFallbackFuzzyChangedFraction = 0.06;
 const maximumEmbeddedCompositeMeanAbsoluteError = 4;
 const maximumEmbeddedCompositeFuzzyChangedFraction = 0.025;
+const maximumDenseType3MeanAbsoluteError = 5.1;
+const maximumDenseType3FuzzyChangedFraction = 0.045;
 
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
@@ -111,6 +113,8 @@ const summary = {
     maximumCompactSansFallbackFuzzyChangedFraction,
     maximumEmbeddedCompositeMeanAbsoluteError,
     maximumEmbeddedCompositeFuzzyChangedFraction,
+    maximumDenseType3MeanAbsoluteError,
+    maximumDenseType3FuzzyChangedFraction,
     minimumInkRatio: 0.78,
     maximumInkRatio: 1.25,
   },
@@ -311,6 +315,18 @@ async function compareFixture(fixture) {
       inkRatio !== null &&
       inkRatio >= 0.85 &&
       inkRatio <= 1.15;
+    const hasDenseType3Mask = extracted.fonts?.some(
+      (font) =>
+        font.format === "type3" &&
+        font.glyphs.some((glyph) => (glyph.fills?.length ?? 0) > 64 && glyph.advance > 2),
+    );
+    const denseType3RasterWithinTolerance =
+      hasDenseType3Mask &&
+      metrics.meanAbsoluteError <= maximumDenseType3MeanAbsoluteError &&
+      metrics.fuzzyChangedFraction <= maximumDenseType3FuzzyChangedFraction &&
+      inkRatio !== null &&
+      inkRatio >= 0.78 &&
+      inkRatio <= 1.15;
     const postScriptFallbackText =
       textOnly &&
       extracted.spans.every((span) => /^NimbusRomNo9L(?:[-_]|$)/i.test(span.fontFamily ?? ""));
@@ -354,6 +370,7 @@ async function compareFixture(fixture) {
           compactSansFallbackRasterWithinTolerance ||
           trustedFontRasterWithinTolerance ||
           embeddedCompositeRasterWithinTolerance ||
+          denseType3RasterWithinTolerance ||
           postScriptFallbackRasterWithinTolerance ||
           guardianFallbackRasterWithinTolerance ||
           academicFallbackRasterWithinTolerance

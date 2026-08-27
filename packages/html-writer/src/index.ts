@@ -344,7 +344,9 @@ function type3Glyph(glyph: Type3Glyph): string {
         : "";
     output += `<path d="${path.d}" fill="${fill}" stroke="${stroke}"${width}/>`;
   }
-  return output;
+  return (glyph.fills?.length ?? 0) > 64 && glyph.advance > 2
+    ? `<g shape-rendering="crispEdges">${output}</g>`
+    : output;
 }
 
 function isCssHexColor(value: string | undefined): value is string {
