@@ -59,13 +59,9 @@ describe("httpSource", () => {
   });
 
   it("counts a streamed full probe when Content-Length is unavailable", async () => {
-    let calls = 0;
     const source = await httpSource("https://example.test/file.pdf", {
       onWarning: vi.fn(),
-      fetch: vi.fn(async () => {
-        calls += 1;
-        return response([10, 20, 30], 200);
-      }),
+      fetch: vi.fn(async () => response([10, 20, 30], 200)),
     });
     expect(source.size).toBe(3);
     await expect(source.read(2, 1)).resolves.toEqual(Uint8Array.of(30));
