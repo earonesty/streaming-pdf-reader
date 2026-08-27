@@ -9,6 +9,8 @@ describe("extended graphics state", () => {
     const state: PdfDict = new Map<string, PdfValue>([
       ["LW", 4],
       ["Font", [fontRef, 36]],
+      ["ca", 0.25],
+      ["CA", 1.5],
     ]);
     const resources: PdfDict = new Map<string, PdfValue>([
       ["ExtGState", new Map<string, PdfValue>([["GS1", state]])],
@@ -21,7 +23,13 @@ describe("extended graphics state", () => {
 
     await expect(
       resolveExtendedGraphicsState(reader, resources, { type: "name", value: "GS1" }),
-    ).resolves.toEqual({ lineWidth: 4, fontName: "F0", fontSize: 36 });
+    ).resolves.toEqual({
+      lineWidth: 4,
+      fillOpacity: 0.25,
+      strokeOpacity: 1,
+      fontName: "F0",
+      fontSize: 36,
+    });
   });
 
   it("ignores malformed and unknown state resources", async () => {

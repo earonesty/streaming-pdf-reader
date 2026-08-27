@@ -17,6 +17,8 @@ export interface TextState {
   renderingMode: number;
   fillColorSpace: string | undefined;
   strokeColorSpace: string | undefined;
+  fillOpacity: number;
+  strokeOpacity: number;
   graphicsStack: Array<{
     ctm: Matrix;
     fillColor: string;
@@ -24,6 +26,8 @@ export interface TextState {
     lineWidth: number;
     fillColorSpace: string | undefined;
     strokeColorSpace: string | undefined;
+    fillOpacity: number;
+    strokeOpacity: number;
   }>;
 }
 
@@ -44,6 +48,8 @@ export function createTextState(): TextState {
     renderingMode: 0,
     fillColorSpace: undefined,
     strokeColorSpace: undefined,
+    fillOpacity: 1,
+    strokeOpacity: 1,
     graphicsStack: [],
   };
 }
@@ -61,6 +67,8 @@ export function cloneTextState(state: TextState): TextState {
       lineWidth: entry.lineWidth,
       fillColorSpace: entry.fillColorSpace,
       strokeColorSpace: entry.strokeColorSpace,
+      fillOpacity: entry.fillOpacity,
+      strokeOpacity: entry.strokeOpacity,
     })),
   };
 }

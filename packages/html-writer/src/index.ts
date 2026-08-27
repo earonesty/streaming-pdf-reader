@@ -91,8 +91,10 @@ async function writePositionedPage(
   );
   for (const fill of page.fills ?? []) {
     const points = fill.points.map(([x, y]) => `${number(x)},${number(page.height - y)}`).join(" ");
-    if (isCssHexColor(fill.color))
-      await write(`<polygon points="${points}" fill="${fill.color}"/>`);
+    if (isCssHexColor(fill.color)) {
+      const opacity = isUnitInterval(fill.opacity) ? ` fill-opacity="${number(fill.opacity)}"` : "";
+      await write(`<polygon points="${points}" fill="${fill.color}"${opacity}/>`);
+    }
   }
   if (page.paths?.length) {
     await write(`<g transform="translate(0 ${number(page.height)}) scale(1 -1)">`);
@@ -105,8 +107,14 @@ async function writePositionedPage(
           ? ` stroke-width="${number(path.strokeWidth)}"`
           : "";
       const fillRule = path.fillRule ? ` fill-rule="${path.fillRule}"` : "";
+      const fillOpacity = isUnitInterval(path.fillOpacity)
+        ? ` fill-opacity="${number(path.fillOpacity)}"`
+        : "";
+      const strokeOpacity = isUnitInterval(path.strokeOpacity)
+        ? ` stroke-opacity="${number(path.strokeOpacity)}"`
+        : "";
       await write(
-        `<path d="${path.d}" fill="${fill}" stroke="${stroke}"${strokeWidth}${fillRule}/>`,
+        `<path d="${path.d}" fill="${fill}" stroke="${stroke}"${strokeWidth}${fillOpacity}${strokeOpacity}${fillRule}/>`,
       );
     }
     await write("</g>");
@@ -130,6 +138,7 @@ function positionedSpan(span: TextSpan, fontAliases: Map<string, string>): strin
     `height:${number(span.bounds.height)}pt`,
     `font-size:${number(span.fontSize)}pt`,
     ...(isCssHexColor(span.color) ? [`color:${span.color}`] : []),
+    ...(isUnitInterval(span.fillOpacity) ? [`opacity:${number(span.fillOpacity)}`] : []),
     ...fontStyles(
       span.fontFamily,
       span.fontAssetId ? fontAliases.get(span.fontAssetId) : undefined,
@@ -175,10 +184,18 @@ function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string,
       ? `stroke-width:${number(span.strokeWidth ?? 0)}`
       : "";
   const strokeOnly = span.renderingMode === 1 || span.renderingMode === 5;
+  const fillOpacity = isUnitInterval(span.fillOpacity)
+    ? `fill-opacity:${number(span.fillOpacity)}`
+    : "";
+  const strokeOpacity = isUnitInterval(span.strokeOpacity)
+    ? `stroke-opacity:${number(span.strokeOpacity)}`
+    : "";
   const style = [
     strokeOnly ? "fill:none" : isCssHexColor(span.color) ? `fill:${span.color}` : "",
     stroke,
     strokeWidth,
+    fillOpacity,
+    strokeOpacity,
     font,
   ]
     .filter(Boolean)
@@ -196,6 +213,10 @@ function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string,
 
 function isCssHexColor(value: string | undefined): value is string {
   return /^#[\da-f]{6}$/i.test(value ?? "");
+}
+
+function isUnitInterval(value: number | undefined): value is number {
+  return Number.isFinite(value) && (value ?? -1) >= 0 && (value ?? 2) <= 1;
 }
 
 function isSvgPath(value: string): boolean {

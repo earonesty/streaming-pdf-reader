@@ -6,6 +6,7 @@ import { textFillColor } from "./color.js";
 import { componentColor } from "./color-space.js";
 import { resolveExtendedGraphicsState } from "./extgstate.js";
 import { contentStreams } from "./streams.js";
+import { pageOriginMatrix } from "./text-matrix.js";
 
 type Matrix = [number, number, number, number, number, number];
 interface GraphicsState {
@@ -15,6 +16,8 @@ interface GraphicsState {
   lineWidth: number;
   fillColorSpace: string | undefined;
   strokeColorSpace: string | undefined;
+  fillOpacity: number;
+  strokeOpacity: number;
   stack: Array<{
     ctm: Matrix;
     fillColor: string;
@@ -22,6 +25,8 @@ interface GraphicsState {
     lineWidth: number;
     fillColorSpace: string | undefined;
     strokeColorSpace: string | undefined;
+    fillOpacity: number;
+    strokeOpacity: number;
   }>;
   rectangles: Array<Array<[number, number]>>;
   path: string[];
@@ -39,6 +44,7 @@ export async function extractPageGraphics(
   const fills: VectorFill[] = [];
   const paths: VectorPath[] = [];
   const state = createState();
+  state.ctm = pageOriginMatrix(page.mediaBox);
   for (const bytes of await contentStreams(reader, page.dict.get("Contents"))) {
     await interpret(reader, bytes, state, page.resources, fills, paths, 0, new Set());
   }
@@ -53,6 +59,8 @@ function createState(): GraphicsState {
     lineWidth: 1,
     fillColorSpace: undefined,
     strokeColorSpace: undefined,
+    fillOpacity: 1,
+    strokeOpacity: 1,
     stack: [],
     rectangles: [],
     path: [],
@@ -127,6 +135,8 @@ async function applyOperator(
   if (operator === "gs") {
     const extended = await resolveExtendedGraphicsState(reader, resources, args.at(-1));
     if (extended?.lineWidth !== undefined) state.lineWidth = extended.lineWidth;
+    if (extended?.fillOpacity !== undefined) state.fillOpacity = extended.fillOpacity;
+    if (extended?.strokeOpacity !== undefined) state.strokeOpacity = extended.strokeOpacity;
     return;
   }
   if (applyPathConstruction(operator, args, state)) return;
@@ -152,6 +162,8 @@ function applyGraphicsState(operator: string, args: PdfValue[], state: GraphicsS
       lineWidth: state.lineWidth,
       fillColorSpace: state.fillColorSpace,
       strokeColorSpace: state.strokeColorSpace,
+      fillOpacity: state.fillOpacity,
+      strokeOpacity: state.strokeOpacity,
     });
     return true;
   }
@@ -163,6 +175,8 @@ function applyGraphicsState(operator: string, args: PdfValue[], state: GraphicsS
     state.lineWidth = restored?.lineWidth ?? 1;
     state.fillColorSpace = restored?.fillColorSpace;
     state.strokeColorSpace = restored?.strokeColorSpace;
+    state.fillOpacity = restored?.fillOpacity ?? 1;
+    state.strokeOpacity = restored?.strokeOpacity ?? 1;
     return true;
   }
   if (operator === "cm") {
@@ -287,13 +301,21 @@ function paintPath(
   const fillsPath = /^(?:f|F|f\*|B|B\*|b|b\*)$/.test(operator);
   const strokesPath = /^(?:S|s|B|B\*|b|b\*)$/.test(operator);
   if (fillsPath && !state.hasGeneralPath) {
-    for (const points of state.rectangles) fills.push({ points, color: state.fillColor });
+    for (const points of state.rectangles) {
+      fills.push({
+        points,
+        color: state.fillColor,
+        ...(state.fillOpacity !== 1 ? { opacity: state.fillOpacity } : {}),
+      });
+    }
   }
   if (state.path.length > 0 && (state.hasGeneralPath || strokesPath)) {
     paths.push({
       d: state.path.join(""),
       ...(fillsPath ? { fill: state.fillColor } : {}),
+      ...(fillsPath && state.fillOpacity !== 1 ? { fillOpacity: state.fillOpacity } : {}),
       ...(strokesPath ? { stroke: state.strokeColor, strokeWidth: state.lineWidth } : {}),
+      ...(strokesPath && state.strokeOpacity !== 1 ? { strokeOpacity: state.strokeOpacity } : {}),
       ...(operator.includes("*") ? { fillRule: "evenodd" as const } : {}),
     });
   }
@@ -341,6 +363,8 @@ async function interpretForm(
   nested.lineWidth = state.lineWidth;
   nested.fillColorSpace = state.fillColorSpace;
   nested.strokeColorSpace = state.strokeColorSpace;
+  nested.fillOpacity = state.fillOpacity;
+  nested.strokeOpacity = state.strokeOpacity;
   await interpret(
     reader,
     await reader.decodeStream(form),

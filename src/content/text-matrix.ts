@@ -2,6 +2,10 @@ export type Matrix = [number, number, number, number, number, number];
 
 export const identityMatrix: Matrix = [1, 0, 0, 1, 0, 0];
 
+export function pageOriginMatrix(box: [number, number, number, number]): Matrix {
+  return [1, 0, 0, 1, -box[0], -box[1]];
+}
+
 export function translate(matrix: Matrix, x: number, y: number): Matrix {
   return [
     matrix[0],

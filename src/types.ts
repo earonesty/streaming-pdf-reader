@@ -24,10 +24,12 @@ export interface TextSpan {
   fontAssetId?: string | undefined;
   /** Text fill color serialized as a six-digit CSS hex value. */
   color?: string | undefined;
+  fillOpacity?: number | undefined;
   /** Text stroke color serialized as a six-digit CSS hex value. */
   strokeColor?: string | undefined;
   /** Effective text stroke width in PDF points. */
   strokeWidth?: number | undefined;
+  strokeOpacity?: number | undefined;
   /** PDF text rendering mode (0-7). */
   renderingMode?: number | undefined;
   fontSize: number;
@@ -46,6 +48,7 @@ export interface EmbeddedFont {
 export interface VectorFill {
   points: Array<[number, number]>;
   color: string;
+  opacity?: number | undefined;
 }
 
 export interface VectorPath {
@@ -53,6 +56,8 @@ export interface VectorPath {
   fill?: string | undefined;
   stroke?: string | undefined;
   strokeWidth?: number | undefined;
+  fillOpacity?: number | undefined;
+  strokeOpacity?: number | undefined;
   fillRule?: "nonzero" | "evenodd" | undefined;
 }
 

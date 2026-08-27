@@ -5,6 +5,8 @@ export interface ResolvedExtendedGraphicsState {
   lineWidth?: number;
   fontName?: string;
   fontSize?: number;
+  fillOpacity?: number;
+  strokeOpacity?: number;
 }
 
 export async function resolveExtendedGraphicsState(
@@ -19,6 +21,10 @@ export async function resolveExtendedGraphicsState(
   const result: ResolvedExtendedGraphicsState = {};
   const lineWidth = extended.get("LW");
   if (typeof lineWidth === "number" && lineWidth >= 0) result.lineWidth = lineWidth;
+  const fillOpacity = normalizedOpacity(extended.get("ca"));
+  const strokeOpacity = normalizedOpacity(extended.get("CA"));
+  if (fillOpacity !== undefined) result.fillOpacity = fillOpacity;
+  if (strokeOpacity !== undefined) result.strokeOpacity = strokeOpacity;
   const font = extended.get("Font");
   if (!Array.isArray(font) || font.length < 2 || typeof font[1] !== "number") return result;
   const resourceFonts = await reader.resolveDict(resources?.get("Font"));
@@ -30,6 +36,12 @@ export async function resolveExtendedGraphicsState(
     }
   }
   return result;
+}
+
+function normalizedOpacity(value: PdfValue | undefined): number | undefined {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.min(1, value))
+    : undefined;
 }
 
 function sameReference(left: PdfValue, right: PdfValue | undefined): boolean {

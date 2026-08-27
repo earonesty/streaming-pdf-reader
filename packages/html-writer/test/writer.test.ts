@@ -78,12 +78,19 @@ describe("HTML writer", () => {
     const html = await pageToHtml({
       ...page,
       paths: [
-        { d: "M10 20L30 40Z", fill: "#112233", stroke: "#445566", strokeWidth: 2 },
+        {
+          d: "M10 20L30 40Z",
+          fill: "#112233",
+          stroke: "#445566",
+          strokeWidth: 2,
+          fillOpacity: 0.25,
+          strokeOpacity: 0.5,
+        },
         { d: '" onload="alert(1)', fill: "#000000" },
       ],
     });
     expect(html).toContain(
-      '<path d="M10 20L30 40Z" fill="#112233" stroke="#445566" stroke-width="2"/>',
+      '<path d="M10 20L30 40Z" fill="#112233" stroke="#445566" stroke-width="2" fill-opacity="0.25" stroke-opacity="0.5"/>',
     );
     expect(html).not.toContain("onload");
   });

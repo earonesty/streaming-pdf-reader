@@ -28,6 +28,7 @@ import {
   identityMatrix as identity,
   type Matrix,
   multiply,
+  pageOriginMatrix,
   pdfMatrix,
   transformPoint,
   translate,
@@ -47,6 +48,7 @@ export async function extractPageText(
   const streams = await contentStreams(reader, page.dict.get("Contents"));
   const spans: TextSpan[] = [];
   const state = createTextState();
+  state.ctm = pageOriginMatrix(page.mediaBox);
 
   for (const bytes of streams) {
     await interpret(
@@ -137,6 +139,8 @@ async function applyOperator(
         lineWidth: state.lineWidth,
         fillColorSpace: state.fillColorSpace,
         strokeColorSpace: state.strokeColorSpace,
+        fillOpacity: state.fillOpacity,
+        strokeOpacity: state.strokeOpacity,
       });
       return;
     case "Q":
@@ -148,6 +152,8 @@ async function applyOperator(
         state.lineWidth = restored?.lineWidth ?? 1;
         state.fillColorSpace = restored?.fillColorSpace;
         state.strokeColorSpace = restored?.strokeColorSpace;
+        state.fillOpacity = restored?.fillOpacity ?? 1;
+        state.strokeOpacity = restored?.strokeOpacity ?? 1;
       }
       return;
     case "cm":
@@ -161,6 +167,8 @@ async function applyOperator(
         if (extended?.lineWidth !== undefined) state.lineWidth = extended.lineWidth;
         if (extended?.fontName !== undefined) state.font = extended.fontName;
         if (extended?.fontSize !== undefined) state.fontSize = extended.fontSize;
+        if (extended?.fillOpacity !== undefined) state.fillOpacity = extended.fillOpacity;
+        if (extended?.strokeOpacity !== undefined) state.strokeOpacity = extended.strokeOpacity;
       }
       return;
     case "g":
@@ -416,6 +424,7 @@ function showString(
     ...(font?.fontFamily ? { fontFamily: font.fontFamily } : {}),
     ...(font?.fontAssetId ? { fontAssetId: font.fontAssetId } : {}),
     color: state.fillColor,
+    ...(state.fillOpacity !== 1 ? { fillOpacity: state.fillOpacity } : {}),
     ...(state.renderingMode === 1 ||
     state.renderingMode === 2 ||
     state.renderingMode === 5 ||
@@ -423,6 +432,7 @@ function showString(
       ? {
           strokeColor: state.strokeColor,
           strokeWidth: effectiveLineWidth(state.ctm, state.lineWidth),
+          ...(state.strokeOpacity !== 1 ? { strokeOpacity: state.strokeOpacity } : {}),
         }
       : {}),
     ...(state.renderingMode !== 0 ? { renderingMode: state.renderingMode } : {}),
@@ -451,7 +461,11 @@ function visibleText(
 ): { text: string; offset: number; width: number } | undefined {
   if (!font?.advance || bytes.length !== text.length)
     return { text, offset: 0, width: textAdvance(bytes, text, state, font) };
-  const [minX, minY, maxX, maxY] = page.mediaBox;
+  const [boxX1, boxY1, boxX2, boxY2] = page.mediaBox;
+  const minX = 0;
+  const minY = 0;
+  const maxX = Math.abs(boxX2 - boxX1);
+  const maxY = Math.abs(boxY2 - boxY1);
   let offset = 0;
   let first = -1;
   let last = -1;
