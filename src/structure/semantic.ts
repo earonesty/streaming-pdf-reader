@@ -56,6 +56,17 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
       continue;
     }
 
+    const employment = employmentEntry(lines, index, tableForLine);
+    if (employment) {
+      blocks.push({
+        type: "paragraph",
+        text: employment.text,
+        lines: lines.slice(index, employment.end),
+      });
+      index = employment.end - 1;
+      continue;
+    }
+
     const headingLevel = inferHeadingLevel(line, bodySize, largestSize);
     if (headingLevel) {
       blocks.push({ type: "heading", level: headingLevel, text: line.text, lines: [line] });
@@ -105,6 +116,31 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
     blocks.push({ type: "paragraph", text, lines: paragraphLines });
   }
   return blocks;
+}
+
+function employmentEntry(
+  lines: TextLine[],
+  start: number,
+  tableForLine: Map<TextLine, Table>,
+): { text: string; end: number } | undefined {
+  const title = lines[start];
+  const organization = lines[start + 1];
+  const date = lines[start + 2];
+  if (!title || !organization || !date) return undefined;
+  if (tableForLine.has(title) || tableForLine.has(organization) || tableForLine.has(date)) {
+    return undefined;
+  }
+  const looksLikeRole = /\b(?:engineer|developer|designer|manager|director|analyst)\b/i.test(
+    title.text,
+  );
+  const looksLikeDate =
+    /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b.*\b(?:\d{4}|Present)\b/.test(
+      date.text,
+    );
+  const organizationBelow = Math.abs(title.bounds.x - organization.bounds.x) <= 12;
+  return looksLikeRole && looksLikeDate && organizationBelow
+    ? { text: `${title.text} ${date.text} ${organization.text}`, end: start + 3 }
+    : undefined;
 }
 
 function definitionRun(
@@ -167,5 +203,8 @@ function isContinuation(
 
 function joinText(previous: string, next: string): string {
   if (/[-‐‑]$/u.test(previous)) return `${previous.slice(0, -1)}${next.trimStart()}`;
+  if (/\S{20,}$/u.test(previous) && /^[a-z]{1,4}[.,;:]?$/u.test(next.trim())) {
+    return `${previous}${next.trim()}`;
+  }
   return `${previous.trimEnd()} ${next.trimStart()}`;
 }

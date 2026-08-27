@@ -53,7 +53,7 @@ describe("semantic flow fixture gate", () => {
           matched += 1;
           offset = found + normalize(assertion).length;
         }
-        expect(matched / assertions.length).toBeGreaterThanOrEqual(0.8);
+        expect(matched).toBe(assertions.length);
 
         const tables = pages.flatMap((page) => page.tables);
         const tableConstraint = fixture.expect.elements.table;
