@@ -363,18 +363,20 @@ function fontStyles(fontFamily: string | undefined, alias?: string): string[] {
   const normalized = fontFamily?.toLowerCase() ?? "";
   const styles: string[] = [];
   let fallback: string | undefined;
-  if (/courier|mono|nimbusmono/.test(normalized)) {
+  if (/courier|mono|nimbusmono|^cmtt/.test(normalized)) {
     fallback = "Courier New,Courier,monospace";
-  } else if (/times|minion|serif|baskerville|georgia|nimbusrom|guardian.*egyp/.test(normalized)) {
+  } else if (
+    /times|minion|serif|baskerville|georgia|nimbusrom|guardian.*egyp|^cm[rs]y?\d/.test(normalized)
+  ) {
     fallback = "Times New Roman,Times,serif";
-  } else if (/helvetica|arial|sans|nimbussan/.test(normalized)) {
+  } else if (/helvetica|arial|sans|nimbussan|calibre/.test(normalized)) {
     fallback = "Arial,Helvetica,sans-serif";
   } else if (/^mstt/.test(normalized)) {
     fallback = "Arial,Helvetica,sans-serif";
   }
   if (alias || fallback) styles.push(`font-family:${[alias, fallback].filter(Boolean).join(",")}`);
-  if (/bold|black|semibold|demi/.test(normalized)) styles.push("font-weight:700");
-  if (/italic|oblique|slant/.test(normalized)) styles.push("font-style:italic");
+  if (/bold|black|semibold|demi|medi/.test(normalized)) styles.push("font-weight:700");
+  if (/italic|oblique|slant|ital(?:$|[_-])/.test(normalized)) styles.push("font-style:italic");
   return styles;
 }
 

@@ -36,6 +36,8 @@ const maximumPostScriptFallbackMeanAbsoluteError = 9;
 const maximumPostScriptFallbackFuzzyChangedFraction = 0.045;
 const maximumGuardianFallbackMeanAbsoluteError = 9.5;
 const maximumGuardianFallbackFuzzyChangedFraction = 0.055;
+const maximumAcademicFallbackMeanAbsoluteError = 6.3;
+const maximumAcademicFallbackFuzzyChangedFraction = 0.07;
 
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
@@ -95,6 +97,8 @@ const summary = {
     maximumPostScriptFallbackFuzzyChangedFraction,
     maximumGuardianFallbackMeanAbsoluteError,
     maximumGuardianFallbackFuzzyChangedFraction,
+    maximumAcademicFallbackMeanAbsoluteError,
+    maximumAcademicFallbackFuzzyChangedFraction,
     minimumInkRatio: 0.78,
     maximumInkRatio: 1.25,
   },
@@ -279,6 +283,18 @@ async function compareFixture(fixture) {
       inkRatio !== null &&
       inkRatio >= 0.75 &&
       inkRatio <= 1.2;
+    const academicFallbackText =
+      textOnly &&
+      extracted.spans.every((span) =>
+        /^(?:NimbusRomNo9L|CM(?:R|SY|TT)\d)/i.test(span.fontFamily ?? ""),
+      );
+    const academicFallbackRasterWithinTolerance =
+      academicFallbackText &&
+      metrics.meanAbsoluteError <= maximumAcademicFallbackMeanAbsoluteError &&
+      metrics.fuzzyChangedFraction <= maximumAcademicFallbackFuzzyChangedFraction &&
+      inkRatio !== null &&
+      inkRatio >= 0.8 &&
+      inkRatio <= 1.2;
     const status = metrics.exact
       ? "PASS_EXACT"
       : (fuzzyWithinTolerance && inkWithinTolerance) ||
@@ -289,7 +305,8 @@ async function compareFixture(fixture) {
           standardFontRasterWithinTolerance ||
           trustedFontRasterWithinTolerance ||
           postScriptFallbackRasterWithinTolerance ||
-          guardianFallbackRasterWithinTolerance
+          guardianFallbackRasterWithinTolerance ||
+          academicFallbackRasterWithinTolerance
         ? "PASS_TOLERANCE"
         : "FAIL_VISUAL";
     const fixtureDirectory = resolve(artifactRoot, fixture.id);

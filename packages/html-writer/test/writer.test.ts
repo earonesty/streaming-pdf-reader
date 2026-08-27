@@ -186,6 +186,41 @@ describe("HTML writer", () => {
     expect(html).toContain("font-style:italic");
   });
 
+  it("decodes abbreviated Nimbus weight and italic style names", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [{ ...span("Abstract", 20, 700), fontFamily: "NimbusRomNo9L-MediItal" }],
+    });
+    expect(html).toContain("font-weight:700");
+    expect(html).toContain("font-style:italic");
+  });
+
+  it("maps Computer Modern roman, symbol, and typewriter families", async () => {
+    const roman = await pageToHtml({
+      ...page,
+      spans: [{ ...span("Roman", 20, 700), fontFamily: "CMR8" }],
+    });
+    const symbol = await pageToHtml({
+      ...page,
+      spans: [{ ...span("Symbol", 20, 700), fontFamily: "CMSY8" }],
+    });
+    const typewriter = await pageToHtml({
+      ...page,
+      spans: [{ ...span("Code", 20, 700), fontFamily: "CMTT9" }],
+    });
+    expect(roman).toContain("font-family:Times New Roman,Times,serif");
+    expect(symbol).toContain("font-family:Times New Roman,Times,serif");
+    expect(typewriter).toContain("font-family:Courier New,Courier,monospace");
+  });
+
+  it("uses a sans-serif fallback for Calibre CFF fonts", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [{ ...span("stuff", 20, 700), fontFamily: "Calibre-Regular" }],
+    });
+    expect(html).toContain("font-family:Arial,Helvetica,sans-serif");
+  });
+
   it("maps unembedded Guardian Egyptian text to a stable serif fallback", async () => {
     const html = await pageToHtml({
       ...page,
