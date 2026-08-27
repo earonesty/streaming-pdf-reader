@@ -365,7 +365,7 @@ function fontStyles(fontFamily: string | undefined, alias?: string): string[] {
   let fallback: string | undefined;
   if (/courier|mono|nimbusmono/.test(normalized)) {
     fallback = "Courier New,Courier,monospace";
-  } else if (/times|minion|serif|baskerville|georgia|nimbusrom/.test(normalized)) {
+  } else if (/times|minion|serif|baskerville|georgia|nimbusrom|guardian.*egyp/.test(normalized)) {
     fallback = "Times New Roman,Times,serif";
   } else if (/helvetica|arial|sans|nimbussan/.test(normalized)) {
     fallback = "Arial,Helvetica,sans-serif";

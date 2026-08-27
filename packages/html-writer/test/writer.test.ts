@@ -186,6 +186,14 @@ describe("HTML writer", () => {
     expect(html).toContain("font-style:italic");
   });
 
+  it("maps unembedded Guardian Egyptian text to a stable serif fallback", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [{ ...span("Article", 20, 700), fontFamily: "GuardianTextEgypGR-Regular" }],
+    });
+    expect(html).toContain("font-family:Times New Roman,Times,serif");
+  });
+
   it("emits extracted text color and rejects unsafe color values", async () => {
     const colored = await pageToHtml({
       ...page,

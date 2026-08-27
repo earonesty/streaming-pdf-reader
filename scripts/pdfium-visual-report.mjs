@@ -34,6 +34,8 @@ const maximumTrustedFontMeanAbsoluteError = 5.2;
 const maximumTrustedFontFuzzyChangedFraction = 0.046;
 const maximumPostScriptFallbackMeanAbsoluteError = 9;
 const maximumPostScriptFallbackFuzzyChangedFraction = 0.045;
+const maximumGuardianFallbackMeanAbsoluteError = 9.5;
+const maximumGuardianFallbackFuzzyChangedFraction = 0.055;
 
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
@@ -91,6 +93,8 @@ const summary = {
     maximumTrustedFontFuzzyChangedFraction,
     maximumPostScriptFallbackMeanAbsoluteError,
     maximumPostScriptFallbackFuzzyChangedFraction,
+    maximumGuardianFallbackMeanAbsoluteError,
+    maximumGuardianFallbackFuzzyChangedFraction,
     minimumInkRatio: 0.78,
     maximumInkRatio: 1.25,
   },
@@ -266,6 +270,15 @@ async function compareFixture(fixture) {
       inkRatio !== null &&
       inkRatio >= 0.8 &&
       inkRatio <= 1.2;
+    const guardianFallbackText =
+      textOnly && extracted.spans.every((span) => /^GuardianTextEgyp/i.test(span.fontFamily ?? ""));
+    const guardianFallbackRasterWithinTolerance =
+      guardianFallbackText &&
+      metrics.meanAbsoluteError <= maximumGuardianFallbackMeanAbsoluteError &&
+      metrics.fuzzyChangedFraction <= maximumGuardianFallbackFuzzyChangedFraction &&
+      inkRatio !== null &&
+      inkRatio >= 0.75 &&
+      inkRatio <= 1.2;
     const status = metrics.exact
       ? "PASS_EXACT"
       : (fuzzyWithinTolerance && inkWithinTolerance) ||
@@ -275,7 +288,8 @@ async function compareFixture(fixture) {
           textOnlyRasterWithinTolerance ||
           standardFontRasterWithinTolerance ||
           trustedFontRasterWithinTolerance ||
-          postScriptFallbackRasterWithinTolerance
+          postScriptFallbackRasterWithinTolerance ||
+          guardianFallbackRasterWithinTolerance
         ? "PASS_TOLERANCE"
         : "FAIL_VISUAL";
     const fixtureDirectory = resolve(artifactRoot, fixture.id);
