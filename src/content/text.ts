@@ -82,9 +82,6 @@ function asVisualSpan(span: TextSpan): TextSpan {
   return {
     ...span,
     bounds: { ...span.bounds },
-    direction: /[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]/u.test(span.text)
-      ? "rtl"
-      : span.direction,
   };
 }
 
