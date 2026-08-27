@@ -94,6 +94,23 @@ async function writePositionedPage(
     if (isCssHexColor(fill.color))
       await write(`<polygon points="${points}" fill="${fill.color}"/>`);
   }
+  if (page.paths?.length) {
+    await write(`<g transform="translate(0 ${number(page.height)}) scale(1 -1)">`);
+    for (const path of page.paths) {
+      if (!isSvgPath(path.d)) continue;
+      const fill = isCssHexColor(path.fill) ? path.fill : "none";
+      const stroke = isCssHexColor(path.stroke) ? path.stroke : "none";
+      const strokeWidth =
+        path.strokeWidth !== undefined && Number.isFinite(path.strokeWidth) && path.strokeWidth >= 0
+          ? ` stroke-width="${number(path.strokeWidth)}"`
+          : "";
+      const fillRule = path.fillRule ? ` fill-rule="${path.fillRule}"` : "";
+      await write(
+        `<path d="${path.d}" fill="${fill}" stroke="${stroke}"${strokeWidth}${fillRule}/>`,
+      );
+    }
+    await write("</g>");
+  }
   for (const span of page.spans) {
     if (!usesPositionedSpan(span)) await write(visualText(span, page.height, fontAliases));
   }
@@ -167,6 +184,10 @@ function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string,
 
 function isCssHexColor(value: string | undefined): value is string {
   return /^#[\da-f]{6}$/i.test(value ?? "");
+}
+
+function isSvgPath(value: string): boolean {
+  return value.length <= 1_000_000 && /^[\d\s.,+\-eEMmLlCcZz]+$/.test(value);
 }
 
 function fontStyles(fontFamily: string | undefined, alias?: string): string[] {

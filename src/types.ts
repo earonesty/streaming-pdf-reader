@@ -42,6 +42,14 @@ export interface VectorFill {
   color: string;
 }
 
+export interface VectorPath {
+  d: string;
+  fill?: string | undefined;
+  stroke?: string | undefined;
+  strokeWidth?: number | undefined;
+  fillRule?: "nonzero" | "evenodd" | undefined;
+}
+
 export interface ExtractedPage {
   number: number;
   width: number;
@@ -50,4 +58,5 @@ export interface ExtractedPage {
   spans: TextSpan[];
   fonts?: EmbeddedFont[] | undefined;
   fills?: VectorFill[] | undefined;
+  paths?: VectorPath[] | undefined;
 }

@@ -1,4 +1,4 @@
-import { extractPageFills } from "./content/graphics.js";
+import { extractPageGraphics } from "./content/graphics.js";
 import { extractPageText } from "./content/text.js";
 import { normalizePdfError } from "./errors.js";
 import type { PdfSource } from "./source.js";
@@ -50,7 +50,7 @@ export class StreamingPdfReader {
       const [x1, y1, x2, y2] = page.mediaBox;
       const fonts: EmbeddedFont[] = [];
       const spans = await extractPageText(this.#objects, page, fonts);
-      const fills = await extractPageFills(this.#objects, page);
+      const { fills, paths } = await extractPageGraphics(this.#objects, page);
       for (const span of spans) span.source.page = index + 1;
       return {
         number: index + 1,
@@ -60,6 +60,7 @@ export class StreamingPdfReader {
         spans,
         ...(fonts.length > 0 ? { fonts } : {}),
         ...(fills.length > 0 ? { fills } : {}),
+        ...(paths.length > 0 ? { paths } : {}),
       };
     } catch (error) {
       throw normalizePdfError(error);

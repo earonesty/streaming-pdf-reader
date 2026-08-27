@@ -9,4 +9,5 @@ export type {
   SourceRef,
   TextSpan,
   VectorFill,
+  VectorPath,
 } from "./types.js";

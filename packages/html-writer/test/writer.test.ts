@@ -74,6 +74,20 @@ describe("HTML writer", () => {
     expect(html.indexOf("<polygon")).toBeLessThan(html.indexOf("<text"));
   });
 
+  it("paints validated vector paths with fill and stroke", async () => {
+    const html = await pageToHtml({
+      ...page,
+      paths: [
+        { d: "M10 20L30 40Z", fill: "#112233", stroke: "#445566", strokeWidth: 2 },
+        { d: '" onload="alert(1)', fill: "#000000" },
+      ],
+    });
+    expect(html).toContain(
+      '<path d="M10 20L30 40Z" fill="#112233" stroke="#445566" stroke-width="2"/>',
+    );
+    expect(html).not.toContain("onload");
+  });
+
   it("maps resolved PDF font evidence to safe visual CSS", async () => {
     const html = await pageToHtml({
       ...page,

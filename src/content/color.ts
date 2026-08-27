@@ -1,15 +1,16 @@
 import type { PdfValue } from "../syntax/values.js";
 
 export function textFillColor(operator: string, values: PdfValue[]): string | undefined {
-  if (operator === "g") {
+  const deviceOperator = operator.toLowerCase();
+  if (deviceOperator === "g") {
     const gray = numericTail(values, 1);
     return gray ? rgbHex(gray[0] as number, gray[0] as number, gray[0] as number) : undefined;
   }
-  if (operator === "rg") {
+  if (deviceOperator === "rg") {
     const rgb = numericTail(values, 3);
     return rgb ? rgbHex(rgb[0] as number, rgb[1] as number, rgb[2] as number) : undefined;
   }
-  if (operator === "k") {
+  if (deviceOperator === "k") {
     const cmyk = numericTail(values, 4);
     if (!cmyk) return undefined;
     const [cyan, magenta, yellow, black] = cmyk as [number, number, number, number];
