@@ -210,6 +210,7 @@ function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string,
     ? `stroke-opacity:${number(span.strokeOpacity)}`
     : "";
   const style = [
+    isHebrewPaintOrder(span) ? "unicode-bidi:bidi-override;direction:ltr" : "",
     strokeOnly ? "fill:none" : isCssHexColor(span.color) ? `fill:${span.color}` : "",
     stroke,
     strokeWidth,
@@ -220,7 +221,7 @@ function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string,
     .filter(Boolean)
     .join(";");
   const textLength =
-    span.bounds.width > 0
+    span.bounds.width > 0 && !isHebrewPaintOrder(span)
       ? ` textLength="${number(span.bounds.width)}" lengthAdjust="spacingAndGlyphs"`
       : "";
   const transformed = hasNonIdentityTransform(span.transform);
@@ -252,6 +253,10 @@ function visualType3Text(span: TextSpan, font: EmbeddedType3Font, pageHeight: nu
     offset += glyph.advance;
   }
   return `<g transform="${outer}"><g transform="scale(${number(xScale)} ${number(-span.fontSize)})">${content}</g></g>`;
+}
+
+function isHebrewPaintOrder(span: TextSpan): boolean {
+  return span.direction === "ltr" && /[\u0590-\u05ff]/u.test(span.text);
 }
 
 function type3Glyph(glyph: Type3Glyph): string {

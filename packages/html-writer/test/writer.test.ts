@@ -58,6 +58,16 @@ describe("HTML writer", () => {
     expect(controls).not.toContain("\0");
   });
 
+  it("preserves natural glyph ink for Hebrew spans stored in PDF paint order", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [span("םולש", 20, 700)],
+    });
+
+    expect(html).toContain("unicode-bidi:bidi-override;direction:ltr");
+    expect(html).not.toContain("textLength");
+  });
+
   it("uses rotated display dimensions for quarter-turn pages", async () => {
     const html = await pageToHtml({ ...page, rotate: 90 });
     expect(html).toContain("width:792pt;height:612pt");
