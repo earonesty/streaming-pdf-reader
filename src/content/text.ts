@@ -11,6 +11,7 @@ import {
 } from "../syntax/values.js";
 import type { EmbeddedFont, TextSpan } from "../types.js";
 import { reorderBidiLines } from "./bidi.js";
+import { loadCidUnicodeGlyphMap } from "./cid-glyph-map.js";
 import {
   decodeUtf16Bytes,
   decodeWithMap,
@@ -21,8 +22,15 @@ import { textFillColor } from "./color.js";
 import { componentColor } from "./color-space.js";
 import { resolveExtendedGraphicsState } from "./extgstate.js";
 import { extractTrueTypeFont } from "./font-assets.js";
-import { collapseZeroPaddedSingleByteCodes, decodePdfString, isPdfString } from "./pdf-string.js";
+import { remapTrueTypeCmap } from "./font-cmap.js";
+import {
+  collapseZeroPaddedSingleByteCodes,
+  containsTextShowingOperator,
+  decodePdfString,
+  isPdfString,
+} from "./pdf-string.js";
 import { contentStreams } from "./streams.js";
+import { approximateAdvance, textAdvance } from "./text-advance.js";
 import {
   effectiveLineWidth,
   identityMatrix as identity,
@@ -112,10 +120,6 @@ async function interpret(
     );
     operands.length = 0;
   }
-}
-
-function containsTextShowingOperator(bytes: Uint8Array): boolean {
-  return /(?:^|\s)(?:Tj|TJ|'|")(?:\s|$)/.test(new TextDecoder("latin1").decode(bytes));
 }
 
 async function applyOperator(
@@ -496,32 +500,6 @@ function visibleText(
   };
 }
 
-function textAdvance(
-  bytes: Uint8Array,
-  text: string,
-  state: TextState,
-  font: FontDecoder | undefined,
-): number {
-  const vertical = font?.writingMode === "vertical";
-  const metric = vertical ? font.verticalAdvance : font?.advance;
-  if (!metric) return approximateAdvance(text, state, vertical);
-  const spacing =
-    text.length * state.charSpacing +
-    [...text].filter((character) => character === " ").length * state.wordSpacing;
-  const advance = metric(bytes) * state.fontSize + spacing;
-  return vertical ? advance : advance * state.horizontalScale;
-}
-
-function approximateAdvance(text: string, state: TextState, vertical = false): number {
-  let units = 0;
-  for (const character of text) {
-    units += character === " " ? 0.278 : 0.5;
-    units += state.charSpacing / Math.max(1, state.fontSize);
-    if (character === " ") units += state.wordSpacing / Math.max(1, state.fontSize);
-  }
-  return units * state.fontSize * (vertical ? 1 : state.horizontalScale);
-}
-
 async function loadFonts(
   reader: PdfObjectReader,
   resources?: PdfDict,
@@ -541,6 +519,10 @@ async function loadFonts(
       (await extractType3Font(reader, font, fontAssetId, encoding.fontFamily)) ??
       (await extractTrueTypeFont(reader, font, fontAssetId, encoding.fontFamily));
     if (asset) {
+      if (asset.format === "truetype") {
+        const mappings = await loadCidUnicodeGlyphMap(reader, font, toUnicodeValue);
+        asset.data = remapTrueTypeCmap(asset.data, mappings) ?? asset.data;
+      }
       fontAssets.push(asset);
       encoding.fontAssetId = fontAssetId;
       encoding.fontFormat = asset.format;

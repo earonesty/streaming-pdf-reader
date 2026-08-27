@@ -32,3 +32,7 @@ export function collapseZeroPaddedSingleByteCodes(bytes: Uint8Array): Uint8Array
   }
   return collapsed;
 }
+
+export function containsTextShowingOperator(bytes: Uint8Array): boolean {
+  return /(?:^|\s)(?:Tj|TJ|'|")(?:\s|$)/.test(new TextDecoder("latin1").decode(bytes));
+}

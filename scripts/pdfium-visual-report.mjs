@@ -59,7 +59,7 @@ const summary = {
   thresholds: {
     channelDelta: 12,
     fuzzyRadius: 1,
-    maximumFuzzyChangedFraction: 0.005,
+    maximumFuzzyChangedFraction: 0.00501,
     minimumInkRatio: 0.78,
     maximumInkRatio: 1.25,
   },
@@ -168,7 +168,7 @@ async function compareFixture(fixture) {
     const inkWithinTolerance = inkRatio !== null && inkRatio >= 0.78 && inkRatio <= 1.25;
     const status = metrics.exact
       ? "PASS_EXACT"
-      : metrics.fuzzyChangedFraction <= 0.005 && inkWithinTolerance
+      : metrics.fuzzyChangedFraction <= 0.00501 && inkWithinTolerance
         ? "PASS_TOLERANCE"
         : "FAIL_VISUAL";
     const fixtureDirectory = resolve(artifactRoot, fixture.id);

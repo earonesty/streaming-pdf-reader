@@ -1,8 +1,22 @@
 import { describe, expect, it } from "vitest";
+import { remapTrueTypeCmap } from "../../src/content/font-cmap.js";
 import { parseTrueTypeMetrics } from "../../src/content/truetype.js";
 import { buildFormat4TrueTypeFont, buildTrueTypeFont } from "../support/truetype-font.js";
 
 describe("embedded TrueType metrics", () => {
+  it("rebuilds a browser cmap with supplementary Unicode-to-glyph mappings", () => {
+    const remapped = remapTrueTypeCmap(
+      buildFormat4TrueTypeFont(),
+      new Map([
+        [0x41, 1],
+        [0x289c0, 2],
+      ]),
+    );
+    expect(remapped).toBeDefined();
+    const metrics = parseTrueTypeMetrics(remapped ?? new Uint8Array());
+    expect(metrics?.widthOfCodePoint(0x41)).toBeDefined();
+    expect(metrics?.widthOfCodePoint(0x289c0)).toBeDefined();
+  });
   it("reads Unicode cmap format 12 and horizontal advances", () => {
     const bytes = buildTrueTypeFont();
     const metrics = parseTrueTypeMetrics(bytes);

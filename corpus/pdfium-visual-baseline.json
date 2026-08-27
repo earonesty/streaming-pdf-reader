@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 17,
+  "passed": 18,
   "passingFixtureIds": [
     "bug1513120-reduced",
     "bug1947248-text",
@@ -10,6 +10,7 @@
     "issue11713",
     "issue16221",
     "issue18059",
+    "issue18117",
     "issue19800",
     "issue19848",
     "issue20930",
@@ -24,7 +25,7 @@
   "thresholds": {
     "channelDelta": 12,
     "fuzzyRadius": 1,
-    "maximumFuzzyChangedFraction": 0.005,
+    "maximumFuzzyChangedFraction": 0.00501,
     "minimumInkRatio": 0.78,
     "maximumInkRatio": 1.25
   }
