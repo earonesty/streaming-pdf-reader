@@ -222,6 +222,20 @@ describe("HTML writer", () => {
     expect(invisible).not.toContain("Hidden");
   });
 
+  it("does not browser-substitute unembedded Adobe CJK fonts", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [
+        {
+          ...span("目录", 20, 700),
+          fontFamily: "AdobeHeitiStd-Regular",
+        },
+      ],
+    });
+
+    expect(html).not.toContain("目录");
+  });
+
   it("inlines page-scoped embedded fonts for visual spans", async () => {
     const html = await pageToHtml({
       ...page,

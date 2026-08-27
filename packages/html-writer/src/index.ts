@@ -242,6 +242,7 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
 
 function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string, string>): string {
   if (span.renderingMode === 3 || span.renderingMode === 7) return "";
+  if (!span.fontAssetId && isAdobeCjkFont(span.fontFamily)) return "";
   const direction = directionAttribute([span]);
   const font = fontStyles(
     span.fontFamily,
@@ -284,6 +285,10 @@ function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string,
     ? ` x="0" y="0" transform="matrix(${span.transform?.map(number).join(" ")} ${number(anchorX)} ${number(anchorY)})"`
     : ` x="${number(anchorX)}" y="${number(anchorY)}"`;
   return `<text${direction}${position} font-size="${number(span.fontSize)}"${textLength}${style ? ` style="${style}"` : ""}>${escapeHtml(span.text)}</text>`;
+}
+
+function isAdobeCjkFont(fontFamily: string | undefined): boolean {
+  return /^Adobe(?:Heiti|Song|Kaiti|Ming|Gothic|Mincho)Std-/i.test(fontFamily ?? "");
 }
 
 function visualType3Text(span: TextSpan, font: EmbeddedType3Font, pageHeight: number): string {
