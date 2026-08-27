@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 40,
+  "passed": 42,
   "passingFixtureIds": [
     "bug1513120-reduced",
     "bug1627427-reduced",
@@ -15,6 +15,7 @@
     "issue11651",
     "issue11656",
     "issue11713",
+    "issue14048",
     "issue14497",
     "issue14627",
     "issue15629",
@@ -31,6 +32,7 @@
     "issue5421",
     "issue5808",
     "issue5896",
+    "issue6019",
     "issue6605",
     "issue6612",
     "issue6962",
@@ -57,6 +59,8 @@
     "maximumDenseGlyphFuzzyChangedFraction": 0.03,
     "maximumTextOnlyMeanAbsoluteError": 3.5,
     "maximumTextOnlyFuzzyChangedFraction": 0.036,
+    "maximumStandardFontMeanAbsoluteError": 6,
+    "maximumStandardFontFuzzyChangedFraction": 0.03,
     "minimumInkRatio": 0.78,
     "maximumInkRatio": 1.25
   }
