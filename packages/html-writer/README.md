@@ -30,9 +30,11 @@ first: semantic structure is derived from the complete page evidence rather
 than inferred after presentation information has been discarded.
 
 Document-level semantic output uses a bounded page window to merge tables that
-continue across page boundaries and suppress repeated margin furniture. The
-default window retains at most four extracted text models; configure it from
-one to sixteen pages without buffering PDF bytes, fonts, or raster images:
+continue across page boundaries, preserve section nesting across pages, and
+suppress repeated margin furniture. It also expresses aligned product cards,
+address groups, and financial summaries as useful HTML rather than loose text.
+The default window retains at most four extracted text models; configure it
+from one to sixteen pages without buffering PDF bytes, fonts, or raster images:
 
 ```ts
 await writeHtmlDocument(pdf.pages(), write, {

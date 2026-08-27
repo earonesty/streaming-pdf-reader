@@ -48,8 +48,10 @@ text or table extraction.
 
 `@boxpdf/html-writer` streams PDF pages to HTML through an awaited write
 callback. The default `visual` profile preserves display presentation; the
-`semantic` profile prioritizes reading order, nesting, inferred lines, and
-tables. See `packages/html-writer`.
+`semantic` profile turns page geometry into reflowable reading order, nested
+sections, paragraphs, lists, cards, label/value groups, and tables. A bounded
+document window joins tables continued across pages and removes repeated page
+furniture without buffering the complete PDF. See `packages/html-writer`.
 
 ## Usage
 
