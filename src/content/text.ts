@@ -544,6 +544,11 @@ async function loadFonts(
       fontAssets.push(asset);
       encoding.fontAssetId = fontAssetId;
       encoding.fontFormat = asset.format;
+      if (asset.format === "type3") {
+        const advances = new Map(asset.glyphs.map((glyph) => [glyph.code, glyph.advance]));
+        encoding.advance = (bytes) =>
+          [...bytes].reduce((total, code) => total + (advances.get(code) ?? 0), 0);
+      }
     }
     if (toUnicodeValue) {
       const toUnicode = await reader.resolve(toUnicodeValue);

@@ -3,6 +3,7 @@ import { isDict, isName, isStream, type PdfDict, type PdfValue } from "../syntax
 import type { EmbeddedType3Font, Type3Glyph } from "../types.js";
 import { extractGraphicsStream } from "./graphics.js";
 import { pdfMatrix } from "./text-matrix.js";
+import { extractInlineImageMaskFills } from "./type3-image.js";
 
 export async function extractType3Font(
   reader: PdfObjectReader,
@@ -15,7 +16,8 @@ export async function extractType3Font(
   const charProcs = await reader.resolveDict(font.get("CharProcs"));
   if (!matrix || !charProcs) return undefined;
   const names = await type3CodeNames(reader, font.get("Encoding"));
-  const widths = font.get("Widths");
+  const widthsValue = font.get("Widths");
+  const widths = widthsValue === undefined ? undefined : await reader.resolve(widthsValue);
   const firstChar = font.get("FirstChar");
   if (!Array.isArray(widths) || typeof firstChar !== "number") return undefined;
   const resourcesValue = font.get("Resources");
@@ -32,16 +34,14 @@ export async function extractType3Font(
     if (procedureValue === undefined) continue;
     const procedure = await reader.resolve(procedureValue);
     if (!isStream(procedure)) continue;
-    const graphics = await extractGraphicsStream(
-      reader,
-      await reader.decodeStream(procedure),
-      resources,
-      matrix,
-    );
+    const bytes = await reader.decodeStream(procedure);
+    const graphics = await extractGraphicsStream(reader, bytes, resources, matrix);
+    const maskFills = extractInlineImageMaskFills(bytes, matrix);
+    const fills = [...graphics.fills, ...maskFills];
     glyphs.push({
       code,
       advance: Math.abs(width * matrix[0]),
-      ...(graphics.fills.length > 0 ? { fills: graphics.fills } : {}),
+      ...(fills.length > 0 ? { fills } : {}),
       ...(graphics.paths.length > 0 ? { paths: graphics.paths } : {}),
     });
   }
