@@ -8,6 +8,7 @@ import { parseType1Metrics, unwrapType1Program } from "./type1.js";
 
 export interface FontDecoder {
   decode(bytes: Uint8Array): string;
+  codeUnitBytes?: 1 | 2;
   fontFamily?: string;
   fontAssetId?: string;
   advance?(bytes: Uint8Array): number;

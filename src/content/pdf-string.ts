@@ -20,3 +20,15 @@ export function decodePdfString(bytes: Uint8Array): string {
   }
   return new TextDecoder("windows-1252").decode(bytes);
 }
+
+export function collapseZeroPaddedSingleByteCodes(bytes: Uint8Array): Uint8Array {
+  if (bytes.length < 4 || bytes.length % 2 !== 0) return bytes;
+  for (let index = 0; index < bytes.length; index += 2) {
+    if (bytes[index] !== 0) return bytes;
+  }
+  const collapsed = new Uint8Array(bytes.length / 2);
+  for (let index = 0; index < collapsed.length; index += 1) {
+    collapsed[index] = bytes[index * 2 + 1] ?? 0;
+  }
+  return collapsed;
+}

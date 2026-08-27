@@ -6,6 +6,7 @@ import {
   normalizeTextCompatibility,
   parseToUnicode,
 } from "../../src/content/cmap.js";
+import { collapseZeroPaddedSingleByteCodes } from "../../src/content/pdf-string.js";
 import { reorderBidiLines, reorderMixedRtlCitation } from "../../src/content/text.js";
 import { memorySource, openPdf } from "../../src/index.js";
 import { fileSource } from "../../src/node.js";
@@ -138,6 +139,16 @@ endbfchar`),
   it("decodes UTF-16 byte pairs and normalizes compatibility glyphs", () => {
     expect(decodeUtf16Bytes(Uint8Array.of(0, 65, 0, 66, 0))).toBe("AB");
     expect(normalizeTextCompatibility("ﬀﬁﬂﬃﬄﳋ")).toBe("fffiflffifflلخ");
+  });
+
+  it("collapses zero-padded character codes only when the pattern is complete", () => {
+    expect(collapseZeroPaddedSingleByteCodes(Uint8Array.of(0, 65, 0, 66))).toEqual(
+      Uint8Array.of(65, 66),
+    );
+    const genuineTwoByte = Uint8Array.of(1, 65, 0, 66);
+    expect(collapseZeroPaddedSingleByteCodes(genuineTwoByte)).toBe(genuineTwoByte);
+    const tooShort = Uint8Array.of(0, 65);
+    expect(collapseZeroPaddedSingleByteCodes(tooShort)).toBe(tooShort);
   });
 
   it("interprets text-state, positioning, array, and quote operators", async () => {

@@ -1,13 +1,14 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 13,
+  "passed": 14,
   "passingFixtureIds": [
     "bug1947248-text",
     "issue10301",
     "issue10529",
     "issue11713",
     "issue16221",
+    "issue18059",
     "issue19800",
     "issue19848",
     "issue20930",

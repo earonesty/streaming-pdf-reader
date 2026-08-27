@@ -21,7 +21,7 @@ import { textFillColor } from "./color.js";
 import { componentColor } from "./color-space.js";
 import { resolveExtendedGraphicsState } from "./extgstate.js";
 import { extractTrueTypeFont } from "./font-assets.js";
-import { decodePdfString, isPdfString } from "./pdf-string.js";
+import { collapseZeroPaddedSingleByteCodes, decodePdfString, isPdfString } from "./pdf-string.js";
 import { contentStreams } from "./streams.js";
 import {
   effectiveLineWidth,
@@ -350,8 +350,9 @@ function showString(
 ): void {
   const font = fonts.get(state.font ?? "");
   const vertical = font?.writingMode === "vertical";
-  let text = normalizeTextCompatibility(font?.decode(value.bytes) ?? decodePdfString(value.bytes));
-  let bytes = value.bytes;
+  let bytes =
+    font?.codeUnitBytes === 1 ? collapseZeroPaddedSingleByteCodes(value.bytes) : value.bytes;
+  let text = normalizeTextCompatibility(font?.decode(bytes) ?? decodePdfString(bytes));
   const leadingSpaces = /^ +/.exec(text)?.[0] ?? "";
   const hasLeadingSpace = leadingSpaces.length > 0;
   if (leadingSpaces) {
@@ -532,6 +533,7 @@ async function loadFonts(
         const codeBytes = unicodeMap.codeBytes ?? (isName(font.get("Subtype"), "Type0") ? 2 : 1);
         output.set(name, {
           decode: (bytes) => decodeWithMap(bytes, unicodeMap, codeBytes, encoding),
+          codeUnitBytes: codeBytes === 2 ? 2 : 1,
           ...(encoding.fontFamily ? { fontFamily: encoding.fontFamily } : {}),
           ...(encoding.fontAssetId ? { fontAssetId: encoding.fontAssetId } : {}),
           ...(encoding.advance ? { advance: encoding.advance } : {}),
@@ -550,6 +552,7 @@ async function loadFonts(
     ) {
       output.set(name, {
         decode: decodeUtf16Bytes,
+        codeUnitBytes: 2,
         ...(encoding.fontFamily ? { fontFamily: encoding.fontFamily } : {}),
         ...(encoding.fontAssetId ? { fontAssetId: encoding.fontAssetId } : {}),
         ...(encoding.advance ? { advance: encoding.advance } : {}),
@@ -559,6 +562,7 @@ async function loadFonts(
       });
       continue;
     }
+    encoding.codeUnitBytes = isName(font.get("Subtype"), "Type0") ? 2 : 1;
     output.set(name, encoding);
   }
   return output;
