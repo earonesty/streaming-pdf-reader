@@ -133,6 +133,11 @@ describe("HTML writer", () => {
     expect(html).toContain("font-family:Times New Roman,Times,serif");
     expect(html).toContain("font-weight:700");
     expect(html).toContain("font-style:italic");
+    const opaque = await pageToHtml({
+      ...page,
+      spans: [{ ...span("Subset", 20, 700), fontFamily: "MSTT31c64e" }],
+    });
+    expect(opaque).toContain("font-family:Arial,Helvetica,sans-serif");
   });
 
   it("emits extracted text color and rejects unsafe color values", async () => {

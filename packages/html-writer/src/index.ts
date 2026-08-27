@@ -315,6 +315,8 @@ function fontStyles(fontFamily: string | undefined, alias?: string): string[] {
     fallback = "Times New Roman,Times,serif";
   } else if (/helvetica|arial|sans/.test(normalized)) {
     fallback = "Arial,Helvetica,sans-serif";
+  } else if (/^mstt/.test(normalized)) {
+    fallback = "Arial,Helvetica,sans-serif";
   }
   if (alias || fallback) styles.push(`font-family:${[alias, fallback].filter(Boolean).join(",")}`);
   if (/bold|black|semibold|demi/.test(normalized)) styles.push("font-weight:700");
