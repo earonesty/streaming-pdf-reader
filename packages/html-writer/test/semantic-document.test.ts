@@ -38,6 +38,9 @@ describe("semantic document flow", () => {
     );
     expect(html).toContain("<section><h2>Billed to</h2><p><strong>Sam Reyes</strong></p>");
     expect(html).toContain("<section><h2>Order total</h2><dl>");
+    expect(html).toContain(
+      "<footer><p>Most orders arrive in 3–5 business days. You&#39;ll get a tracking email",
+    );
     expect(html).toContain("<dt>Subtotal</dt><dd>$408.00</dd>");
     expect(html).toContain("<dt>Total</dt><dd>$457.70</dd>");
   });
@@ -144,6 +147,7 @@ describe("semantic document flow", () => {
     expect(html).toContain('<th scope="row" colspan="2">Subtotal</th>');
     expect(html).toContain('<th scope="row" colspan="2">Total</th>');
     expect(html).not.toContain("<dl>");
+    expect(html).toContain("<footer><p>Thanks for your business.</p></footer>");
   });
 
   it("keeps a thousand-page semantic conversion inside the configured window", async () => {

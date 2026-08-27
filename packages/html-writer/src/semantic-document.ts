@@ -45,6 +45,7 @@ export async function writeSemanticDocument(
   let headerOpen = false;
   let headerHasParagraph = false;
   let contentStarted = false;
+  let pendingParagraph: { block: Extract<SemanticBlock, { type: "paragraph" }>; height: number } | undefined;
   await write('<article class="pdf-semantic-document">');
 
   const closeTable = async () => {
@@ -60,6 +61,12 @@ export async function writeSemanticDocument(
     }
   };
 
+  const flushPendingParagraph = async () => {
+    if (!pendingParagraph) return;
+    await write(semanticBlockHtml(pendingParagraph.block));
+    pendingParagraph = undefined;
+  };
+
   const emitPage = async (page: BufferedPage, future: BufferedPage[]) => {
     const futureFurniture = new Set(future.flatMap((candidate) => marginSignatures(candidate)));
     const repeatedFurniture = new Set([...seenFurniture, ...futureFurniture]);
@@ -68,6 +75,7 @@ export async function writeSemanticDocument(
         stats.suppressedFurniture += 1;
         continue;
       }
+      await flushPendingParagraph();
       if (!contentStarted && !headerOpen && block.type === "heading" && block.level === 1) {
         await write(`<header><h1>${escapeHtml(block.text)}</h1>`);
         headerOpen = true;
@@ -125,6 +133,10 @@ export async function writeSemanticDocument(
         sectionLevels.push(block.level);
         continue;
       }
+      if (block.type === "paragraph") {
+        pendingParagraph = { block, height: page.height };
+        continue;
+      }
       await write(semanticBlockHtml(block));
     }
     for (const signature of marginSignatures(page)) seenFurniture.add(signature);
@@ -150,9 +162,26 @@ export async function writeSemanticDocument(
   }
   if (headerOpen) await write("</header>");
   await closeTable();
-  await closeSections();
+  if (pendingParagraph && isFooterParagraph(pendingParagraph.block, pendingParagraph.height)) {
+    await closeSections();
+    await write(`<footer>${semanticBlockHtml(pendingParagraph.block)}</footer>`);
+    pendingParagraph = undefined;
+  } else {
+    await flushPendingParagraph();
+    await closeSections();
+  }
   await write("</article>");
   return stats;
+}
+
+function isFooterParagraph(
+  block: Extract<SemanticBlock, { type: "paragraph" }>,
+  pageHeight: number,
+): boolean {
+  const inBottomMargin = block.lines.every(
+    (line) => line.bounds.y + line.bounds.height <= pageHeight * 0.15,
+  );
+  return inBottomMargin || /^(?:thanks|thank you)\b/i.test(block.text.trim());
 }
 
 function marginSignatures(page: BufferedPage): string[] {
