@@ -18,6 +18,7 @@ import {
   parseToUnicode,
 } from "./cmap.js";
 import { textFillColor } from "./color.js";
+import { componentColor } from "./color-space.js";
 import { resolveExtendedGraphicsState } from "./extgstate.js";
 import { extractTrueTypeFont } from "./font-assets.js";
 import { decodePdfString, isPdfString } from "./pdf-string.js";
@@ -31,33 +32,11 @@ import {
   transformPoint,
   translate,
 } from "./text-matrix.js";
+import { cloneTextState, createTextState, restoreTextState, type TextState } from "./text-state.js";
 
 export { reorderBidiLines, reorderMixedRtlCitation } from "./bidi.js";
 
 import { type FontDecoder, loadFontEncoding } from "./encoding.js";
-
-interface TextState {
-  font?: string;
-  fontSize: number;
-  charSpacing: number;
-  wordSpacing: number;
-  horizontalScale: number;
-  leading: number;
-  rise: number;
-  textMatrix: Matrix;
-  lineMatrix: Matrix;
-  ctm: Matrix;
-  fillColor: string;
-  strokeColor: string;
-  lineWidth: number;
-  renderingMode: number;
-  graphicsStack: Array<{
-    ctm: Matrix;
-    fillColor: string;
-    strokeColor: string;
-    lineWidth: number;
-  }>;
-}
 
 export async function extractPageText(
   reader: PdfObjectReader,
@@ -67,22 +46,7 @@ export async function extractPageText(
   const fonts = await loadFonts(reader, page.resources, fontAssets);
   const streams = await contentStreams(reader, page.dict.get("Contents"));
   const spans: TextSpan[] = [];
-  const state: TextState = {
-    fontSize: 0,
-    charSpacing: 0,
-    wordSpacing: 0,
-    horizontalScale: 1,
-    leading: 0,
-    rise: 0,
-    textMatrix: [...identity],
-    lineMatrix: [...identity],
-    ctm: [...identity],
-    fillColor: "#000000",
-    strokeColor: "#000000",
-    lineWidth: 1,
-    renderingMode: 0,
-    graphicsStack: [],
-  };
+  const state = createTextState();
 
   for (const bytes of streams) {
     await interpret(
@@ -171,6 +135,8 @@ async function applyOperator(
         fillColor: state.fillColor,
         strokeColor: state.strokeColor,
         lineWidth: state.lineWidth,
+        fillColorSpace: state.fillColorSpace,
+        strokeColorSpace: state.strokeColorSpace,
       });
       return;
     case "Q":
@@ -180,6 +146,8 @@ async function applyOperator(
         state.fillColor = restored?.fillColor ?? "#000000";
         state.strokeColor = restored?.strokeColor ?? "#000000";
         state.lineWidth = restored?.lineWidth ?? 1;
+        state.fillColorSpace = restored?.fillColorSpace;
+        state.strokeColorSpace = restored?.strokeColorSpace;
       }
       return;
     case "cm":
@@ -201,6 +169,26 @@ async function applyOperator(
       state.fillColor = textFillColor(operator, args) ?? state.fillColor;
       return;
     }
+    case "cs":
+    case "CS": {
+      const name = args.at(-1);
+      if (isName(name)) {
+        if (operator === "cs") state.fillColorSpace = name.value;
+        else state.strokeColorSpace = name.value;
+      }
+      return;
+    }
+    case "sc":
+    case "scn":
+      state.fillColor =
+        (await componentColor(reader, resources, state.fillColorSpace, args)) ?? state.fillColor;
+      return;
+    case "SC":
+    case "SCN":
+      state.strokeColor =
+        (await componentColor(reader, resources, state.strokeColorSpace, args)) ??
+        state.strokeColor;
+      return;
     case "G":
     case "RG":
     case "K": {
@@ -324,7 +312,7 @@ async function applyOperator(
       const formResources = isDict(resolvedResources) ? resolvedResources : resources;
       const formFonts = await loadFonts(reader, formResources, fontAssets);
       const matrix = pdfMatrix(resolved.dict.get("Matrix")) ?? identity;
-      const saved = cloneState(state);
+      const saved = cloneTextState(state);
       state.ctm = multiply(state.ctm, matrix);
       const nestedForms = new Set(activeForms);
       if (objectNumber !== undefined) nestedForms.add(objectNumber);
@@ -346,30 +334,11 @@ async function applyOperator(
           if (!(error instanceof Error) || !/invalid PDF number/.test(error.message)) throw error;
         }
       } finally {
-        restoreState(state, saved);
+        restoreTextState(state, saved);
       }
       return;
     }
   }
-}
-
-function cloneState(state: TextState): TextState {
-  return {
-    ...state,
-    textMatrix: [...state.textMatrix],
-    lineMatrix: [...state.lineMatrix],
-    ctm: [...state.ctm],
-    graphicsStack: state.graphicsStack.map((entry) => ({
-      ctm: [...entry.ctm],
-      fillColor: entry.fillColor,
-      strokeColor: entry.strokeColor,
-      lineWidth: entry.lineWidth,
-    })),
-  };
-}
-
-function restoreState(state: TextState, saved: TextState): void {
-  Object.assign(state, saved);
 }
 
 function showString(

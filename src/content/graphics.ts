@@ -3,6 +3,7 @@ import { ValueParser } from "../syntax/parser.js";
 import { isDict, isName, isRef, isStream, type PdfDict, type PdfValue } from "../syntax/values.js";
 import type { VectorFill, VectorPath } from "../types.js";
 import { textFillColor } from "./color.js";
+import { componentColor } from "./color-space.js";
 import { resolveExtendedGraphicsState } from "./extgstate.js";
 import { contentStreams } from "./streams.js";
 
@@ -12,7 +13,16 @@ interface GraphicsState {
   fillColor: string;
   strokeColor: string;
   lineWidth: number;
-  stack: Array<{ ctm: Matrix; fillColor: string; strokeColor: string; lineWidth: number }>;
+  fillColorSpace: string | undefined;
+  strokeColorSpace: string | undefined;
+  stack: Array<{
+    ctm: Matrix;
+    fillColor: string;
+    strokeColor: string;
+    lineWidth: number;
+    fillColorSpace: string | undefined;
+    strokeColorSpace: string | undefined;
+  }>;
   rectangles: Array<Array<[number, number]>>;
   path: string[];
   current: [number, number] | undefined;
@@ -41,6 +51,8 @@ function createState(): GraphicsState {
     fillColor: "#000000",
     strokeColor: "#000000",
     lineWidth: 1,
+    fillColorSpace: undefined,
+    strokeColorSpace: undefined,
     stack: [],
     rectangles: [],
     path: [],
@@ -102,6 +114,16 @@ async function applyOperator(
   activeForms: Set<number>,
 ): Promise<void> {
   if (applyGraphicsState(operator, args, state)) return;
+  if (operator === "sc" || operator === "scn") {
+    state.fillColor =
+      (await componentColor(reader, resources, state.fillColorSpace, args)) ?? state.fillColor;
+    return;
+  }
+  if (operator === "SC" || operator === "SCN") {
+    state.strokeColor =
+      (await componentColor(reader, resources, state.strokeColorSpace, args)) ?? state.strokeColor;
+    return;
+  }
   if (operator === "gs") {
     const extended = await resolveExtendedGraphicsState(reader, resources, args.at(-1));
     if (extended?.lineWidth !== undefined) state.lineWidth = extended.lineWidth;
@@ -128,6 +150,8 @@ function applyGraphicsState(operator: string, args: PdfValue[], state: GraphicsS
       fillColor: state.fillColor,
       strokeColor: state.strokeColor,
       lineWidth: state.lineWidth,
+      fillColorSpace: state.fillColorSpace,
+      strokeColorSpace: state.strokeColorSpace,
     });
     return true;
   }
@@ -137,11 +161,21 @@ function applyGraphicsState(operator: string, args: PdfValue[], state: GraphicsS
     state.fillColor = restored?.fillColor ?? "#000000";
     state.strokeColor = restored?.strokeColor ?? "#000000";
     state.lineWidth = restored?.lineWidth ?? 1;
+    state.fillColorSpace = restored?.fillColorSpace;
+    state.strokeColorSpace = restored?.strokeColorSpace;
     return true;
   }
   if (operator === "cm") {
     const matrix = numericTail(args, 6);
     if (matrix) state.ctm = multiply(state.ctm, matrix as Matrix);
+    return true;
+  }
+  if (operator === "cs" || operator === "CS") {
+    const name = args.at(-1);
+    if (isName(name)) {
+      if (operator === "cs") state.fillColorSpace = name.value;
+      else state.strokeColorSpace = name.value;
+    }
     return true;
   }
   if (["g", "rg", "k"].includes(operator)) {
@@ -305,6 +339,8 @@ async function interpretForm(
   nested.fillColor = state.fillColor;
   nested.strokeColor = state.strokeColor;
   nested.lineWidth = state.lineWidth;
+  nested.fillColorSpace = state.fillColorSpace;
+  nested.strokeColorSpace = state.strokeColorSpace;
   await interpret(
     reader,
     await reader.decodeStream(form),
