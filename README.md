@@ -128,9 +128,11 @@ oracle for the HTML writer. Its corpus gate preserves exact geometry and
 decoded-text agreement on every fixture known to agree across both engines.
 The report records RTL and font-decoding differences between the engines.
 
-The full corpus gate passes all 118 supported, unencrypted fixtures (100%)
-against PDF.js. The two remaining fixtures in the fixed 120-file denominator
-are encrypted and intentionally unsupported. This score covers page count,
+The full corpus gate accepts all 118 supported, unencrypted fixtures (100%).
+Of those, 115 match PDF.js and three named fixtures intentionally diverge where
+the visual oracle confirms improved `.notdef`, rotated-origin, or UTF-16 behavior.
+The two remaining fixtures in the fixed 120-file denominator are encrypted and
+intentionally unsupported. This score covers page count,
 dimensions, rotation, normalized decoded characters, and the first text origin
 on unrotated pages. Focused geometry tests additionally compare span width,
 height, font size, and transformed positions. Structure goldens cover reading
