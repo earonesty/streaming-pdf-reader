@@ -344,6 +344,22 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
         );
       }
       await write("</dl>");
+    } else if (block.type === "cardList") {
+      await write('<div class="pdf-semantic-cards">');
+      for (const item of block.items) {
+        await write(`<article><h3>${escapeHtml(item.title)}</h3>`);
+        for (const detail of item.details) await write(`<p>${escapeHtml(detail)}</p>`);
+        await write("</article>");
+      }
+      await write("</div>");
+    } else if (block.type === "sectionGroup") {
+      await write('<div class="pdf-semantic-sections">');
+      for (const item of block.items) {
+        await write(`<section><h3>${escapeHtml(item.label)}</h3>`);
+        for (const content of item.content) await write(`<p>${escapeHtml(content)}</p>`);
+        await write("</section>");
+      }
+      await write("</div>");
     } else {
       const tag = block.ordered ? "ol" : "ul";
       await write(`<${tag}>`);

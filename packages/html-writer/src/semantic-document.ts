@@ -40,6 +40,7 @@ export async function writeSemanticDocument(
   };
   const buffer: BufferedPage[] = [];
   const seenFurniture = new Set<string>();
+  const sectionLevels: number[] = [];
   let activeTable: ActiveTable | undefined;
   await write('<article class="pdf-semantic-document">');
 
@@ -47,6 +48,13 @@ export async function writeSemanticDocument(
     if (!activeTable) return;
     await write("</table>");
     activeTable = undefined;
+  };
+
+  const closeSections = async (minimumLevel = 0) => {
+    while ((sectionLevels.at(-1) ?? -1) >= minimumLevel && sectionLevels.length > 0) {
+      await write("</section>");
+      sectionLevels.pop();
+    }
   };
 
   const emitPage = async (page: BufferedPage, future: BufferedPage[]) => {
@@ -75,6 +83,14 @@ export async function writeSemanticDocument(
         continue;
       }
       await closeTable();
+      if (block.type === "heading") {
+        await closeSections(block.level);
+        await write(
+          `<section data-level="${block.level}"><h${block.level}>${escapeHtml(block.text)}</h${block.level}>`,
+        );
+        sectionLevels.push(block.level);
+        continue;
+      }
       await write(semanticBlockHtml(block));
     }
     for (const signature of marginSignatures(page)) seenFurniture.add(signature);
@@ -99,6 +115,7 @@ export async function writeSemanticDocument(
     if (ready) await emitPage(ready, buffer);
   }
   await closeTable();
+  await closeSections();
   await write("</article>");
   return stats;
 }
@@ -180,6 +197,22 @@ function semanticBlockHtml(block: Exclude<SemanticBlock, { type: "table" }>): st
           `<div><dt>${escapeHtml(entry.term)}</dt><dd>${escapeHtml(entry.description)}</dd></div>`,
       )
       .join("")}</dl>`;
+  }
+  if (block.type === "cardList") {
+    return `<div class="pdf-semantic-cards">${block.items
+      .map(
+        (item) =>
+          `<article><h3>${escapeHtml(item.title)}</h3>${item.details.map((detail) => `<p>${escapeHtml(detail)}</p>`).join("")}</article>`,
+      )
+      .join("")}</div>`;
+  }
+  if (block.type === "sectionGroup") {
+    return `<div class="pdf-semantic-sections">${block.items
+      .map(
+        (item) =>
+          `<section><h3>${escapeHtml(item.label)}</h3>${item.content.map((content) => `<p>${escapeHtml(content)}</p>`).join("")}</section>`,
+      )
+      .join("")}</div>`;
   }
   const tag = block.ordered ? "ol" : "ul";
   return `<${tag}>${block.items.map((item) => `<li>${escapeHtml(item.text)}</li>`).join("")}</${tag}>`;

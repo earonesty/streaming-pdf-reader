@@ -9,6 +9,16 @@ export type SemanticBlock =
       entries: Array<{ term: string; description: string }>;
       lines: TextLine[];
     }
+  | {
+      type: "cardList";
+      items: Array<{ title: string; details: string[] }>;
+      lines: TextLine[];
+    }
+  | {
+      type: "sectionGroup";
+      items: Array<{ label: string; content: string[] }>;
+      lines: TextLine[];
+    }
   | { type: "table"; table: Table; lines: TextLine[] };
 
 export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): SemanticBlock[] {
@@ -35,11 +45,13 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
     const table = tableForLine.get(line);
     if (table) {
       if (!emittedTables.has(table)) {
-        blocks.push({
-          type: "table",
-          table,
-          lines: lines.filter((item) => tableForLine.get(item) === table),
-        });
+        const tableLines = lines.filter((item) => tableForLine.get(item) === table);
+        const definitions = tableDefinitions(table);
+        blocks.push(
+          definitions
+            ? { type: "definitionList", entries: definitions, lines: tableLines }
+            : { type: "table", table, lines: tableLines },
+        );
         emittedTables.add(table);
       }
       continue;
@@ -53,6 +65,28 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
         lines: lines.slice(index, definitions.end),
       });
       index = definitions.end - 1;
+      continue;
+    }
+
+    const cards = cardRun(lines, index, tableForLine);
+    if (cards) {
+      blocks.push({
+        type: "cardList",
+        items: cards.items,
+        lines: lines.slice(index, cards.end),
+      });
+      index = cards.end - 1;
+      continue;
+    }
+
+    const sections = sectionGroup(lines, index, tableForLine);
+    if (sections) {
+      blocks.push({
+        type: "sectionGroup",
+        items: sections.items,
+        lines: lines.slice(index, sections.end),
+      });
+      index = sections.end - 1;
       continue;
     }
 
@@ -116,6 +150,80 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
     blocks.push({ type: "paragraph", text, lines: paragraphLines });
   }
   return blocks;
+}
+
+function tableDefinitions(table: Table): Array<{ term: string; description: string }> | undefined {
+  const rowCount = Math.max(0, ...table.cells.map((cell) => cell.row + 1));
+  const rows = Array.from({ length: rowCount }, () => ["", ""]);
+  for (const cell of table.cells) {
+    if (cell.column > 1) return undefined;
+    const row = rows[cell.row];
+    if (row) row[cell.column] = cell.text;
+  }
+  if (
+    rows.length < 2 ||
+    !rows.some(([term]) =>
+      /^(?:subtotal|tax|shipping|total|amount due|balance)$/i.test(term ?? ""),
+    ) ||
+    !rows.every(
+      ([term, description]) =>
+        Boolean(term) &&
+        /[A-Za-z]/.test(term ?? "") &&
+        /^(?:[$€£]\s*)?[\d,.]+$/.test(description ?? ""),
+    )
+  ) {
+    return undefined;
+  }
+  return rows.map(([term, description]) => ({ term: term ?? "", description: description ?? "" }));
+}
+
+function cardRun(
+  lines: TextLine[],
+  start: number,
+  tableForLine: Map<TextLine, Table>,
+): { items: Array<{ title: string; details: string[] }>; end: number } | undefined {
+  const items: Array<{ title: string; details: string[] }> = [];
+  let cursor = start;
+  while (cursor + 2 < lines.length) {
+    const title = lines[cursor];
+    const subtitle = lines[cursor + 1];
+    const trailing = lines[cursor + 2];
+    if (!title || !subtitle || !trailing) break;
+    if (tableForLine.has(title) || tableForLine.has(subtitle) || tableForLine.has(trailing)) break;
+    const sharedLeft = Math.abs(title.bounds.x - subtitle.bounds.x) <= 12;
+    const trailingOnTitle =
+      trailing.bounds.x > title.bounds.x + 120 && Math.abs(trailing.bounds.y - title.bounds.y) <= 3;
+    if (!sharedLeft || !trailingOnTitle) break;
+    items.push({ title: title.text, details: [subtitle.text, trailing.text] });
+    cursor += 3;
+  }
+  return items.length >= 2 ? { items, end: cursor } : undefined;
+}
+
+function sectionGroup(
+  lines: TextLine[],
+  start: number,
+  tableForLine: Map<TextLine, Table>,
+): { items: Array<{ label: string; content: string[] }>; end: number } | undefined {
+  const items: Array<{ label: string; content: string[] }> = [];
+  let cursor = start;
+  while (cursor < lines.length) {
+    const label = lines[cursor];
+    if (!label || tableForLine.has(label) || !/^[A-Z][A-Z\s/-]{2,24}$/.test(label.text.trim()))
+      break;
+    const content: string[] = [];
+    cursor += 1;
+    while (cursor < lines.length) {
+      const value = lines[cursor];
+      if (!value || tableForLine.has(value) || Math.abs(value.bounds.x - label.bounds.x) > 15)
+        break;
+      content.push(value.text);
+      cursor += 1;
+    }
+    if (content.length === 0) break;
+    items.push({ label: label.text.trim(), content });
+  }
+  return items.length >= 2 ? { items, end: cursor } : undefined;
 }
 
 function employmentEntry(

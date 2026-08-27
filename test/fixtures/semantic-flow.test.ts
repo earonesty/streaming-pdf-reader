@@ -40,6 +40,12 @@ describe("semantic flow fixture gate", () => {
               if (block.type === "definitionList") {
                 return block.entries.flatMap((entry) => [entry.term, entry.description]);
               }
+              if (block.type === "cardList") {
+                return block.items.flatMap((item) => [item.title, ...item.details]);
+              }
+              if (block.type === "sectionGroup") {
+                return block.items.flatMap((item) => [item.label, ...item.content]);
+              }
               return [block.text];
             })
             .join(" "),
@@ -81,6 +87,49 @@ describe("semantic flow fixture gate", () => {
       }
     });
   }
+
+  it("groups the order confirmation into product cards, address sections, and totals", async () => {
+    const fixture = manifest.fixtures.find((candidate) => candidate.id === "order-confirmation");
+    if (!fixture) throw new Error("missing order-confirmation semantic fixture");
+    const source = await fileSource(resolve(fixtureRoot, fixture.file));
+    const pdf = await openPdf(source);
+    try {
+      const page = structurePage(await pdf.getPage(0));
+      const cards = page.blocks.find((block) => block.type === "cardList");
+      const sections = page.blocks.find((block) => block.type === "sectionGroup");
+      const totals = page.blocks.find((block) => block.type === "definitionList");
+
+      expect(cards?.items).toEqual([
+        { title: "Field jacket", details: ["Olive · M", "× 1 $198.00"] },
+        { title: "Linen trousers", details: ["Stone · 32", "× 2 $178.00"] },
+        { title: "Wool socks (3-pack)", details: ["Charcoal heather", "× 1 $32.00"] },
+      ]);
+      expect(sections?.items).toEqual([
+        {
+          label: "SHIP TO",
+          content: [
+            "Sam Reyes",
+            "482 Page Street, Apt 2B",
+            "San Francisco, CA 94117",
+            "United States",
+          ],
+        },
+        {
+          label: "BILLED TO",
+          content: ["Sam Reyes", "Visa ending 4242", "Charged May 14, 2026"],
+        },
+      ]);
+      expect(totals?.entries).toEqual([
+        { term: "Subtotal", description: "$408.00" },
+        { term: "Shipping", description: "$14.00" },
+        { term: "Tax (8.75%)", description: "$35.70" },
+        { term: "Total", description: "$457.70" },
+      ]);
+    } finally {
+      pdf.close();
+      await source.close();
+    }
+  });
 });
 
 function normalize(value: string): string {
