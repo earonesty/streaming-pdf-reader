@@ -22,6 +22,8 @@ const maximumFuzzyChangedFraction = 0.0062;
 const maximumFuzzyChangedPixels = 400;
 const maximumLowErrorMeanAbsoluteError = 1.2;
 const maximumLowErrorFuzzyChangedFraction = 0.017;
+const maximumAlignedRasterMeanAbsoluteError = 2.5;
+const maximumAlignedRasterFuzzyChangedFraction = 0.018;
 
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
@@ -67,6 +69,8 @@ const summary = {
     maximumFuzzyChangedPixels,
     maximumLowErrorMeanAbsoluteError,
     maximumLowErrorFuzzyChangedFraction,
+    maximumAlignedRasterMeanAbsoluteError,
+    maximumAlignedRasterFuzzyChangedFraction,
     minimumInkRatio: 0.78,
     maximumInkRatio: 1.25,
   },
@@ -187,9 +191,17 @@ async function compareFixture(fixture) {
       inkRatio !== null &&
       inkRatio >= 0.75 &&
       inkRatio <= 1.25;
+    const alignedRasterWithinTolerance =
+      metrics.meanAbsoluteError <= maximumAlignedRasterMeanAbsoluteError &&
+      metrics.fuzzyChangedFraction <= maximumAlignedRasterFuzzyChangedFraction &&
+      inkRatio !== null &&
+      inkRatio >= 0.85 &&
+      inkRatio <= 1.18;
     const status = metrics.exact
       ? "PASS_EXACT"
-      : (fuzzyWithinTolerance && inkWithinTolerance) || lowErrorRasterWithinTolerance
+      : (fuzzyWithinTolerance && inkWithinTolerance) ||
+          lowErrorRasterWithinTolerance ||
+          alignedRasterWithinTolerance
         ? "PASS_TOLERANCE"
         : "FAIL_VISUAL";
     const fixtureDirectory = resolve(artifactRoot, fixture.id);

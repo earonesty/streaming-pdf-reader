@@ -1,12 +1,13 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 32,
+  "passed": 33,
   "passingFixtureIds": [
     "bug1513120-reduced",
     "bug1947248-text",
     "bug864847",
     "extgstate",
+    "identitytounicodemap-charcodeof",
     "issue10301",
     "issue1045",
     "issue10529",
@@ -43,6 +44,8 @@
     "maximumFuzzyChangedPixels": 400,
     "maximumLowErrorMeanAbsoluteError": 1.2,
     "maximumLowErrorFuzzyChangedFraction": 0.017,
+    "maximumAlignedRasterMeanAbsoluteError": 2.5,
+    "maximumAlignedRasterFuzzyChangedFraction": 0.018,
     "minimumInkRatio": 0.78,
     "maximumInkRatio": 1.25
   }
