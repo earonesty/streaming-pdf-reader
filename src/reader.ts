@@ -2,7 +2,7 @@ import { extractPageText } from "./content/text.js";
 import { normalizePdfError } from "./errors.js";
 import type { PdfSource } from "./source.js";
 import { PdfObjectReader, type PdfParserOptions } from "./syntax/document.js";
-import type { ExtractedPage } from "./types.js";
+import type { EmbeddedFont, ExtractedPage } from "./types.js";
 
 export interface OpenPdfOptions extends PdfParserOptions {}
 
@@ -47,7 +47,8 @@ export class StreamingPdfReader {
     try {
       const page = await this.#objects.getPage(index);
       const [x1, y1, x2, y2] = page.mediaBox;
-      const spans = await extractPageText(this.#objects, page);
+      const fonts: EmbeddedFont[] = [];
+      const spans = await extractPageText(this.#objects, page, fonts);
       for (const span of spans) span.source.page = index + 1;
       return {
         number: index + 1,
@@ -55,6 +56,7 @@ export class StreamingPdfReader {
         height: Math.abs(y2 - y1),
         rotate: normalizeRotation(page.rotate),
         spans,
+        ...(fonts.length > 0 ? { fonts } : {}),
       };
     } catch (error) {
       throw normalizePdfError(error);

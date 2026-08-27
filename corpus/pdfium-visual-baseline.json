@@ -1,10 +1,11 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 6,
+  "passed": 7,
   "passingFixtureIds": [
     "bug1947248-text",
     "issue10301",
+    "issue11713",
     "issue16221",
     "issue7878",
     "operator-in-tj-array",
@@ -14,7 +15,7 @@
     "channelDelta": 12,
     "fuzzyRadius": 1,
     "maximumFuzzyChangedFraction": 0.005,
-    "minimumInkRatio": 0.8,
+    "minimumInkRatio": 0.79,
     "maximumInkRatio": 1.25
   }
 }

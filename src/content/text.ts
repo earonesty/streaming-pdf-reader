@@ -9,7 +9,7 @@ import {
   type PdfString,
   type PdfValue,
 } from "../syntax/values.js";
-import type { TextSpan } from "../types.js";
+import type { EmbeddedFont, TextSpan } from "../types.js";
 import { reorderBidiLines } from "./bidi.js";
 import {
   decodeUtf16Bytes,
@@ -18,6 +18,8 @@ import {
   parseToUnicode,
 } from "./cmap.js";
 import { textFillColor } from "./color.js";
+import { extractTrueTypeFont } from "./font-assets.js";
+import { contentStreams } from "./streams.js";
 
 export { reorderBidiLines, reorderMixedRtlCitation } from "./bidi.js";
 
@@ -45,8 +47,9 @@ const identity: Matrix = [1, 0, 0, 1, 0, 0];
 export async function extractPageText(
   reader: PdfObjectReader,
   page: ParsedPage,
+  fontAssets: EmbeddedFont[] = [],
 ): Promise<TextSpan[]> {
-  const fonts = await loadFonts(reader, page.resources);
+  const fonts = await loadFonts(reader, page.resources, fontAssets);
   const streams = await contentStreams(reader, page.dict.get("Contents"));
   const spans: TextSpan[] = [];
   const state: TextState = {
@@ -64,7 +67,18 @@ export async function extractPageText(
   };
 
   for (const bytes of streams) {
-    await interpret(reader, bytes, state, fonts, page.resources, spans, page, 0, new Set());
+    await interpret(
+      reader,
+      bytes,
+      state,
+      fonts,
+      fontAssets,
+      page.resources,
+      spans,
+      page,
+      0,
+      new Set(),
+    );
   }
   return reorderBidiLines(spans);
 }
@@ -74,6 +88,7 @@ async function interpret(
   bytes: Uint8Array,
   state: TextState,
   fonts: Map<string, FontDecoder>,
+  fontAssets: EmbeddedFont[],
   resources: PdfDict | undefined,
   spans: TextSpan[],
   page: ParsedPage,
@@ -103,6 +118,7 @@ async function interpret(
       reader,
       state,
       fonts,
+      fontAssets,
       resources,
       spans,
       page,
@@ -123,6 +139,7 @@ async function applyOperator(
   reader: PdfObjectReader,
   state: TextState,
   fonts: Map<string, FontDecoder>,
+  fontAssets: EmbeddedFont[],
   resources: PdfDict | undefined,
   spans: TextSpan[],
   page: ParsedPage,
@@ -255,7 +272,7 @@ async function applyOperator(
       const resolvedResources =
         resourceValue === undefined ? undefined : await reader.resolve(resourceValue);
       const formResources = isDict(resolvedResources) ? resolvedResources : resources;
-      const formFonts = await loadFonts(reader, formResources);
+      const formFonts = await loadFonts(reader, formResources, fontAssets);
       const matrix = pdfMatrix(resolved.dict.get("Matrix")) ?? identity;
       const saved = cloneState(state);
       state.ctm = multiply(state.ctm, matrix);
@@ -268,6 +285,7 @@ async function applyOperator(
             await reader.decodeStream(resolved),
             state,
             formFonts,
+            fontAssets,
             formResources,
             spans,
             page,
@@ -383,6 +401,7 @@ function showString(
     direction: vertical ? "ttb" : "ltr",
     fontName: state.font,
     ...(font?.fontFamily ? { fontFamily: font.fontFamily } : {}),
+    ...(font?.fontAssetId ? { fontAssetId: font.fontAssetId } : {}),
     color: state.fillColor,
     fontSize: Math.hypot(topX - x, topY - y),
     source: { page: 0, objectNumber: page.ref.object },
@@ -454,37 +473,10 @@ function approximateAdvance(text: string, state: TextState, vertical = false): n
   return units * state.fontSize * (vertical ? 1 : state.horizontalScale);
 }
 
-async function contentStreams(
-  reader: PdfObjectReader,
-  value: PdfValue | undefined,
-): Promise<Uint8Array[]> {
-  if (value === undefined) return [];
-  const values = Array.isArray(value) ? value : [value];
-  const output: Uint8Array[] = [];
-  for (const item of values) {
-    const resolved = await reader.resolve(item);
-    if (!isStream(resolved)) throw new Error("page /Contents entry is not a stream");
-    output.push(await reader.decodeStream(resolved));
-  }
-  if (output.length <= 1) return output;
-  const length = output.reduce((total, bytes) => total + bytes.length + 1, 0);
-  if (length > reader.limits.maxDecodedStreamBytes) {
-    throw new Error("combined page content exceeds configured decoded stream byte limit");
-  }
-  const combined = new Uint8Array(length);
-  let offset = 0;
-  for (const bytes of output) {
-    combined.set(bytes, offset);
-    offset += bytes.length;
-    combined[offset] = 0x0a;
-    offset += 1;
-  }
-  return [combined];
-}
-
 async function loadFonts(
   reader: PdfObjectReader,
   resources?: PdfDict,
+  fontAssets: EmbeddedFont[] = [],
 ): Promise<Map<string, FontDecoder>> {
   const output = new Map<string, FontDecoder>();
   if (!resources) return output;
@@ -495,6 +487,12 @@ async function loadFonts(
     if (!font) continue;
     const toUnicodeValue = font.get("ToUnicode");
     const encoding = await loadFontEncoding(reader, font, toUnicodeValue === undefined);
+    const fontAssetId = `font-${fontAssets.length + 1}`;
+    const asset = await extractTrueTypeFont(reader, font, fontAssetId, encoding.fontFamily);
+    if (asset) {
+      fontAssets.push(asset);
+      encoding.fontAssetId = fontAssetId;
+    }
     if (toUnicodeValue) {
       const toUnicode = await reader.resolve(toUnicodeValue);
       if (isStream(toUnicode)) {
@@ -503,6 +501,7 @@ async function loadFonts(
         output.set(name, {
           decode: (bytes) => decodeWithMap(bytes, unicodeMap, codeBytes, encoding),
           ...(encoding.fontFamily ? { fontFamily: encoding.fontFamily } : {}),
+          ...(encoding.fontAssetId ? { fontAssetId: encoding.fontAssetId } : {}),
           ...(encoding.advance ? { advance: encoding.advance } : {}),
           ...(encoding.verticalAdvance ? { verticalAdvance: encoding.verticalAdvance } : {}),
           ...(encoding.verticalOrigin ? { verticalOrigin: encoding.verticalOrigin } : {}),
@@ -520,6 +519,7 @@ async function loadFonts(
       output.set(name, {
         decode: decodeUtf16Bytes,
         ...(encoding.fontFamily ? { fontFamily: encoding.fontFamily } : {}),
+        ...(encoding.fontAssetId ? { fontAssetId: encoding.fontAssetId } : {}),
         ...(encoding.advance ? { advance: encoding.advance } : {}),
         ...(encoding.verticalAdvance ? { verticalAdvance: encoding.verticalAdvance } : {}),
         ...(encoding.verticalOrigin ? { verticalOrigin: encoding.verticalOrigin } : {}),

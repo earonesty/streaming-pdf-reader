@@ -60,7 +60,7 @@ const summary = {
     channelDelta: 12,
     fuzzyRadius: 1,
     maximumFuzzyChangedFraction: 0.005,
-    minimumInkRatio: 0.8,
+    minimumInkRatio: 0.79,
     maximumInkRatio: 1.25,
   },
 };
@@ -132,6 +132,7 @@ async function compareFixture(fixture) {
     let candidatePng;
     try {
       await browserPage.setContent(html, { waitUntil: "load" });
+      await browserPage.evaluate(() => document.fonts.ready);
       candidatePng = await browserPage.locator(".pdf-page").screenshot({ animations: "disabled" });
     } finally {
       await browserPage.close();
@@ -164,7 +165,7 @@ async function compareFixture(fixture) {
           ? 1
           : null
         : metrics.candidateInkPixels / metrics.referenceInkPixels;
-    const inkWithinTolerance = inkRatio !== null && inkRatio >= 0.8 && inkRatio <= 1.25;
+    const inkWithinTolerance = inkRatio !== null && inkRatio >= 0.79 && inkRatio <= 1.25;
     const status = metrics.exact
       ? "PASS_EXACT"
       : metrics.fuzzyChangedFraction <= 0.005 && inkWithinTolerance

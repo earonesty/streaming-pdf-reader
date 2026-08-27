@@ -1,4 +1,4 @@
-import type { ExtractedPage, TextSpan } from "@boxpdf/reader";
+import type { EmbeddedFont, ExtractedPage, TextSpan } from "@boxpdf/reader";
 import { structurePage, type Table, tableToHtml } from "@boxpdf/reader/structure";
 
 export type HtmlLayout = "positioned" | "flow";
@@ -46,7 +46,7 @@ export async function writePage(
   options: HtmlWriterOptions = {},
 ): Promise<void> {
   if (resolveProfile(options) === "semantic") await writeFlowPage(page, write);
-  else await writePositionedPage(page, write);
+  else await writePositionedPage(page, write, options);
 }
 
 export async function pageToHtml(
@@ -64,17 +64,27 @@ export async function pageToHtml(
   return output;
 }
 
-async function writePositionedPage(page: ExtractedPage, write: HtmlWrite): Promise<void> {
+async function writePositionedPage(
+  page: ExtractedPage,
+  write: HtmlWrite,
+  options: HtmlWriterOptions,
+): Promise<void> {
   const quarterTurn = page.rotate === 90 || page.rotate === 270;
   const displayWidth = quarterTurn ? page.height : page.width;
   const displayHeight = quarterTurn ? page.width : page.height;
   await write(
     `<section class="pdf-page pdf-page--visual pdf-page--positioned" data-page="${page.number}" data-rotate="${page.rotate}" style="width:${number(displayWidth)}pt;height:${number(displayHeight)}pt">`,
   );
+  const fontAliases = new Map(
+    (page.fonts ?? []).map((font) => [font.id, `boxpdf-${page.number}-${font.id}`]),
+  );
+  if ((options.includeStyles ?? true) && page.fonts?.length) {
+    await write(`<style>${page.fonts.map((font) => fontFace(font, fontAliases)).join("")}</style>`);
+  }
   await write(
     `<div class="pdf-page-content pdf-page-content--${page.rotate}" style="width:${number(page.width)}pt;height:${number(page.height)}pt">`,
   );
-  for (const span of page.spans) await write(positionedSpan(span));
+  for (const span of page.spans) await write(positionedSpan(span, fontAliases));
   await write("</div></section>");
 }
 
@@ -102,7 +112,7 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
   await write("</section>");
 }
 
-function positionedSpan(span: TextSpan): string {
+function positionedSpan(span: TextSpan, fontAliases: Map<string, string>): string {
   const direction = directionAttribute([span]);
   const style = [
     `left:${number(span.bounds.x)}pt`,
@@ -111,7 +121,10 @@ function positionedSpan(span: TextSpan): string {
     `height:${number(span.bounds.height)}pt`,
     `font-size:${number(span.fontSize)}pt`,
     ...(isCssHexColor(span.color) ? [`color:${span.color}`] : []),
-    ...fontStyles(span.fontFamily),
+    ...fontStyles(
+      span.fontFamily,
+      span.fontAssetId ? fontAliases.get(span.fontAssetId) : undefined,
+    ),
   ].join(";");
   return `<span class="pdf-span"${direction} style="${style}">${escapeHtml(span.text)}</span>`;
 }
@@ -120,20 +133,45 @@ function isCssHexColor(value: string | undefined): value is string {
   return /^#[\da-f]{6}$/i.test(value ?? "");
 }
 
-function fontStyles(fontFamily: string | undefined): string[] {
-  if (!fontFamily) return [];
-  const normalized = fontFamily.toLowerCase();
+function fontStyles(fontFamily: string | undefined, alias?: string): string[] {
+  const normalized = fontFamily?.toLowerCase() ?? "";
   const styles: string[] = [];
+  let fallback: string | undefined;
   if (/courier|mono/.test(normalized)) {
-    styles.push("font-family:Courier New,Courier,monospace");
+    fallback = "Courier New,Courier,monospace";
   } else if (/times|minion|serif|baskerville|georgia/.test(normalized)) {
-    styles.push("font-family:Times New Roman,Times,serif");
+    fallback = "Times New Roman,Times,serif";
   } else if (/helvetica|arial|sans/.test(normalized)) {
-    styles.push("font-family:Arial,Helvetica,sans-serif");
+    fallback = "Arial,Helvetica,sans-serif";
   }
+  if (alias || fallback) styles.push(`font-family:${[alias, fallback].filter(Boolean).join(",")}`);
   if (/bold|black|semibold|demi/.test(normalized)) styles.push("font-weight:700");
   if (/italic|oblique/.test(normalized)) styles.push("font-style:italic");
   return styles;
+}
+
+function fontFace(font: EmbeddedFont, aliases: Map<string, string>): string {
+  const alias = aliases.get(font.id);
+  if (!alias) return "";
+  const styles = fontStyles(font.family, alias).filter(
+    (style) => !style.startsWith("font-family:"),
+  );
+  return `@font-face{font-family:${alias};src:url(data:font/ttf;base64,${base64(font.data)}) format("truetype");${styles.join(";")}}`;
+}
+
+function base64(bytes: Uint8Array): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let output = "";
+  for (let index = 0; index < bytes.length; index += 3) {
+    const first = bytes[index] ?? 0;
+    const second = bytes[index + 1] ?? 0;
+    const third = bytes[index + 2] ?? 0;
+    output += alphabet[first >> 2];
+    output += alphabet[((first & 3) << 4) | (second >> 4)];
+    output += index + 1 < bytes.length ? alphabet[((second & 15) << 2) | (third >> 6)] : "=";
+    output += index + 2 < bytes.length ? alphabet[third & 63] : "=";
+  }
+  return output;
 }
 
 function directionAttribute(spans: TextSpan[]): string {

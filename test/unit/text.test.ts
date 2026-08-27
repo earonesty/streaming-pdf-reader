@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   decodeUtf16Bytes,
@@ -7,9 +8,27 @@ import {
 } from "../../src/content/cmap.js";
 import { reorderBidiLines, reorderMixedRtlCitation } from "../../src/content/text.js";
 import { memorySource, openPdf } from "../../src/index.js";
+import { fileSource } from "../../src/node.js";
 import type { TextSpan } from "../../src/types.js";
 
 describe("text flow normalization", () => {
+  it("keeps embedded TrueType programs page-scoped and binds their spans", async () => {
+    const source = await fileSource(
+      resolve(import.meta.dirname, "../../fixtures/pdfjs/basicapi.pdf"),
+    );
+    const reader = await openPdf(source);
+    try {
+      const page = await reader.getPage(0);
+      const embedded = page.fonts?.find((font) => font.family === "DejaVuSans");
+      expect(embedded?.format).toBe("truetype");
+      expect(embedded?.data.length).toBeGreaterThan(1_000);
+      expect(page.spans.some((span) => span.fontAssetId === embedded?.id)).toBe(true);
+    } finally {
+      reader.close();
+      await source.close();
+    }
+  });
+
   it("reorders visual RTL chunks by line while retaining LTR lines", () => {
     const spans = [span("ג", 10, 20), span("ב", 15, 20), span("א", 20, 20), span("abc", 5, 10)];
     const reordered = reorderBidiLines(spans);

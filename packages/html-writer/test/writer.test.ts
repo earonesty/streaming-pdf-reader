@@ -70,6 +70,25 @@ describe("HTML writer", () => {
     expect(unsafe).not.toContain("onmouseover");
   });
 
+  it("inlines page-scoped embedded fonts for visual spans", async () => {
+    const html = await pageToHtml({
+      ...page,
+      fonts: [
+        { id: "font-1", family: "ArialMT", format: "truetype", data: Uint8Array.of(0, 1, 2) },
+      ],
+      spans: [{ ...span("Font", 20, 700), fontFamily: "ArialMT", fontAssetId: "font-1" }],
+    });
+    expect(html).toContain("@font-face{font-family:boxpdf-1-font-1");
+    expect(html).toContain("base64,AAEC");
+    expect(html).toContain("font-family:boxpdf-1-font-1,Arial,Helvetica,sans-serif");
+    expect(
+      await pageToHtml(
+        { ...page, fonts: [{ id: "font-1", format: "truetype", data: Uint8Array.of(0) }] },
+        { includeStyles: false },
+      ),
+    ).not.toContain("@font-face");
+  });
+
   it("awaits output chunks and supports document metadata", async () => {
     const chunks: string[] = [];
     let writes = 0;

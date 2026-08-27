@@ -20,10 +20,19 @@ export interface TextSpan {
   fontName?: string | undefined;
   /** Resolved PDF BaseFont name with any subset prefix removed. */
   fontFamily?: string | undefined;
+  /** Page-scoped identifier for an extracted embedded font program. */
+  fontAssetId?: string | undefined;
   /** Text fill color serialized as a six-digit CSS hex value. */
   color?: string | undefined;
   fontSize: number;
   source: SourceRef;
+}
+
+export interface EmbeddedFont {
+  id: string;
+  family?: string | undefined;
+  format: "truetype";
+  data: Uint8Array;
 }
 
 export interface ExtractedPage {
@@ -32,4 +41,5 @@ export interface ExtractedPage {
   height: number;
   rotate: 0 | 90 | 180 | 270;
   spans: TextSpan[];
+  fonts?: EmbeddedFont[] | undefined;
 }
