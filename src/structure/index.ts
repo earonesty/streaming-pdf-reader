@@ -1,4 +1,7 @@
 import type { ExtractedPage, Rect, TextSpan } from "../types.js";
+import { inferSemanticBlocks, type SemanticBlock } from "./semantic.js";
+
+export type { SemanticBlock } from "./semantic.js";
 
 export interface StructureInference {
   confidence: number;
@@ -34,6 +37,7 @@ export interface StructuredPage {
   page: number;
   lines: TextLine[];
   tables: Table[];
+  blocks: SemanticBlock[];
 }
 
 export interface StructureOptions {
@@ -46,10 +50,12 @@ export interface StructureOptions {
 export function structurePage(page: ExtractedPage, options: StructureOptions = {}): StructuredPage {
   const lineTolerance = options.lineTolerance ?? 2;
   const lines = groupLines(page.spans, lineTolerance);
+  const tables = inferTables(page.number, lines, options);
   return {
     page: page.number,
     lines,
-    tables: inferTables(page.number, lines, options),
+    tables,
+    blocks: inferSemanticBlocks(lines, tables),
   };
 }
 
@@ -74,9 +80,32 @@ export function tableToCsv(table: Table): string {
 
 export function tableToHtml(table: Table): string {
   const rows = tableToRows(table);
+  const header = tableHasHeader(table);
   return `<table>${rows
-    .map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`)
+    .map((row, index) => {
+      const cell = header && index === 0 ? "th" : "td";
+      return `<tr>${row.map((value) => `<${cell}>${escapeHtml(value)}</${cell}>`).join("")}</tr>`;
+    })
     .join("")}</table>`;
+}
+
+function tableHasHeader(table: Table): boolean {
+  const rows = tableToRows(table);
+  const first = rows[0] ?? [];
+  const rest = rows.slice(1).flat();
+  const knownHeader = first.some((value) =>
+    /^(?:item|description|feature|qty|quantity|unit|price|amount|total|basic|pro)$/i.test(value),
+  );
+  return (
+    knownHeader ||
+    (first.length > 0 &&
+      first.every((value) => /[A-Za-z]/.test(value)) &&
+      rest.some(isNumericField))
+  );
+}
+
+function isNumericField(value: string): boolean {
+  return /^(?:[$€£]\s*)?[\d,.]+(?:\s*%)?$/.test(value.trim());
 }
 
 function groupLines(spans: TextSpan[], tolerance: number): TextLine[] {
@@ -88,22 +117,19 @@ function groupLines(spans: TextSpan[], tolerance: number): TextLine[] {
     spans.filter((span) => span.direction === "ttb"),
     tolerance,
   );
-  return [...horizontal, ...vertical].sort((left, right) => {
-    const baseline = right.bounds.y - left.bounds.y;
-    return Math.abs(baseline) > tolerance ? baseline : right.bounds.x - left.bounds.x;
-  });
+  return [...horizontal, ...vertical];
 }
 
 function groupHorizontalLines(spans: TextSpan[], tolerance: number): TextLine[] {
   const rows: TextSpan[][] = [];
-  for (const span of [...spans].sort((left, right) => {
-    const vertical = right.bounds.y - left.bounds.y;
-    return Math.abs(vertical) > tolerance ? vertical : left.bounds.x - right.bounds.x;
-  })) {
-    const row = rows.find(
-      (candidate) => Math.abs((candidate[0]?.bounds.y ?? 0) - span.bounds.y) <= tolerance,
-    );
-    if (row) row.push(span);
+  for (const span of spans) {
+    const row = rows.at(-1);
+    const previous = row?.at(-1);
+    const sameBaseline = Math.abs((row?.[0]?.bounds.y ?? Number.NaN) - span.bounds.y) <= tolerance;
+    const continuesForward =
+      !previous ||
+      span.bounds.x >= previous.bounds.x - Math.max(tolerance, previous.fontSize * 0.25);
+    if (row && sameBaseline && continuesForward) row.push(span);
     else rows.push([span]);
   }
 
@@ -147,73 +173,76 @@ function groupVerticalLines(spans: TextSpan[], tolerance: number): TextLine[] {
 function inferTables(page: number, lines: TextLine[], options: StructureOptions): Table[] {
   const minimumRows = options.minimumTableRows ?? 2;
   const minimumColumns = options.minimumTableColumns ?? 2;
-  const columnTolerance = options.columnTolerance ?? 8;
-  const candidates = lines.filter(
-    (line) =>
-      line.spans.length >= minimumColumns && line.spans.every((span) => span.direction !== "ttb"),
-  );
-  if (candidates.length < minimumRows) return [];
-
-  const columns: number[] = [];
-  for (const line of candidates) {
-    for (const span of line.spans) {
-      const existing = columns.findIndex(
-        (column) => Math.abs(column - span.bounds.x) <= columnTolerance,
-      );
-      if (existing < 0) columns.push(span.bounds.x);
-      else columns[existing] = ((columns[existing] ?? span.bounds.x) + span.bounds.x) / 2;
+  const columnTolerance = options.columnTolerance ?? 16;
+  const rowCandidates = lines.map((line) => ({ line, cells: splitCells(line) }));
+  const runs: Array<typeof rowCandidates> = [];
+  let run: typeof rowCandidates = [];
+  for (const candidate of rowCandidates) {
+    const first = run[0];
+    const compatible = !first || compatibleRows(first, candidate, columnTolerance);
+    if (candidate.cells.length >= minimumColumns && compatible) run.push(candidate);
+    else {
+      if (run.length >= minimumRows) runs.push(run);
+      run = candidate.cells.length >= minimumColumns ? [candidate] : [];
     }
   }
-  columns.sort((left, right) => left - right);
-  if (columns.length < minimumColumns) return [];
+  if (run.length >= minimumRows) runs.push(run);
 
-  const aligned = candidates.filter((line) =>
-    line.spans.every((span) =>
-      columns.some((column) => Math.abs(column - span.bounds.x) <= columnTolerance),
-    ),
-  );
-  if (aligned.length < minimumRows) return [];
-
-  const cells: TableCell[] = [];
-  aligned.forEach((line, row) => {
-    for (const span of line.spans) {
-      cells.push({
+  return runs.map((rows) => {
+    const columns = (rows[0]?.cells ?? []).map((cell) => cell.bounds.x);
+    const cells = rows.flatMap((candidate, row) =>
+      candidate.cells.map((cell, column) => ({
         row,
-        column: closestColumn(columns, span.bounds.x),
+        column,
         rowSpan: 1,
         columnSpan: 1,
-        bounds: span.bounds,
-        text: span.text.trim(),
-        spans: [span],
+        bounds: cell.bounds,
+        text: joinSpans(cell.spans),
+        spans: cell.spans,
         confidence: 0.9,
         reasons: ["repeated-column-alignment"],
-      });
-    }
-  });
-  return [
-    {
+      })),
+    );
+    return {
       type: "table",
       page,
       bounds: union(cells.map((cell) => cell.bounds)),
       columns,
       cells,
       confidence: 0.9,
-      reasons: ["multiple-rows", "repeated-column-alignment"],
-    },
-  ];
+      reasons: ["consecutive-rows", "repeated-column-alignment"],
+    };
+  });
 }
 
-function closestColumn(columns: number[], x: number): number {
-  let closest = 0;
-  let distance = Number.POSITIVE_INFINITY;
-  columns.forEach((column, index) => {
-    const candidate = Math.abs(column - x);
-    if (candidate < distance) {
-      closest = index;
-      distance = candidate;
-    }
-  });
-  return closest;
+function splitCells(line: TextLine): Array<{ bounds: Rect; spans: TextSpan[] }> {
+  const cells: TextSpan[][] = [];
+  for (const span of line.spans) {
+    const current = cells.at(-1);
+    const previous = current?.at(-1);
+    const gap = previous ? span.bounds.x - previous.bounds.x - previous.bounds.width : 0;
+    if (current && previous && gap <= Math.max(18, span.fontSize * 2)) current.push(span);
+    else cells.push([span]);
+  }
+  return cells.map((spans) => ({ bounds: union(spans.map((span) => span.bounds)), spans }));
+}
+
+function compatibleRows(
+  first: { cells: Array<{ bounds: Rect }> },
+  next: { cells: Array<{ bounds: Rect }> },
+  tolerance: number,
+): boolean {
+  return (
+    first.cells.length === next.cells.length &&
+    first.cells.every((cell, index) => {
+      const other = next.cells[index]?.bounds;
+      if (!other) return false;
+      const leftAligned = Math.abs(cell.bounds.x - other.x) <= tolerance;
+      const rightAligned =
+        Math.abs(cell.bounds.x + cell.bounds.width - other.x - other.width) <= tolerance;
+      return leftAligned || rightAligned;
+    })
+  );
 }
 
 function joinSpans(spans: TextSpan[]): string {

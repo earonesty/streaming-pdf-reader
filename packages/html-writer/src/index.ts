@@ -7,7 +7,7 @@ import type {
   Type3Glyph,
   VectorPath,
 } from "@boxpdf/reader";
-import { structurePage, type Table, tableToHtml } from "@boxpdf/reader/structure";
+import { structurePage, tableToHtml } from "@boxpdf/reader/structure";
 
 export type HtmlLayout = "positioned" | "flow";
 export type HtmlProfile = "visual" | "semantic";
@@ -304,24 +304,31 @@ function positionedSpan(span: TextSpan, fontAliases: Map<string, string>): strin
 
 async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<void> {
   const structured = structurePage(page);
-  const tables = [...structured.tables].sort((left, right) => right.bounds.y - left.bounds.y);
-  const emittedTables = new Set<Table>();
   await write(
     `<section class="pdf-page pdf-page--semantic pdf-page--flow" data-page="${page.number}">`,
   );
-  for (const line of structured.lines) {
-    const table = tables.find((candidate) => containsY(candidate, line.bounds.y));
-    if (table) {
-      if (!emittedTables.has(table)) {
-        await write(tableToHtml(table));
-        emittedTables.add(table);
+  for (const block of structured.blocks) {
+    if (block.type === "table") await write(tableToHtml(block.table));
+    else if (block.type === "heading") {
+      await write(`<h${block.level}>${escapeHtml(block.text)}</h${block.level}>`);
+    } else if (block.type === "paragraph") {
+      await write(
+        `<p${directionAttribute(block.lines.flatMap((line) => line.spans))}>${escapeHtml(block.text)}</p>`,
+      );
+    } else if (block.type === "definitionList") {
+      await write("<dl>");
+      for (const entry of block.entries) {
+        await write(
+          `<div><dt>${escapeHtml(entry.term)}</dt><dd>${escapeHtml(entry.description)}</dd></div>`,
+        );
       }
-      continue;
+      await write("</dl>");
+    } else {
+      const tag = block.ordered ? "ol" : "ul";
+      await write(`<${tag}>`);
+      for (const item of block.items) await write(`<li>${escapeHtml(item.text)}</li>`);
+      await write(`</${tag}>`);
     }
-    await write(`<p${directionAttribute(line.spans)}>${escapeHtml(line.text)}</p>`);
-  }
-  for (const table of tables) {
-    if (!emittedTables.has(table)) await write(tableToHtml(table));
   }
   await write("</section>");
 }
@@ -522,10 +529,6 @@ function directionAttribute(spans: TextSpan[]): string {
   const vertical = spans.filter((span) => span.direction === "ttb").length;
   if (vertical > rtl && vertical * 2 >= spans.length) return ' data-direction="ttb"';
   return rtl * 2 >= spans.length && spans.length > 0 ? ' dir="rtl"' : "";
-}
-
-function containsY(table: Table, y: number): boolean {
-  return y >= table.bounds.y && y <= table.bounds.y + table.bounds.height;
 }
 
 function number(value: number): string {

@@ -571,6 +571,38 @@ describe("HTML writer", () => {
     expect(html).not.toContain("<p>");
     expect(html).not.toContain("<style>");
   });
+
+  it("writes semantic headings, paragraphs, lists, and definition lists", async () => {
+    const semanticPage: ExtractedPage = {
+      ...page,
+      spans: [
+        { ...span("Document title", 20, 700), fontSize: 24 },
+        span("Summary", 20, 670),
+        span("A wrapped paragraph", 20, 645),
+        span("continues on this line.", 20, 630),
+        span("• First bullet with enough words", 20, 600),
+        span("to continue on this line.", 36, 585),
+        span("1. Ordered list item with enough words to remain a list", 20, 550),
+        span("PASSENGER", 20, 510),
+        span("Paula Ruiz", 20, 495),
+        span("SEAT", 20, 475),
+        span("14A", 20, 460),
+      ],
+    };
+
+    const html = await pageToHtml(semanticPage, { profile: "semantic" });
+    expect(html).toContain("<h1>Document title</h1>");
+    expect(html).toContain("<h2>Summary</h2>");
+    expect(html).toContain("<p>A wrapped paragraph continues on this line.</p>");
+    expect(html).toContain(
+      "<ul><li>First bullet with enough words to continue on this line.</li></ul>",
+    );
+    expect(html).toContain(
+      "<ol><li>Ordered list item with enough words to remain a list</li></ol>",
+    );
+    expect(html).toContain("<dl><div><dt>PASSENGER</dt><dd>Paula Ruiz</dd></div>");
+    expect(html).toContain("<div><dt>SEAT</dt><dd>14A</dd></div></dl>");
+  });
 });
 
 function span(text: string, x: number, y: number): ExtractedPage["spans"][number] {
