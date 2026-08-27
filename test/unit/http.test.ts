@@ -58,6 +58,19 @@ describe("httpSource", () => {
     expect(warning).toHaveBeenCalledOnce();
   });
 
+  it("counts a streamed full probe when Content-Length is unavailable", async () => {
+    let calls = 0;
+    const source = await httpSource("https://example.test/file.pdf", {
+      onWarning: vi.fn(),
+      fetch: vi.fn(async () => {
+        calls += 1;
+        return response([10, 20, 30], 200);
+      }),
+    });
+    expect(source.size).toBe(3);
+    await expect(source.read(2, 1)).resolves.toEqual(Uint8Array.of(30));
+  });
+
   it("accepts and warns once when range reads over-return a complete response", async () => {
     const warning = vi.fn();
     let calls = 0;
@@ -73,6 +86,20 @@ describe("httpSource", () => {
     await expect(source.read(2, 2)).resolves.toEqual(Uint8Array.of(30, 40));
     await expect(source.read(4, 1)).resolves.toEqual(Uint8Array.of(50));
     expect(warning).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a complete response that ends before the requested slice", async () => {
+    let calls = 0;
+    const source = await httpSource("https://example.test/file.pdf", {
+      onWarning: vi.fn(),
+      fetch: vi.fn(async () => {
+        calls += 1;
+        return calls === 1
+          ? response([0], 206, { "content-range": "bytes 0-0/5" })
+          : response([10, 20], 200);
+      }),
+    });
+    await expect(source.read(3, 1)).rejects.toThrow("needed 4");
   });
 
   it("rejects invalid requested ranges", async () => {
