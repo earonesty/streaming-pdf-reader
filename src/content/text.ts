@@ -52,6 +52,7 @@ export async function extractPageText(
   reader: PdfObjectReader,
   page: ParsedPage,
   fontAssets: EmbeddedFont[] = [],
+  visualSpans?: TextSpan[],
 ): Promise<TextSpan[]> {
   const fonts = await loadFonts(reader, page.resources, fontAssets);
   const streams = await contentStreams(reader, page.dict.get("Contents"));
@@ -73,7 +74,18 @@ export async function extractPageText(
       new Set(),
     );
   }
+  visualSpans?.push(...spans.map(asVisualSpan));
   return reorderBidiLines(spans);
+}
+
+function asVisualSpan(span: TextSpan): TextSpan {
+  return {
+    ...span,
+    bounds: { ...span.bounds },
+    direction: /[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff]/u.test(span.text)
+      ? "rtl"
+      : span.direction,
+  };
 }
 
 async function interpret(

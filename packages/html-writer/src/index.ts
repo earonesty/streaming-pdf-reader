@@ -75,6 +75,7 @@ async function writePositionedPage(
   write: HtmlWrite,
   options: HtmlWriterOptions,
 ): Promise<void> {
+  const visualSpans = page.visualSpans ?? page.spans;
   const quarterTurn = page.rotate === 90 || page.rotate === 270;
   const displayWidth = quarterTurn ? page.height : page.width;
   const displayHeight = quarterTurn ? page.width : page.height;
@@ -130,7 +131,7 @@ async function writePositionedPage(
     }
     await write("</g>");
   }
-  for (const span of page.spans) {
+  for (const span of visualSpans) {
     if (!usesPositionedSpan(span)) {
       const type3 = span.fontAssetId ? type3Fonts.get(span.fontAssetId) : undefined;
       await write(
@@ -141,7 +142,7 @@ async function writePositionedPage(
     }
   }
   await write("</svg>");
-  for (const span of page.spans) {
+  for (const span of visualSpans) {
     if (usesPositionedSpan(span)) await write(positionedSpan(span, fontAliases));
   }
   await write("</div></section>");
@@ -223,9 +224,14 @@ function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string,
       ? ` textLength="${number(span.bounds.width)}" lengthAdjust="spacingAndGlyphs"`
       : "";
   const transformed = hasNonIdentityTransform(span.transform);
+  const rtlOffset = span.direction === "rtl" ? span.bounds.width : 0;
+  const basisX = span.transform?.[0] ?? 1;
+  const basisY = span.transform?.[1] ?? 0;
+  const anchorX = span.bounds.x + basisX * rtlOffset;
+  const anchorY = pageHeight - span.bounds.y + basisY * rtlOffset;
   const position = transformed
-    ? ` x="0" y="0" transform="matrix(${span.transform?.map(number).join(" ")} ${number(span.bounds.x)} ${number(pageHeight - span.bounds.y)})"`
-    : ` x="${number(span.bounds.x)}" y="${number(pageHeight - span.bounds.y)}"`;
+    ? ` x="0" y="0" transform="matrix(${span.transform?.map(number).join(" ")} ${number(anchorX)} ${number(anchorY)})"`
+    : ` x="${number(anchorX)}" y="${number(anchorY)}"`;
   return `<text${direction}${position} font-size="${number(span.fontSize)}"${textLength}${style ? ` style="${style}"` : ""}>${escapeHtml(span.text)}</text>`;
 }
 

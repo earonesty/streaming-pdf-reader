@@ -85,6 +85,8 @@ export interface ExtractedPage {
   height: number;
   rotate: 0 | 90 | 180 | 270;
   spans: TextSpan[];
+  /** Original PDF text chunks retained for presentation-oriented rendering. */
+  visualSpans?: TextSpan[] | undefined;
   fonts?: EmbeddedFont[] | undefined;
   fills?: VectorFill[] | undefined;
   paths?: VectorPath[] | undefined;

@@ -19,6 +19,22 @@ const page: ExtractedPage = {
 };
 
 describe("HTML writer", () => {
+  it("uses original chunks for visual HTML and reordered spans for semantic HTML", async () => {
+    const split: ExtractedPage = {
+      ...page,
+      spans: [span("semantic", 20, 700)],
+      visualSpans: [span("visual", 40, 680)],
+    };
+
+    const visual = await pageToHtml(split, { profile: "visual" });
+    expect(visual).toContain(">visual</text>");
+    expect(visual).not.toContain(">semantic</text>");
+
+    const semantic = await pageToHtml(split, { profile: "semantic" });
+    expect(semantic).toContain("semantic");
+    expect(semantic).not.toContain("visual");
+  });
+
   it("writes visual, escaped page HTML by default", async () => {
     const html = await pageToHtml(page);
     expect(html).toContain("pdf-page--visual");
@@ -32,6 +48,7 @@ describe("HTML writer", () => {
       spans: [{ ...span("RTL", 20, 700), direction: "rtl" }],
     });
     expect(rtl).toContain('dir="rtl"');
+    expect(rtl).toContain('x="30" y="92"');
     expect(rtl).toContain("width:0pt");
     const controls = await pageToHtml({
       ...page,

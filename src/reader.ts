@@ -49,15 +49,18 @@ export class StreamingPdfReader {
       const page = await this.#objects.getPage(index);
       const [x1, y1, x2, y2] = page.mediaBox;
       const fonts: EmbeddedFont[] = [];
-      const spans = await extractPageText(this.#objects, page, fonts);
+      const visualSpans: ExtractedPage["spans"] = [];
+      const spans = await extractPageText(this.#objects, page, fonts, visualSpans);
       const { fills, paths } = await extractPageGraphics(this.#objects, page);
       for (const span of spans) span.source.page = index + 1;
+      for (const span of visualSpans) span.source.page = index + 1;
       return {
         number: index + 1,
         width: Math.abs(x2 - x1),
         height: Math.abs(y2 - y1),
         rotate: normalizeRotation(page.rotate),
         spans,
+        ...(visualSpans.length > 0 ? { visualSpans } : {}),
         ...(fonts.length > 0 ? { fonts } : {}),
         ...(fills.length > 0 ? { fills } : {}),
         ...(paths.length > 0 ? { paths } : {}),
