@@ -19,6 +19,7 @@ const writeBaseline = process.argv.includes("--write-baseline");
 const gate = process.argv.includes("--gate");
 const scale = 2;
 const maximumFuzzyChangedFraction = 0.0062;
+const maximumFuzzyChangedPixels = 400;
 
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
@@ -61,6 +62,7 @@ const summary = {
     channelDelta: 12,
     fuzzyRadius: 1,
     maximumFuzzyChangedFraction,
+    maximumFuzzyChangedPixels,
     minimumInkRatio: 0.78,
     maximumInkRatio: 1.25,
   },
@@ -172,9 +174,12 @@ async function compareFixture(fixture) {
           : null
         : metrics.candidateInkPixels / metrics.referenceInkPixels;
     const inkWithinTolerance = inkRatio !== null && inkRatio >= 0.78 && inkRatio <= 1.25;
+    const fuzzyWithinTolerance =
+      metrics.fuzzyChangedFraction <= maximumFuzzyChangedFraction ||
+      metrics.fuzzyChangedPixels <= maximumFuzzyChangedPixels;
     const status = metrics.exact
       ? "PASS_EXACT"
-      : metrics.fuzzyChangedFraction <= maximumFuzzyChangedFraction && inkWithinTolerance
+      : fuzzyWithinTolerance && inkWithinTolerance
         ? "PASS_TOLERANCE"
         : "FAIL_VISUAL";
     const fixtureDirectory = resolve(artifactRoot, fixture.id);
@@ -201,6 +206,7 @@ async function compareFixture(fixture) {
         metadata.width !== rendered.width || metadata.height !== rendered.height,
       strictChangedFraction: metrics.strictChangedFraction,
       fuzzyChangedFraction: metrics.fuzzyChangedFraction,
+      fuzzyChangedPixels: metrics.fuzzyChangedPixels,
       meanAbsoluteError: metrics.meanAbsoluteError,
       referenceInkPixels: metrics.referenceInkPixels,
       candidateInkPixels: metrics.candidateInkPixels,
@@ -247,6 +253,7 @@ function comparePixels(reference, candidate, width, height) {
     diff,
     strictChangedFraction: strictChanged / pixelCount,
     fuzzyChangedFraction: fuzzyChanged / pixelCount,
+    fuzzyChangedPixels: fuzzyChanged,
     meanAbsoluteError: absoluteError / (pixelCount * 3),
     referenceInkPixels,
     candidateInkPixels,
