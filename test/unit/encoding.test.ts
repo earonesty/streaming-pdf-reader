@@ -99,6 +99,19 @@ describe("simple font encodings", () => {
     expect(decoder.advance?.(Uint8Array.of(65, 32, 66))).toBeCloseTo(1.612);
   });
 
+  it("removes malformed mixed-case subset prefixes from known Adobe families", async () => {
+    const reader = {
+      async resolve(value: PdfValue) {
+        return value;
+      },
+    } as PdfObjectReader;
+    const decoder = await loadFontEncoding(
+      reader,
+      new Map<string, PdfValue>([["BaseFont", { type: "name", value: "TtkvjyMinionPro-Regular" }]]),
+    );
+    expect(decoder.fontFamily).toBe("MinionPro-Regular");
+  });
+
   it("uses FontDescriptor MissingWidth for absent character widths", async () => {
     const descriptor: PdfDict = new Map([["MissingWidth", 321]]);
     const reader = {

@@ -140,7 +140,11 @@ export async function loadFontEncoding(
 
 function baseFontName(font: PdfDict): string | undefined {
   const value = font.get("BaseFont");
-  return isName(value) ? value.value.replace(/^[A-Z]{6}\+/, "") : undefined;
+  return isName(value) ? stripSubsetPrefix(value.value) : undefined;
+}
+
+function stripSubsetPrefix(value: string): string {
+  return value.replace(/^[A-Za-z]{6}\+/, "").replace(/^[A-Za-z]{6}(?=(?:Minion|Myriad))/i, "");
 }
 
 async function loadFontWidths(
@@ -249,7 +253,7 @@ function standardFontWidths(
 ): ((bytes: Uint8Array) => number) | undefined {
   const baseFont = font.get("BaseFont");
   if (!isName(baseFont)) return undefined;
-  const name = baseFont.value.replace(/^[A-Z]{6}\+/, "");
+  const name = stripSubsetPrefix(baseFont.value);
   if (!standardFontNames.has(name)) return undefined;
   const metrics = Font.load(name as IFontNames);
   return (bytes) => {

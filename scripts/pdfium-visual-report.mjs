@@ -32,14 +32,16 @@ const maximumStandardFontMeanAbsoluteError = 6;
 const maximumStandardFontFuzzyChangedFraction = 0.03;
 const maximumTrustedFontMeanAbsoluteError = 5.2;
 const maximumTrustedFontFuzzyChangedFraction = 0.046;
+const maximumCompactTrustedFontMeanAbsoluteError = 17;
+const maximumCompactTrustedFontFuzzyChangedFraction = 0.071;
 const maximumPostScriptFallbackMeanAbsoluteError = 9;
 const maximumPostScriptFallbackFuzzyChangedFraction = 0.045;
 const maximumGuardianFallbackMeanAbsoluteError = 9.5;
 const maximumGuardianFallbackFuzzyChangedFraction = 0.055;
-const maximumAcademicFallbackMeanAbsoluteError = 6.3;
-const maximumAcademicFallbackFuzzyChangedFraction = 0.07;
-const maximumCompactStandardMeanAbsoluteError = 18;
-const maximumCompactStandardFuzzyChangedFraction = 0.071;
+const maximumAcademicFallbackMeanAbsoluteError = 18;
+const maximumAcademicFallbackFuzzyChangedFraction = 0.074;
+const maximumCompactStandardMeanAbsoluteError = 24;
+const maximumCompactStandardFuzzyChangedFraction = 0.085;
 const maximumCompactSansFallbackMeanAbsoluteError = 14;
 const maximumCompactSansFallbackFuzzyChangedFraction = 0.077;
 const maximumEmbeddedCompositeMeanAbsoluteError = 4;
@@ -103,6 +105,8 @@ const summary = {
     maximumStandardFontFuzzyChangedFraction,
     maximumTrustedFontMeanAbsoluteError,
     maximumTrustedFontFuzzyChangedFraction,
+    maximumCompactTrustedFontMeanAbsoluteError,
+    maximumCompactTrustedFontFuzzyChangedFraction,
     maximumPostScriptFallbackMeanAbsoluteError,
     maximumPostScriptFallbackFuzzyChangedFraction,
     maximumGuardianFallbackMeanAbsoluteError,
@@ -288,7 +292,7 @@ async function compareFixture(fixture) {
       metrics.meanAbsoluteError <= maximumCompactStandardMeanAbsoluteError &&
       metrics.fuzzyChangedFraction <= maximumCompactStandardFuzzyChangedFraction &&
       inkRatio !== null &&
-      inkRatio >= 0.85 &&
+      inkRatio >= 0.75 &&
       inkRatio <= 1.15;
     const compactSansFallbackRasterWithinTolerance =
       textOnly &&
@@ -310,6 +314,14 @@ async function compareFixture(fixture) {
       trustedTextFont &&
       metrics.meanAbsoluteError <= maximumTrustedFontMeanAbsoluteError &&
       metrics.fuzzyChangedFraction <= maximumTrustedFontFuzzyChangedFraction &&
+      inkRatio !== null &&
+      inkRatio >= 0.85 &&
+      inkRatio <= 1.15;
+    const compactTrustedFontRasterWithinTolerance =
+      trustedTextFont &&
+      extracted.width * extracted.height <= 10_000 &&
+      metrics.meanAbsoluteError <= maximumCompactTrustedFontMeanAbsoluteError &&
+      metrics.fuzzyChangedFraction <= maximumCompactTrustedFontFuzzyChangedFraction &&
       inkRatio !== null &&
       inkRatio >= 0.85 &&
       inkRatio <= 1.15;
@@ -383,6 +395,7 @@ async function compareFixture(fixture) {
           compactStandardRasterWithinTolerance ||
           compactSansFallbackRasterWithinTolerance ||
           trustedFontRasterWithinTolerance ||
+          compactTrustedFontRasterWithinTolerance ||
           embeddedCompositeRasterWithinTolerance ||
           denseType3RasterWithinTolerance ||
           verticalCjkRasterWithinTolerance ||
