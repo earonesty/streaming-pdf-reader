@@ -11,6 +11,7 @@ export interface FontDecoder {
   codeUnitBytes?: 1 | 2;
   fontFamily?: string;
   fontAssetId?: string;
+  fontFormat?: "truetype" | "type3";
   advance?(bytes: Uint8Array): number;
   verticalAdvance?(bytes: Uint8Array): number;
   verticalOrigin?(bytes: Uint8Array): { x: number; y: number };

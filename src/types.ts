@@ -22,6 +22,8 @@ export interface TextSpan {
   fontFamily?: string | undefined;
   /** Page-scoped identifier for an extracted embedded font program. */
   fontAssetId?: string | undefined;
+  /** Original character codes for a Type3 glyph program. */
+  glyphCodes?: number[] | undefined;
   /** Text fill color serialized as a six-digit CSS hex value. */
   color?: string | undefined;
   fillOpacity?: number | undefined;
@@ -38,7 +40,7 @@ export interface TextSpan {
   source: SourceRef;
 }
 
-export interface EmbeddedFont {
+export interface EmbeddedTrueTypeFont {
   id: string;
   family?: string | undefined;
   format: "truetype";
@@ -60,6 +62,22 @@ export interface VectorPath {
   strokeOpacity?: number | undefined;
   fillRule?: "nonzero" | "evenodd" | undefined;
 }
+
+export interface Type3Glyph {
+  code: number;
+  advance: number;
+  fills?: VectorFill[] | undefined;
+  paths?: VectorPath[] | undefined;
+}
+
+export interface EmbeddedType3Font {
+  id: string;
+  family?: string | undefined;
+  format: "type3";
+  glyphs: Type3Glyph[];
+}
+
+export type EmbeddedFont = EmbeddedTrueTypeFont | EmbeddedType3Font;
 
 export interface ExtractedPage {
   number: number;

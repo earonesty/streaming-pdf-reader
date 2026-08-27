@@ -51,6 +51,20 @@ export async function extractPageGraphics(
   return { fills, paths };
 }
 
+export async function extractGraphicsStream(
+  reader: PdfObjectReader,
+  bytes: Uint8Array,
+  resources: PdfDict | undefined,
+  initialCtm: Matrix,
+): Promise<{ fills: VectorFill[]; paths: VectorPath[] }> {
+  const fills: VectorFill[] = [];
+  const paths: VectorPath[] = [];
+  const state = createState();
+  state.ctm = [...initialCtm];
+  await interpret(reader, bytes, state, resources, fills, paths, 0, new Set());
+  return { fills, paths };
+}
+
 function createState(): GraphicsState {
   return {
     ctm: [...identity],

@@ -34,6 +34,7 @@ import {
   translate,
 } from "./text-matrix.js";
 import { cloneTextState, createTextState, restoreTextState, type TextState } from "./text-state.js";
+import { extractType3Font } from "./type3.js";
 
 export { reorderBidiLines, reorderMixedRtlCitation } from "./bidi.js";
 
@@ -423,6 +424,7 @@ function showString(
     fontName: state.font,
     ...(font?.fontFamily ? { fontFamily: font.fontFamily } : {}),
     ...(font?.fontAssetId ? { fontAssetId: font.fontAssetId } : {}),
+    ...(font?.fontFormat === "type3" ? { glyphCodes: [...bytes] } : {}),
     color: state.fillColor,
     ...(state.fillOpacity !== 1 ? { fillOpacity: state.fillOpacity } : {}),
     ...(state.renderingMode === 1 ||
@@ -535,10 +537,13 @@ async function loadFonts(
     const toUnicodeValue = font.get("ToUnicode");
     const encoding = await loadFontEncoding(reader, font, toUnicodeValue === undefined);
     const fontAssetId = `font-${fontAssets.length + 1}`;
-    const asset = await extractTrueTypeFont(reader, font, fontAssetId, encoding.fontFamily);
+    const asset =
+      (await extractType3Font(reader, font, fontAssetId, encoding.fontFamily)) ??
+      (await extractTrueTypeFont(reader, font, fontAssetId, encoding.fontFamily));
     if (asset) {
       fontAssets.push(asset);
       encoding.fontAssetId = fontAssetId;
+      encoding.fontFormat = asset.format;
     }
     if (toUnicodeValue) {
       const toUnicode = await reader.resolve(toUnicodeValue);
@@ -550,6 +555,7 @@ async function loadFonts(
           codeUnitBytes: codeBytes === 2 ? 2 : 1,
           ...(encoding.fontFamily ? { fontFamily: encoding.fontFamily } : {}),
           ...(encoding.fontAssetId ? { fontAssetId: encoding.fontAssetId } : {}),
+          ...(encoding.fontFormat ? { fontFormat: encoding.fontFormat } : {}),
           ...(encoding.advance ? { advance: encoding.advance } : {}),
           ...(encoding.verticalAdvance ? { verticalAdvance: encoding.verticalAdvance } : {}),
           ...(encoding.verticalOrigin ? { verticalOrigin: encoding.verticalOrigin } : {}),
@@ -569,6 +575,7 @@ async function loadFonts(
         codeUnitBytes: 2,
         ...(encoding.fontFamily ? { fontFamily: encoding.fontFamily } : {}),
         ...(encoding.fontAssetId ? { fontAssetId: encoding.fontAssetId } : {}),
+        ...(encoding.fontFormat ? { fontFormat: encoding.fontFormat } : {}),
         ...(encoding.advance ? { advance: encoding.advance } : {}),
         ...(encoding.verticalAdvance ? { verticalAdvance: encoding.verticalAdvance } : {}),
         ...(encoding.verticalOrigin ? { verticalOrigin: encoding.verticalOrigin } : {}),

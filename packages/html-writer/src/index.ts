@@ -1,4 +1,10 @@
-import type { EmbeddedFont, ExtractedPage, TextSpan } from "@boxpdf/reader";
+import type {
+  EmbeddedFont,
+  EmbeddedType3Font,
+  ExtractedPage,
+  TextSpan,
+  Type3Glyph,
+} from "@boxpdf/reader";
 import { structurePage, type Table, tableToHtml } from "@boxpdf/reader/structure";
 
 export type HtmlLayout = "positioned" | "flow";
@@ -77,8 +83,13 @@ async function writePositionedPage(
   );
   const fontAliases = new Map(
     (page.fonts ?? [])
-      .filter((font) => !/courier|mono/i.test(font.family ?? ""))
+      .filter((font) => font.format === "truetype" && !/courier|mono/i.test(font.family ?? ""))
       .map((font) => [font.id, `boxpdf-${page.number}-${font.id}`]),
+  );
+  const type3Fonts = new Map(
+    (page.fonts ?? [])
+      .filter((font): font is EmbeddedType3Font => font.format === "type3")
+      .map((font) => [font.id, font]),
   );
   if ((options.includeStyles ?? true) && page.fonts?.length) {
     await write(`<style>${page.fonts.map((font) => fontFace(font, fontAliases)).join("")}</style>`);
@@ -120,7 +131,14 @@ async function writePositionedPage(
     await write("</g>");
   }
   for (const span of page.spans) {
-    if (!usesPositionedSpan(span)) await write(visualText(span, page.height, fontAliases));
+    if (!usesPositionedSpan(span)) {
+      const type3 = span.fontAssetId ? type3Fonts.get(span.fontAssetId) : undefined;
+      await write(
+        type3
+          ? visualType3Text(span, type3, page.height)
+          : visualText(span, page.height, fontAliases),
+      );
+    }
   }
   await write("</svg>");
   for (const span of page.spans) {
@@ -211,6 +229,46 @@ function visualText(span: TextSpan, pageHeight: number, fontAliases: Map<string,
   return `<text${direction}${position} font-size="${number(span.fontSize)}"${textLength}${style ? ` style="${style}"` : ""}>${escapeHtml(span.text)}</text>`;
 }
 
+function visualType3Text(span: TextSpan, font: EmbeddedType3Font, pageHeight: number): string {
+  if (span.renderingMode === 3 || span.renderingMode === 7) return "";
+  const glyphs = new Map(font.glyphs.map((glyph) => [glyph.code, glyph]));
+  const sequence = (span.glyphCodes ?? []).map((code) => glyphs.get(code));
+  const totalAdvance = sequence.reduce((total, glyph) => total + (glyph?.advance ?? 0), 0);
+  if (totalAdvance <= 0 || span.bounds.width <= 0 || span.fontSize <= 0) return "";
+  const transform = span.transform ?? [1, 0, 0, 1];
+  const outer = `matrix(${transform.map(number).join(" ")} ${number(span.bounds.x)} ${number(pageHeight - span.bounds.y)})`;
+  const xScale = span.bounds.width / totalAdvance;
+  let offset = 0;
+  let content = "";
+  for (const glyph of sequence) {
+    if (!glyph) continue;
+    content += `<g transform="translate(${number(offset)} 0)">${type3Glyph(glyph)}</g>`;
+    offset += glyph.advance;
+  }
+  return `<g transform="${outer}"><g transform="scale(${number(xScale)} ${number(-span.fontSize)})">${content}</g></g>`;
+}
+
+function type3Glyph(glyph: Type3Glyph): string {
+  let output = "";
+  for (const fill of glyph.fills ?? []) {
+    if (!isCssHexColor(fill.color)) continue;
+    const points = fill.points.map(([x, y]) => `${number(x)},${number(y)}`).join(" ");
+    const opacity = isUnitInterval(fill.opacity) ? ` fill-opacity="${number(fill.opacity)}"` : "";
+    output += `<polygon points="${points}" fill="${fill.color}"${opacity}/>`;
+  }
+  for (const path of glyph.paths ?? []) {
+    if (!isSvgPath(path.d)) continue;
+    const fill = isCssHexColor(path.fill) ? path.fill : "none";
+    const stroke = isCssHexColor(path.stroke) ? path.stroke : "none";
+    const width =
+      path.strokeWidth !== undefined && Number.isFinite(path.strokeWidth) && path.strokeWidth >= 0
+        ? ` stroke-width="${number(path.strokeWidth)}"`
+        : "";
+    output += `<path d="${path.d}" fill="${fill}" stroke="${stroke}"${width}/>`;
+  }
+  return output;
+}
+
 function isCssHexColor(value: string | undefined): value is string {
   return /^#[\da-f]{6}$/i.test(value ?? "");
 }
@@ -245,7 +303,9 @@ function isMonospace(fontFamily: string | undefined): boolean {
 }
 
 function usesPositionedSpan(span: TextSpan): boolean {
-  return isMonospace(span.fontFamily) && !hasNonIdentityTransform(span.transform);
+  return (
+    !span.glyphCodes && isMonospace(span.fontFamily) && !hasNonIdentityTransform(span.transform)
+  );
 }
 
 function hasNonIdentityTransform(transform: TextSpan["transform"]): boolean {
@@ -255,6 +315,7 @@ function hasNonIdentityTransform(transform: TextSpan["transform"]): boolean {
 }
 
 function fontFace(font: EmbeddedFont, aliases: Map<string, string>): string {
+  if (font.format !== "truetype") return "";
   const alias = aliases.get(font.id);
   if (!alias) return "";
   const styles = fontStyles(font.family, alias).filter(

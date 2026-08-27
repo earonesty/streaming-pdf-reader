@@ -20,14 +20,56 @@ describe("text flow normalization", () => {
     const reader = await openPdf(source);
     try {
       const page = await reader.getPage(0);
-      const embedded = page.fonts?.find((font) => font.family === "DejaVuSans");
+      const embedded = page.fonts?.find(
+        (font) => font.format === "truetype" && font.family === "DejaVuSans",
+      );
       expect(embedded?.format).toBe("truetype");
+      if (embedded?.format !== "truetype")
+        throw new Error("missing embedded TrueType fixture font");
       expect(embedded?.data.length).toBeGreaterThan(1_000);
       expect(page.spans.some((span) => span.fontAssetId === embedded?.id)).toBe(true);
     } finally {
       reader.close();
       await source.close();
     }
+  });
+
+  it("extracts Type3 vector glyph programs as page-scoped assets", async () => {
+    const pdf = `%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Count 1 /Kids [3 0 R] >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100]
+/Resources << /Font << /F0 5 0 R >> >> /Contents 4 0 R >> endobj
+4 0 obj << /Length 40 >> stream
+BT /F0 12 Tf 20 50 Td (ab) Tj ET
+endstream endobj
+5 0 obj << /Type /Font /Subtype /Type3 /FontBBox [0 0 750 750]
+/FontMatrix [0.001 0 0 0.001 0 0] /FirstChar 97 /LastChar 98 /Widths [1000 1000]
+/Encoding << /Differences [97 /square /triangle] >>
+/CharProcs << /square 6 0 R /triangle 7 0 R >> >> endobj
+6 0 obj << /Length 50 >> stream
+1000 0 0 0 750 750 d1 0 0 750 750 re f
+endstream endobj
+7 0 obj << /Length 60 >> stream
+1000 0 0 0 750 750 d1 0 0 m 375 750 l 750 0 l f
+endstream endobj
+trailer << /Root 1 0 R /Size 8 >> %%EOF`;
+    const reader = await openPdf(memorySource(new TextEncoder().encode(pdf)));
+    const page = await reader.getPage(0);
+    const font = page.fonts?.find((asset) => asset.format === "type3");
+    expect(font?.format).toBe("type3");
+    if (font?.format !== "type3") throw new Error("missing extracted Type3 font");
+    expect(font.glyphs).toHaveLength(2);
+    expect(font.glyphs[0]).toMatchObject({ code: 97, advance: 1 });
+    expect(font.glyphs[0]?.fills?.[0]?.points).toEqual([
+      [0, 0],
+      [0.75, 0],
+      [0.75, 0.75],
+      [0, 0.75],
+    ]);
+    expect(font.glyphs[1]?.paths?.[0]?.d).toBe("M0 0L0.375 0.75L0.75 0");
+    expect(page.spans[0]).toMatchObject({ text: "ab", glyphCodes: [97, 98] });
+    reader.close();
   });
 
   it("reorders visual RTL chunks by line while retaining LTR lines", () => {

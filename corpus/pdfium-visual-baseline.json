@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 14,
+  "passed": 15,
   "passingFixtureIds": [
     "bug1947248-text",
     "issue10301",
@@ -16,7 +16,8 @@
     "issue5421",
     "issue7878",
     "operator-in-tj-array",
-    "rotated"
+    "rotated",
+    "simpletype3font"
   ],
   "thresholds": {
     "channelDelta": 12,

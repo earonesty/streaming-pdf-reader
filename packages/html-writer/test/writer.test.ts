@@ -173,6 +173,68 @@ describe("HTML writer", () => {
     ).not.toContain("@font-face");
   });
 
+  it("renders page-scoped Type3 vector glyph programs as SVG", async () => {
+    const html = await pageToHtml({
+      ...page,
+      fonts: [
+        {
+          id: "type3-1",
+          format: "type3",
+          glyphs: [
+            {
+              code: 97,
+              advance: 1,
+              fills: [
+                {
+                  points: [
+                    [0, 0],
+                    [0.75, 0],
+                    [0.75, 0.75],
+                    [0, 0.75],
+                  ],
+                  color: "#000000",
+                },
+              ],
+            },
+            {
+              code: 98,
+              advance: 1,
+              paths: [{ d: "M0 0L0.375 0.75L0.75 0Z", fill: "#000000" }],
+            },
+          ],
+        },
+      ],
+      spans: [
+        {
+          ...span("ab", 20, 700),
+          bounds: { x: 20, y: 700, width: 24, height: 12 },
+          fontSize: 12,
+          fontAssetId: "type3-1",
+          glyphCodes: [97, 98],
+        },
+      ],
+    });
+    expect(html).toContain('<g transform="matrix(1 0 0 1 20 92)">');
+    expect(html).toContain('transform="scale(12 -12)"');
+    expect(html).toContain('<polygon points="0,0 0.75,0 0.75,0.75 0,0.75" fill="#000000"/>');
+    expect(html).toContain('<g transform="translate(1 0)"><path d="M0 0L0.375 0.75L0.75 0Z"');
+    expect(html).not.toContain(">ab</text>");
+
+    const hidden = await pageToHtml({
+      ...page,
+      fonts: [{ id: "type3-1", format: "type3", glyphs: [] }],
+      spans: [
+        {
+          ...span("hidden", 20, 700),
+          fontAssetId: "type3-1",
+          glyphCodes: [97],
+          renderingMode: 3,
+        },
+      ],
+    });
+    expect(hidden).not.toContain("hidden");
+  });
+
   it("awaits output chunks and supports document metadata", async () => {
     const chunks: string[] = [];
     let writes = 0;
