@@ -229,6 +229,24 @@ describe("HTML writer", () => {
     expect(html).toContain("font-family:Arial,Helvetica,sans-serif");
   });
 
+  it("substitutes legacy TTE font programs with bold sans text", async () => {
+    const html = await pageToHtml({
+      ...page,
+      fonts: [
+        { id: "font-1", family: "TTE1A07870t00", format: "truetype", data: Uint8Array.of(0) },
+      ],
+      spans: [
+        {
+          ...span("Legacy", 20, 700),
+          fontFamily: "TTE1A07870t00",
+          fontAssetId: "font-1",
+        },
+      ],
+    });
+    expect(html).not.toContain("@font-face");
+    expect(html).toContain("font-family:Arial,Helvetica,sans-serif;font-weight:700");
+  });
+
   it("maps unembedded Guardian Egyptian text to a stable serif fallback", async () => {
     const html = await pageToHtml({
       ...page,

@@ -19,6 +19,22 @@ describe("embedded TrueType metrics", () => {
     expect(tags).toContain("OS/2");
   });
 
+  it("pads omitted horizontal side bearings in malformed subsets", () => {
+    const malformed = buildTrueTypeFont();
+    const source = new DataView(malformed.buffer);
+    source.setUint16(160 + 4, 4);
+    const rebuilt = remapTrueTypeCmap(malformed, new Map()) ?? new Uint8Array();
+    const view = new DataView(rebuilt.buffer, rebuilt.byteOffset, rebuilt.byteLength);
+    const tableCount = view.getUint16(4);
+    let hmtxLength = 0;
+    for (let index = 0; index < tableCount; index += 1) {
+      const record = 12 + index * 16;
+      const tag = new TextDecoder("latin1").decode(rebuilt.subarray(record, record + 4));
+      if (tag === "hmtx") hmtxLength = view.getUint32(record + 12);
+    }
+    expect(hmtxLength).toBe(14);
+  });
+
   it("rebuilds a browser cmap with supplementary Unicode-to-glyph mappings", () => {
     const remapped = remapTrueTypeCmap(
       buildFormat4TrueTypeFont(),

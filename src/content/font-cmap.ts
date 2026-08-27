@@ -21,6 +21,7 @@ export function remapTrueTypeCmap(
   const records = tables.map((table) =>
     table.tag === "cmap" && cmap ? { tag: "cmap", data: cmap } : table,
   );
+  repairHorizontalMetrics(records);
   if (cmap && !records.some((table) => table.tag === "cmap")) {
     records.push({ tag: "cmap", data: cmap });
   }
@@ -35,6 +36,21 @@ export function remapTrueTypeCmap(
   }
   records.sort((left, right) => (left.tag < right.tag ? -1 : left.tag > right.tag ? 1 : 0));
   return buildFont(font, records);
+}
+
+function repairHorizontalMetrics(tables: TableRecord[]): void {
+  const hhea = tables.find((table) => table.tag === "hhea")?.data;
+  const maxp = tables.find((table) => table.tag === "maxp")?.data;
+  const hmtx = tables.find((table) => table.tag === "hmtx");
+  if (!hhea || hhea.length < 36 || !maxp || maxp.length < 6 || !hmtx) return;
+  const glyphCount = u16(maxp, 4);
+  const metricCount = u16(hhea, 34);
+  if (metricCount === 0 || metricCount > glyphCount) return;
+  const expected = metricCount * 4 + (glyphCount - metricCount) * 2;
+  if (hmtx.data.length >= expected || hmtx.data.length < metricCount * 4) return;
+  const repaired = new Uint8Array(expected);
+  repaired.set(hmtx.data);
+  hmtx.data = repaired;
 }
 
 function maxGlyphCount(tables: TableRecord[]): number {

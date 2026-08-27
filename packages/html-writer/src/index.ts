@@ -85,7 +85,7 @@ async function writePositionedPage(
   );
   const fontAliases = new Map(
     (page.fonts ?? [])
-      .filter((font) => font.format === "truetype" && !/courier/i.test(font.family ?? ""))
+      .filter((font) => font.format === "truetype" && !/(?:courier|^TTE)/i.test(font.family ?? ""))
       .map((font) => [font.id, `boxpdf-${page.number}-${font.id}`]),
   );
   const type3Fonts = new Map(
@@ -371,13 +371,13 @@ function fontStyles(fontFamily: string | undefined, alias?: string): string[] {
     /times|minion|serif|baskerville|georgia|nimbusrom|guardian.*egyp|^cm[rs]y?\d/.test(normalized)
   ) {
     fallback = "Times New Roman,Times,serif";
-  } else if (/helvetica|arial|sans|nimbussan|calibre|myriad/.test(normalized)) {
+  } else if (/helvetica|arial|sans|nimbussan|calibre|myriad|^tte/.test(normalized)) {
     fallback = "Arial,Helvetica,sans-serif";
   } else if (/^mstt/.test(normalized)) {
     fallback = "Arial,Helvetica,sans-serif";
   }
   if (alias || fallback) styles.push(`font-family:${[alias, fallback].filter(Boolean).join(",")}`);
-  if (/bold|black|semibold|demi|medi/.test(normalized)) styles.push("font-weight:700");
+  if (/bold|black|semibold|demi|medi|^tte/.test(normalized)) styles.push("font-weight:700");
   if (/italic|oblique|slant|ital(?:$|[_-])/.test(normalized)) styles.push("font-style:italic");
   return styles;
 }

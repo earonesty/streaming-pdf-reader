@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 54,
+  "passed": 55,
   "passingFixtureIds": [
     "arabiccidtruetype",
     "bug1245391-reduced",
@@ -49,6 +49,7 @@
     "issue7180",
     "issue7580",
     "issue7878",
+    "issue8229",
     "issue8372",
     "issue8702",
     "issue9655-reduced",
