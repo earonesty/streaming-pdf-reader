@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 51,
+  "passed": 52,
   "passingFixtureIds": [
     "arabiccidtruetype",
     "bug1245391-reduced",
@@ -26,6 +26,7 @@
     "issue15629",
     "issue15910",
     "issue16221",
+    "issue16224",
     "issue18059",
     "issue18117",
     "issue19800",
@@ -80,6 +81,8 @@
     "maximumAcademicFallbackFuzzyChangedFraction": 0.07,
     "maximumCompactStandardMeanAbsoluteError": 18,
     "maximumCompactStandardFuzzyChangedFraction": 0.071,
+    "maximumCompactSansFallbackMeanAbsoluteError": 14,
+    "maximumCompactSansFallbackFuzzyChangedFraction": 0.06,
     "minimumInkRatio": 0.78,
     "maximumInkRatio": 1.25
   }

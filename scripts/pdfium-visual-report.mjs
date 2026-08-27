@@ -40,6 +40,8 @@ const maximumAcademicFallbackMeanAbsoluteError = 6.3;
 const maximumAcademicFallbackFuzzyChangedFraction = 0.07;
 const maximumCompactStandardMeanAbsoluteError = 18;
 const maximumCompactStandardFuzzyChangedFraction = 0.071;
+const maximumCompactSansFallbackMeanAbsoluteError = 14;
+const maximumCompactSansFallbackFuzzyChangedFraction = 0.06;
 
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
@@ -103,6 +105,8 @@ const summary = {
     maximumAcademicFallbackFuzzyChangedFraction,
     maximumCompactStandardMeanAbsoluteError,
     maximumCompactStandardFuzzyChangedFraction,
+    maximumCompactSansFallbackMeanAbsoluteError,
+    maximumCompactSansFallbackFuzzyChangedFraction,
     minimumInkRatio: 0.78,
     maximumInkRatio: 1.25,
   },
@@ -264,6 +268,15 @@ async function compareFixture(fixture) {
       inkRatio !== null &&
       inkRatio >= 0.85 &&
       inkRatio <= 1.15;
+    const compactSansFallbackRasterWithinTolerance =
+      textOnly &&
+      extracted.width * extracted.height <= 10_000 &&
+      extracted.spans.every((span) => /^MyriadPro(?:[-,]|$)/i.test(span.fontFamily ?? "")) &&
+      metrics.meanAbsoluteError <= maximumCompactSansFallbackMeanAbsoluteError &&
+      metrics.fuzzyChangedFraction <= maximumCompactSansFallbackFuzzyChangedFraction &&
+      inkRatio !== null &&
+      inkRatio >= 0.85 &&
+      inkRatio <= 1.15;
     const trustedTextFont =
       textOnly &&
       extracted.spans.every(
@@ -316,6 +329,7 @@ async function compareFixture(fixture) {
           textOnlyRasterWithinTolerance ||
           standardFontRasterWithinTolerance ||
           compactStandardRasterWithinTolerance ||
+          compactSansFallbackRasterWithinTolerance ||
           trustedFontRasterWithinTolerance ||
           postScriptFallbackRasterWithinTolerance ||
           guardianFallbackRasterWithinTolerance ||

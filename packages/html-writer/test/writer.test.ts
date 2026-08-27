@@ -221,6 +221,14 @@ describe("HTML writer", () => {
     expect(html).toContain("font-family:Arial,Helvetica,sans-serif");
   });
 
+  it("uses a sans-serif fallback for MyriadPro fonts", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [{ ...span("Myriad", 20, 700), fontFamily: "MyriadPro-Regular" }],
+    });
+    expect(html).toContain("font-family:Arial,Helvetica,sans-serif");
+  });
+
   it("maps unembedded Guardian Egyptian text to a stable serif fallback", async () => {
     const html = await pageToHtml({
       ...page,
