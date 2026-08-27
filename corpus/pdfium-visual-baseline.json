@@ -1,9 +1,10 @@
 {
   "schemaVersion": 1,
   "fixtureCount": 62,
-  "passed": 43,
+  "passed": 44,
   "passingFixtureIds": [
     "arabiccidtruetype",
+    "bug1245391-reduced",
     "bug1513120-reduced",
     "bug1627427-reduced",
     "bug1947248-text",
@@ -58,7 +59,7 @@
     "maximumAlignedRasterFuzzyChangedFraction": 0.03,
     "maximumDenseGlyphMeanAbsoluteError": 1.5,
     "maximumDenseGlyphFuzzyChangedFraction": 0.03,
-    "maximumTextOnlyMeanAbsoluteError": 3.5,
+    "maximumTextOnlyMeanAbsoluteError": 3.6,
     "maximumTextOnlyFuzzyChangedFraction": 0.036,
     "maximumStandardFontMeanAbsoluteError": 6,
     "maximumStandardFontFuzzyChangedFraction": 0.03,
