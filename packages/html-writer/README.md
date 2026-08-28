@@ -69,11 +69,11 @@ Poppler's `pdftohtml -c -hidden -noframes -zoom 1` output. Poppler serves as an
 independent test oracle. The writer's memory contract covers the reader and
 HTML serialization.
 
-`pnpm poppler:report` runs the visual writer over all 62 text fixtures in
-the pinned PDF.js corpus. The checked-in baseline currently records exact text
-and geometry agreement on 51 fixtures. The remaining cases are retained in the
-denominator; most exercise intentional PDF.js/Poppler differences in RTL text,
-font encodings, or malformed Unicode maps. `pnpm poppler:gate` rejects any loss
+`pnpm poppler:report` runs the visual writer over every text fixture in the
+pinned PDF.js corpus. Cases where visual glyph rendering intentionally replaces
+extractable HTML text remain explicit in the baseline, alongside known
+PDF.js/Poppler differences in RTL text, font encodings, and malformed Unicode
+maps. `pnpm poppler:gate` rejects any loss
 from the known-good pass set and runs in CI.
 
 The writer retains the reader's logical Unicode order. RTL spans and flow lines
