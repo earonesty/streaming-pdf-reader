@@ -82,7 +82,7 @@
     "poppler:gate": "pnpm run build && pnpm --dir packages/html-writer build && pnpm corpus:fetch && node scripts/poppler-html-report.mjs --gate",
     "poppler:report": "pnpm run build && pnpm --dir packages/html-writer build && pnpm corpus:fetch && node scripts/poppler-html-report.mjs",
     "release:check": "pnpm run build && pnpm --dir packages/html-writer build && node scripts/package-smoke.mjs",
-    "release:quality": "pnpm run corpus:check && pnpm run check && pnpm run test && pnpm run test:coverage && pnpm run parity:target && pnpm run build && pnpm run package:check && pnpm --dir packages/html-writer quality && pnpm run release:check",
+    "release:quality": "pnpm run build && pnpm run corpus:check && pnpm run check && pnpm run test && pnpm run test:coverage && pnpm run parity:target && pnpm run package:check && pnpm --dir packages/html-writer quality && pnpm run release:check",
     "package:check": "publint && pnpm pack --dry-run",
     "parity:baseline": "pnpm run build && pnpm corpus:fetch && node scripts/parity-report.mjs --write-baseline",
     "parity:gate": "pnpm run build && pnpm corpus:fetch && node scripts/parity-report.mjs --gate",
