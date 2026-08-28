@@ -7,6 +7,7 @@ import {
   tableToRows,
 } from "@boxpdf/reader/structure";
 import { dominantTextColor, semanticTextHtml } from "./semantic-inline.js";
+import { type SemanticMedia, semanticMedia } from "./semantic-media.js";
 
 export interface SemanticDocumentStats {
   pagesProcessed: number;
@@ -20,6 +21,7 @@ interface BufferedPage {
   width: number;
   height: number;
   structured: StructuredPage;
+  media: SemanticMedia[];
 }
 
 interface ActiveTable {
@@ -43,6 +45,7 @@ export async function writeSemanticDocument(
   const seenFurniture = new Set<string>();
   const sectionLevels: number[] = [];
   let activeTable: ActiveTable | undefined;
+  const pendingMedia: string[] = [];
   let headerOpen = false;
   let headerHasParagraph = false;
   let contentStarted = false;
@@ -60,6 +63,7 @@ export async function writeSemanticDocument(
     if (!activeTable) return;
     await write("</table>");
     activeTable = undefined;
+    while (pendingMedia.length > 0) await write(pendingMedia.shift() ?? "");
   };
 
   const closeSections = async (minimumLevel = 0) => {
@@ -83,10 +87,19 @@ export async function writeSemanticDocument(
 
   const emitPage = async (page: BufferedPage, future: BufferedPage[]) => {
     const defaultColor = dominantTextColor(page.structured.lines);
+    let mediaIndex = 0;
     const futureFurniture = new Set(future.flatMap((candidate) => marginSignatures(candidate)));
     const repeatedFurniture = new Set([...seenFurniture, ...futureFurniture]);
     for (const [blockIndex, block] of page.structured.blocks.entries()) {
       const nextBlock = page.structured.blocks[blockIndex + 1];
+      const blockY = semanticBlockY(block);
+      while ((page.media[mediaIndex]?.bounds.y ?? -Infinity) >= blockY) {
+        await flushPendingParagraph();
+        const html = `<div class="pdf-semantic-visual">${page.media[mediaIndex]?.html}</div>`;
+        if (activeTable) pendingMedia.push(html);
+        else await write(html);
+        mediaIndex += 1;
+      }
       if (isRepeatedFurniture(block, page, repeatedFurniture)) {
         stats.suppressedFurniture += 1;
         continue;
@@ -183,12 +196,19 @@ export async function writeSemanticDocument(
       }
       await write(semanticBlockHtml(block, defaultColor));
     }
+    while (mediaIndex < page.media.length) {
+      await flushPendingParagraph();
+      const html = `<div class="pdf-semantic-visual">${page.media[mediaIndex]?.html}</div>`;
+      if (activeTable) pendingMedia.push(html);
+      else await write(html);
+      mediaIndex += 1;
+    }
     for (const signature of marginSignatures(page)) seenFurniture.add(signature);
   };
 
   for await (const page of pages) {
     const structured = structurePage(page);
-    buffer.push({ width: page.width, height: page.height, structured });
+    buffer.push({ width: page.width, height: page.height, structured, media: semanticMedia(page) });
     stats.pagesProcessed += 1;
     stats.peakBufferedPages = Math.max(stats.peakBufferedPages, buffer.length);
     stats.peakBufferedLines = Math.max(
@@ -399,6 +419,11 @@ function semanticBlockHtml(
   }
   const tag = block.ordered ? "ol" : "ul";
   return `<${tag}>${block.items.map((item) => `<li>${escapeHtml(item.text)}</li>`).join("")}</${tag}>`;
+}
+
+function semanticBlockY(block: SemanticBlock): number {
+  const lines = block.type === "list" ? block.items.flatMap((item) => item.lines) : block.lines;
+  return Math.max(...lines.map((line) => line.bounds.y + line.bounds.height));
 }
 
 function cardTableRow(item: Extract<SemanticBlock, { type: "cardList" }>["items"][number]): string {

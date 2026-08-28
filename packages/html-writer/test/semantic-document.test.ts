@@ -156,7 +156,8 @@ describe("semantic document flow", () => {
     expect(html.match(/<table>/g)).toHaveLength(1);
     expect(html).toContain("<header><h1>INVOICE</h1>");
     expect(html).toContain("#2026-001872");
-    expect(html).toContain("Issued: May 14, 2026 Bill to: Onward Travel, LLC.");
+    expect(html).toContain("Issued: May 14, 2026");
+    expect(html).toContain("Bill to: Onward Travel, LLC.");
     expect(html.match(/Service line item #/g)).toHaveLength(80);
     expect(html).toContain("<th>Description</th><th>Qty</th><th>Unit</th><th>Amount</th>");
     expect(html).toContain("Subtotal");

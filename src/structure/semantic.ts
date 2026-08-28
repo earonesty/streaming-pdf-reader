@@ -49,6 +49,7 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
   const documentSpans = lines.flatMap((line) => line.spans);
   const documentIsProportional =
     documentSpans.filter(isMonospaced).length < documentSpans.length * 0.5;
+  const hangingEdges = inferHangingEdges(lines);
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
@@ -164,6 +165,7 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
       if (!next || tableForLine.has(next) || listMarker(next.text)) break;
       if (
         inferHeadingLevel(next, bodySize, largestSize) ||
+        startsNextHangingItem(paragraphLines, next, hangingEdges) ||
         !isContinuation(paragraphLines.at(-1), next)
       )
         break;
@@ -174,6 +176,52 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
     blocks.push({ type: "paragraph", text, lines: paragraphLines });
   }
   return blocks;
+}
+
+function startsNextHangingItem(
+  paragraph: TextLine[],
+  next: TextLine,
+  hangingEdges: Array<{ x: number; continuationStep: number }>,
+): boolean {
+  const first = paragraph[0];
+  const previous = paragraph.at(-1);
+  if (!first || !previous) return false;
+  const scale = Math.max(first.bounds.height, previous.bounds.height, next.bounds.height);
+  const hangingIndent = previous.bounds.x - first.bounds.x;
+  const returnsToOuterEdge = Math.abs(next.bounds.x - first.bounds.x) <= Math.max(3, scale * 0.3);
+  const knownOuterEdge = hangingEdges.find(
+    (edge) => Math.abs(first.bounds.x - edge.x) <= 3 && Math.abs(next.bounds.x - edge.x) <= 3,
+  );
+  const baselineStep = Math.abs(previous.bounds.y - next.bounds.y);
+  const separatedSingleton =
+    paragraph.length === 1 &&
+    knownOuterEdge !== undefined &&
+    baselineStep >= knownOuterEdge.continuationStep * 1.15;
+  return (
+    returnsToOuterEdge &&
+    (separatedSingleton || (paragraph.length >= 2 && hangingIndent >= Math.max(4, scale * 0.35)))
+  );
+}
+
+function inferHangingEdges(lines: TextLine[]): Array<{ x: number; continuationStep: number }> {
+  const edges: Array<{ x: number; continuationStep: number }> = [];
+  for (let index = 0; index + 2 < lines.length; index += 1) {
+    const outer = lines[index];
+    const indented = lines[index + 1];
+    if (!outer || !indented) continue;
+    const scale = Math.max(outer.bounds.height, indented.bounds.height);
+    if (indented.bounds.x - outer.bounds.x < Math.max(4, scale * 0.35)) continue;
+    const returns = lines
+      .slice(index + 2, index + 7)
+      .some((line) => Math.abs(line.bounds.x - outer.bounds.x) <= Math.max(3, scale * 0.3));
+    if (returns && !edges.some((edge) => Math.abs(edge.x - outer.bounds.x) <= 3)) {
+      edges.push({
+        x: outer.bounds.x,
+        continuationStep: Math.abs(outer.bounds.y - indented.bounds.y),
+      });
+    }
+  }
+  return edges;
 }
 
 function preformattedRun(

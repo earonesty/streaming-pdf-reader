@@ -7,9 +7,10 @@ import type {
   Type3Glyph,
   VectorPath,
 } from "@boxpdf/reader";
-import { structurePage, tableToHtml } from "@boxpdf/reader/structure";
+import { type SemanticBlock, structurePage, tableToHtml } from "@boxpdf/reader/structure";
 import { type SemanticDocumentStats, writeSemanticDocument } from "./semantic-document.js";
 import { dominantTextColor, semanticTextHtml } from "./semantic-inline.js";
+import { semanticMedia } from "./semantic-media.js";
 
 export type { SemanticDocumentStats } from "./semantic-document.js";
 
@@ -327,10 +328,17 @@ function positionedSpan(span: TextSpan, fontAliases: Map<string, string>): strin
 async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<void> {
   const structured = structurePage(page);
   const defaultColor = dominantTextColor(structured.lines);
+  const media = semanticMedia(page);
+  let mediaIndex = 0;
   await write(
     `<section class="pdf-page pdf-page--semantic pdf-page--flow" data-page="${page.number}">`,
   );
   for (const block of structured.blocks) {
+    const blockY = semanticBlockY(block);
+    while ((media[mediaIndex]?.bounds.y ?? -Infinity) >= blockY) {
+      await write(`<div class="pdf-semantic-visual">${media[mediaIndex]?.html}</div>`);
+      mediaIndex += 1;
+    }
     if (block.type === "table") await write(tableToHtml(block.table));
     else if (block.type === "heading") {
       await write(
@@ -377,7 +385,16 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
       await write(`</${tag}>`);
     }
   }
+  while (mediaIndex < media.length) {
+    await write(`<div class="pdf-semantic-visual">${media[mediaIndex]?.html}</div>`);
+    mediaIndex += 1;
+  }
   await write("</section>");
+}
+
+function semanticBlockY(block: SemanticBlock): number {
+  const lines = block.type === "list" ? block.items.flatMap((item) => item.lines) : block.lines;
+  return Math.max(...lines.map((line) => line.bounds.y + line.bounds.height));
 }
 
 function visualText(

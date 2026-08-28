@@ -119,6 +119,29 @@ describe("language-independent semantic inference", () => {
       text: "Ana García*, Benoît Martin*, Chloé Dubois†",
     });
   });
+
+  it("separates hanging-indent entries when text returns to the outer edge", () => {
+    const blocks = inferSemanticBlocks(
+      [
+        line("Alpha entry begins here and wraps", 40, 200, 10),
+        line("onto an indented continuation line.", 54, 188, 10),
+        line("Beta entry begins at the outer edge", 40, 174, 10),
+        line("and has its own indented continuation.", 54, 162, 10),
+      ],
+      [],
+    );
+
+    expect(blocks).toMatchObject([
+      {
+        type: "paragraph",
+        text: "Alpha entry begins here and wraps onto an indented continuation line.",
+      },
+      {
+        type: "paragraph",
+        text: "Beta entry begins at the outer edge and has its own indented continuation.",
+      },
+    ]);
+  });
 });
 
 function line(

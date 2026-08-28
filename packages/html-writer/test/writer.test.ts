@@ -131,6 +131,31 @@ describe("HTML writer", () => {
     expect(html.indexOf("<image")).toBeLessThan(html.indexOf("<text"));
   });
 
+  it("keeps unclassified raster and vector media in semantic flow", async () => {
+    const html = await pageToHtml(
+      {
+        ...page,
+        images: [
+          {
+            width: 1,
+            height: 1,
+            format: "rgb",
+            data: Uint8Array.of(255, 0, 0),
+            transform: [80, 0, 0, 40, 20, 620],
+          },
+        ],
+        paths: [{ d: "M20 500L120 500L120 560Z", fill: "#112233" }],
+      },
+      { profile: "semantic" },
+    );
+
+    expect(html).toContain('<img class="pdf-semantic-media"');
+    expect(html).toContain('<svg class="pdf-semantic-media"');
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).not.toContain("<figure");
+    expect(html).not.toContain("<figcaption");
+  });
+
   it("applies extracted clipping paths to images and vector paths", async () => {
     const clip = { d: "M10 20L40 20L40 60L10 60Z" };
     const html = await pageToHtml({
