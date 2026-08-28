@@ -121,6 +121,8 @@
     "maximumDenseType3FuzzyChangedFraction": 0.045,
     "maximumVerticalCjkMeanAbsoluteError": 8.2,
     "maximumVerticalCjkFuzzyChangedFraction": 0.03,
+    "minimumColorRatio": 0.35,
+    "maximumColorRatio": 1.25,
     "minimumInkRatio": 0.78,
     "maximumInkRatio": 1.25
   }

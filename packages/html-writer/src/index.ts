@@ -475,7 +475,7 @@ function visualType3Text(span: TextSpan, font: EmbeddedType3Font, pageHeight: nu
   let content = "";
   for (const glyph of sequence) {
     if (!glyph) continue;
-    content += `<g transform="translate(${number(offset)} 0)">${type3Glyph(glyph)}</g>`;
+    content += `<g transform="translate(${number(offset)} 0)">${type3Glyph(glyph, span.color)}</g>`;
     offset += glyph.advance;
   }
   return `<g transform="${outer}"><g transform="scale(${number(xScale)} ${number(-span.fontSize)})">${content}</g></g>`;
@@ -489,18 +489,29 @@ function usesSpacingAdjustment(span: TextSpan): boolean {
   return !span.fontAssetId && /arial/i.test(span.fontFamily ?? "");
 }
 
-function type3Glyph(glyph: Type3Glyph): string {
+function type3Glyph(glyph: Type3Glyph, textColor?: string): string {
   let output = "";
   for (const fill of glyph.fills ?? []) {
-    if (!isCssHexColor(fill.color)) continue;
+    const color = glyph.usesTextColor && isCssHexColor(textColor) ? textColor : fill.color;
+    if (!isCssHexColor(color)) continue;
     const points = fill.points.map(([x, y]) => `${number(x)},${number(y)}`).join(" ");
     const opacity = isUnitInterval(fill.opacity) ? ` fill-opacity="${number(fill.opacity)}"` : "";
-    output += `<polygon points="${points}" fill="${fill.color}"${opacity}/>`;
+    output += `<polygon points="${points}" fill="${color}"${opacity}/>`;
   }
   for (const path of glyph.paths ?? []) {
     if (!isSvgPath(path.d)) continue;
-    const fill = isCssHexColor(path.fill) ? path.fill : "none";
-    const stroke = isCssHexColor(path.stroke) ? path.stroke : "none";
+    const fill =
+      glyph.usesTextColor && isCssHexColor(textColor)
+        ? textColor
+        : isCssHexColor(path.fill)
+          ? path.fill
+          : "none";
+    const stroke =
+      glyph.usesTextColor && isCssHexColor(textColor) && path.stroke
+        ? textColor
+        : isCssHexColor(path.stroke)
+          ? path.stroke
+          : "none";
     const width =
       path.strokeWidth !== undefined && Number.isFinite(path.strokeWidth) && path.strokeWidth >= 0
         ? ` stroke-width="${number(path.strokeWidth)}"`

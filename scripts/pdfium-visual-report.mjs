@@ -54,6 +54,8 @@ const maximumDenseType3MeanAbsoluteError = 5.1;
 const maximumDenseType3FuzzyChangedFraction = 0.045;
 const maximumVerticalCjkMeanAbsoluteError = 8.2;
 const maximumVerticalCjkFuzzyChangedFraction = 0.03;
+const minimumColorRatio = 0.35;
+const maximumColorRatio = 1.25;
 
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
@@ -133,6 +135,8 @@ const summary = {
     maximumDenseType3FuzzyChangedFraction,
     maximumVerticalCjkMeanAbsoluteError,
     maximumVerticalCjkFuzzyChangedFraction,
+    minimumColorRatio,
+    maximumColorRatio,
     minimumInkRatio: 0.78,
     maximumInkRatio: 1.25,
   },
@@ -282,6 +286,15 @@ async function compareFixture(fixture, onPage) {
             : null
           : metrics.candidateInkPixels / metrics.referenceInkPixels;
       const inkWithinTolerance = inkRatio !== null && inkRatio >= 0.78 && inkRatio <= 1.25;
+      const colorRatio =
+        metrics.referenceColorPixels === 0
+          ? metrics.candidateColorPixels === 0
+            ? 1
+            : null
+          : metrics.candidateColorPixels / metrics.referenceColorPixels;
+      const colorWithinTolerance =
+        metrics.referenceColorPixels < 100 ||
+        (colorRatio !== null && colorRatio >= minimumColorRatio && colorRatio <= maximumColorRatio);
       const fuzzyWithinTolerance =
         metrics.fuzzyChangedFraction <= maximumFuzzyChangedFraction ||
         metrics.fuzzyChangedPixels <= maximumFuzzyChangedPixels;
@@ -467,7 +480,8 @@ async function compareFixture(fixture, onPage) {
             academicPageRasterWithinTolerance
           ? "PASS_TOLERANCE"
           : "FAIL_VISUAL";
-      const status = structuralRequirementsMet ? pixelStatus : "FAIL_VISUAL";
+      const status =
+        structuralRequirementsMet && colorWithinTolerance ? pixelStatus : "FAIL_VISUAL";
       const fixtureDirectory = resolve(artifactRoot, fixture.id, `page-${pageIndex + 1}`);
       await mkdir(fixtureDirectory, { recursive: true });
       await Promise.all([
@@ -498,6 +512,9 @@ async function compareFixture(fixture, onPage) {
         referenceInkPixels: metrics.referenceInkPixels,
         candidateInkPixels: metrics.candidateInkPixels,
         inkRatio,
+        referenceColorPixels: metrics.referenceColorPixels,
+        candidateColorPixels: metrics.candidateColorPixels,
+        colorRatio,
         structuralRequirementsMet,
         clippedImages,
         clippedPaths,
@@ -522,6 +539,8 @@ function comparePixels(reference, candidate, width, height) {
   let absoluteError = 0;
   let referenceInkPixels = 0;
   let candidateInkPixels = 0;
+  let referenceColorPixels = 0;
+  let candidateColorPixels = 0;
   for (let pixel = 0; pixel < pixelCount; pixel += 1) {
     const offset = pixel * 4;
     let maximumDelta = 0;
@@ -534,6 +553,8 @@ function comparePixels(reference, candidate, width, height) {
     if (maximumDelta > 12) strictChanged += 1;
     if (isInk(reference, offset)) referenceInkPixels += 1;
     if (isInk(candidate, offset)) candidateInkPixels += 1;
+    if (isColor(reference, offset)) referenceColorPixels += 1;
+    if (isColor(candidate, offset)) candidateColorPixels += 1;
     const fuzzyDelta = neighborhoodDelta(reference, candidate, pixel, width, height);
     if (fuzzyDelta > 12) fuzzyChanged += 1;
     const intensity = Math.min(255, maximumDelta * 4);
@@ -551,11 +572,20 @@ function comparePixels(reference, candidate, width, height) {
     meanAbsoluteError: absoluteError / (pixelCount * 3),
     referenceInkPixels,
     candidateInkPixels,
+    referenceColorPixels,
+    candidateColorPixels,
   };
 }
 
 function isInk(pixels, offset) {
   return pixels[offset] < 240 || pixels[offset + 1] < 240 || pixels[offset + 2] < 240;
+}
+
+function isColor(pixels, offset) {
+  const red = pixels[offset];
+  const green = pixels[offset + 1];
+  const blue = pixels[offset + 2];
+  return Math.max(red, green, blue) - Math.min(red, green, blue) > 20;
 }
 
 function neighborhoodDelta(reference, candidate, pixel, width, height) {

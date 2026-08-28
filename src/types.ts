@@ -90,6 +90,8 @@ export interface RasterImage {
 export interface Type3Glyph {
   code: number;
   advance: number;
+  /** Glyph program relies on the surrounding PDF text fill color. */
+  usesTextColor?: true | undefined;
   fills?: VectorFill[] | undefined;
   paths?: VectorPath[] | undefined;
 }

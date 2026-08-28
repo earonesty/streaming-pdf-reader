@@ -41,6 +41,7 @@ export async function extractType3Font(
     glyphs.push({
       code,
       advance: Math.abs(width * matrix[0]),
+      ...(!setsPaintColor(bytes) ? { usesTextColor: true as const } : {}),
       ...(fills.length > 0 ? { fills } : {}),
       ...(graphics.paths.length > 0 ? { paths: graphics.paths } : {}),
     });
@@ -48,6 +49,11 @@ export async function extractType3Font(
   return glyphs.length > 0
     ? { id, ...(family ? { family } : {}), format: "type3", glyphs }
     : undefined;
+}
+
+function setsPaintColor(bytes: Uint8Array): boolean {
+  const source = new TextDecoder("latin1").decode(bytes);
+  return /(?:^|\s)(?:g|G|rg|RG|k|K|sc|SC|scn|SCN)(?:\s|$)/.test(source);
 }
 
 async function type3CodeNames(

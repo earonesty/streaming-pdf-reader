@@ -14,6 +14,7 @@ import {
   pdfMatrix,
   transformPoint,
 } from "./graphics-matrix.js";
+import { shadingColor } from "./shading.js";
 import { contentStreams } from "./streams.js";
 import { effectiveLineWidth, pageOriginMatrix } from "./text-matrix.js";
 
@@ -197,6 +198,19 @@ async function applyOperator(
   if (operator === "n") {
     commitClip(state);
     resetPath(state);
+    return;
+  }
+  if (operator === "sh") {
+    const color = await shadingColor(reader, resources, args.at(-1));
+    const paintClip = state.clips.at(-1);
+    if (color && paintClip) {
+      paths.push({
+        d: paintClip.d,
+        fill: color,
+        ...(state.fillOpacity !== 1 ? { fillOpacity: state.fillOpacity } : {}),
+        ...(state.clips.length > 1 ? { clips: state.clips.slice(0, -1) } : {}),
+      });
+    }
     return;
   }
   if (operator === "Do") {
