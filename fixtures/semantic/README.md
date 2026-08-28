@@ -1,8 +1,9 @@
 # Semantic extraction fixtures
 
-These fixtures define semantic intent independently of visual layout. The PDFs are copied from the
-BoxPDF gallery, except `research-paper.pdf`, which is the public PDF.js `tracemonkey.pdf` fixture used
-by the reader demo.
+These fixtures define semantic intent independently of visual layout. Most PDFs are copied from the
+BoxPDF gallery. `research-paper.pdf` is the public PDF.js `tracemonkey.pdf` fixture used by the reader
+demo; `scicap-paper.pdf` and `aquarius-brochure.pdf` are independent public documents retained with
+their original source URLs in the manifest.
 
 `manifest.json` is hand-authored. Its assertions are deliberately relational: they say which content
 must remain associated, which content must occur in reading order, and which visual containers must
