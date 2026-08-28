@@ -100,7 +100,8 @@ describe("HTML writer", () => {
         },
       ],
     });
-    expect(html).toContain('<polygon points="10,772 40,772 40,732 10,732" fill="#00ff00"/>');
+    expect(html).toContain('<g transform="translate(0 792) scale(1 -1)">');
+    expect(html).toContain('<polygon points="10,20 40,20 40,60 10,60" fill="#00ff00"/>');
     expect(html.indexOf("<polygon")).toBeLessThan(html.indexOf("<text"));
   });
 

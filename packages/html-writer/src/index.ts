@@ -4,13 +4,18 @@ import type {
   RasterImage,
   TextSpan,
   Type3Glyph,
-  VectorPath,
 } from "@boxpdf/reader";
 import { type SemanticBlock, structurePage, tableToHtml } from "@boxpdf/reader/structure";
 import { clearMediaCaptionAssociations } from "./semantic-caption.js";
 import { type SemanticDocumentStats, writeSemanticDocument } from "./semantic-document.js";
 import { dominantTextColor, semanticTextHtml } from "./semantic-inline.js";
 import { semanticMedia, withoutSemanticMediaSpans } from "./semantic-media.js";
+import {
+  isSvgPath,
+  vectorFillSvg,
+  vectorPathClipDefinitions,
+  vectorPathSvg,
+} from "./vector-svg.js";
 import { base64, visualFontAliases, visualFontFace, visualFontStyles } from "./visual-font.js";
 
 export type { SemanticDocumentStats } from "./semantic-document.js";
@@ -128,50 +133,21 @@ async function writePositionedPage(
   );
   const clipDefinitions =
     imageClipDefinitions(page.images ?? [], page.number, page.height) +
-    pathClipDefinitions(page.paths ?? [], page.number);
+    vectorPathClipDefinitions(
+      (page.paths ?? []).map((path, index) => ({ path, index })),
+      page.number,
+    );
   if (clipDefinitions) await write(`<defs>${clipDefinitions}</defs>`);
   if (reflectedOverlay) {
     for (const [index, image] of (page.images ?? []).entries()) {
       await write(visualImage(image, page.height, page.number, index));
     }
   }
-  for (const fill of page.fills ?? []) {
-    const points = fill.points.map(([x, y]) => `${number(x)},${number(page.height - y)}`).join(" ");
-    if (isCssHexColor(fill.color)) {
-      const opacity = isUnitInterval(fill.opacity) ? ` fill-opacity="${number(fill.opacity)}"` : "";
-      await write(`<polygon points="${points}" fill="${fill.color}"${opacity}/>`);
-    }
-  }
-  if (page.paths?.length) {
+  if (page.fills?.length || page.paths?.length) {
     await write(`<g transform="translate(0 ${number(page.height)}) scale(1 -1)">`);
-    for (const [pathIndex, path] of page.paths.entries()) {
-      if (!isSvgPath(path.d)) continue;
-      const fill = isCssHexColor(path.fill) ? path.fill : "none";
-      const stroke = isCssHexColor(path.stroke) ? path.stroke : "none";
-      const strokeWidth =
-        path.strokeWidth !== undefined && Number.isFinite(path.strokeWidth) && path.strokeWidth >= 0
-          ? ` stroke-width="${number(path.strokeWidth)}"`
-          : "";
-      const fillRule = path.fillRule ? ` fill-rule="${path.fillRule}"` : "";
-      const fillOpacity = isUnitInterval(path.fillOpacity)
-        ? ` fill-opacity="${number(path.fillOpacity)}"`
-        : "";
-      const strokeOpacity = isUnitInterval(path.strokeOpacity)
-        ? ` stroke-opacity="${number(path.strokeOpacity)}"`
-        : "";
-      const dasharray = path.strokeDasharray?.every((value) => Number.isFinite(value) && value >= 0)
-        ? ` stroke-dasharray="${path.strokeDasharray.map(number).join(" ")}"`
-        : "";
-      const dashoffset = Number.isFinite(path.strokeDashoffset)
-        ? ` stroke-dashoffset="${number(path.strokeDashoffset ?? 0)}"`
-        : "";
-      const linecap = path.strokeLinecap ? ` stroke-linecap="${path.strokeLinecap}"` : "";
-      const linejoin = path.strokeLinejoin ? ` stroke-linejoin="${path.strokeLinejoin}"` : "";
-      let output = `<path d="${path.d}" fill="${fill}" stroke="${stroke}"${strokeWidth}${fillOpacity}${strokeOpacity}${dasharray}${dashoffset}${linecap}${linejoin}${fillRule}/>`;
-      for (let index = (path.clips?.length ?? 0) - 1; index >= 0; index -= 1) {
-        output = `<g clip-path="url(#${pathClipId(page.number, pathIndex, index)})">${output}</g>`;
-      }
-      await write(output);
+    for (const fill of page.fills ?? []) await write(vectorFillSvg(fill));
+    for (const [pathIndex, path] of (page.paths ?? []).entries()) {
+      await write(vectorPathSvg(path, page.number, pathIndex));
     }
     await write("</g>");
   }
@@ -249,22 +225,6 @@ function imageClipDefinitions(
 
 function imageClipId(pageNumber: number, imageIndex: number, clipIndex: number): string {
   return `boxpdf-clip-${pageNumber}-${imageIndex}-${clipIndex}`;
-}
-
-function pathClipDefinitions(paths: VectorPath[], pageNumber: number): string {
-  return paths
-    .flatMap((path, pathIndex) =>
-      (path.clips ?? []).map((clip, clipIndex) => {
-        if (!isSvgPath(clip.d)) return "";
-        const fillRule = clip.fillRule ? ` clip-rule="${clip.fillRule}"` : "";
-        return `<clipPath id="${pathClipId(pageNumber, pathIndex, clipIndex)}" clipPathUnits="userSpaceOnUse"><path d="${clip.d}"${fillRule}/></clipPath>`;
-      }),
-    )
-    .join("");
-}
-
-function pathClipId(pageNumber: number, pathIndex: number, clipIndex: number): string {
-  return `boxpdf-path-clip-${pageNumber}-${pathIndex}-${clipIndex}`;
 }
 
 function rgbBmp(image: RasterImage): Uint8Array {
@@ -584,10 +544,6 @@ function isCssHexColor(value: string | undefined): value is string {
 
 function isUnitInterval(value: number | undefined): value is number {
   return Number.isFinite(value) && (value ?? -1) >= 0 && (value ?? 2) <= 1;
-}
-
-function isSvgPath(value: string): boolean {
-  return value.length <= 1_000_000 && /^[\d\s.,+\-eEMmLlCcZz]+$/.test(value);
 }
 
 function isMonospace(fontFamily: string | undefined): boolean {
