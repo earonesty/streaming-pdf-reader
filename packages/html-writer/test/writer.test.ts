@@ -156,6 +156,37 @@ describe("HTML writer", () => {
     expect(html).not.toContain("<figcaption");
   });
 
+  it("keeps visually remapped font labels inside vector artwork", async () => {
+    const label = {
+      ...span('!"#', 30, 520),
+      fontAssetId: "font-1",
+      fontFamily: "ChartSubset",
+    };
+    const html = await pageToHtml(
+      {
+        ...page,
+        spans: [label],
+        visualSpans: [label],
+        fonts: [
+          {
+            id: "font-1",
+            family: "ChartSubset",
+            format: "truetype",
+            data: Uint8Array.of(0, 1, 2),
+            visualCodeMapping: true,
+          },
+        ],
+        paths: [{ d: "M20 500L120 500L120 560L20 560Z", fill: "#112233" }],
+      },
+      { profile: "semantic" },
+    );
+
+    expect(html).toContain("@font-face");
+    expect(html).toContain(">!&quot;#</text>");
+    expect(html).toContain("pdf-semantic-media");
+    expect(html.replace(/<svg[\s\S]*<\/svg>/, "")).not.toContain("!&quot;#");
+  });
+
   it("applies extracted clipping paths to images and vector paths", async () => {
     const clip = { d: "M10 20L40 20L40 60L10 60Z" };
     const html = await pageToHtml({

@@ -45,6 +45,8 @@ export interface EmbeddedTrueTypeFont {
   family?: string | undefined;
   format: "truetype";
   data: Uint8Array;
+  /** Browser cmap rebuilt from PDF character codes because usable Unicode was absent. */
+  visualCodeMapping?: true | undefined;
 }
 
 export interface VectorFill {

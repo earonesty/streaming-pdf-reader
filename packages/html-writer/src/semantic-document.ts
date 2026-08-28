@@ -7,7 +7,7 @@ import {
   tableToRows,
 } from "@boxpdf/reader/structure";
 import { dominantTextColor, semanticTextHtml } from "./semantic-inline.js";
-import { type SemanticMedia, semanticMedia } from "./semantic-media.js";
+import { type SemanticMedia, semanticMedia, withoutSemanticMediaSpans } from "./semantic-media.js";
 
 export interface SemanticDocumentStats {
   pagesProcessed: number;
@@ -207,8 +207,9 @@ export async function writeSemanticDocument(
   };
 
   for await (const page of pages) {
-    const structured = structurePage(page);
-    buffer.push({ width: page.width, height: page.height, structured, media: semanticMedia(page) });
+    const media = semanticMedia(page);
+    const structured = structurePage(withoutSemanticMediaSpans(page, media));
+    buffer.push({ width: page.width, height: page.height, structured, media });
     stats.pagesProcessed += 1;
     stats.peakBufferedPages = Math.max(stats.peakBufferedPages, buffer.length);
     stats.peakBufferedLines = Math.max(

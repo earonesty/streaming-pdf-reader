@@ -532,11 +532,13 @@ async function loadFonts(
     if (asset) {
       if (asset.format === "truetype") {
         const cidMappings = await loadCidUnicodeGlyphMap(reader, font, toUnicodeValue);
-        const mappings =
+        const symbolicMappings =
           cidMappings.size > 0
-            ? cidMappings
+            ? new Map<number, number>()
             : await symbolicTrueTypeGlyphMap(reader, font, asset.data, encoding);
+        const mappings = cidMappings.size > 0 ? cidMappings : symbolicMappings;
         asset.data = remapTrueTypeCmap(asset.data, mappings) ?? asset.data;
+        if (symbolicMappings.size > 0) asset.visualCodeMapping = true;
       }
       fontAssets.push(asset);
       encoding.fontAssetId = fontAssetId;

@@ -1,5 +1,4 @@
 import type {
-  EmbeddedFont,
   EmbeddedType3Font,
   ExtractedPage,
   RasterImage,
@@ -10,7 +9,8 @@ import type {
 import { type SemanticBlock, structurePage, tableToHtml } from "@boxpdf/reader/structure";
 import { type SemanticDocumentStats, writeSemanticDocument } from "./semantic-document.js";
 import { dominantTextColor, semanticTextHtml } from "./semantic-inline.js";
-import { semanticMedia } from "./semantic-media.js";
+import { semanticMedia, withoutSemanticMediaSpans } from "./semantic-media.js";
+import { base64, visualFontAliases, visualFontFace, visualFontStyles } from "./visual-font.js";
 
 export type { SemanticDocumentStats } from "./semantic-document.js";
 
@@ -108,18 +108,16 @@ async function writePositionedPage(
   await write(
     `<section class="pdf-page pdf-page--visual pdf-page--positioned" data-page="${page.number}" data-rotate="${page.rotate}" style="width:${number(displayWidth)}pt;height:${number(displayHeight)}pt">`,
   );
-  const fontAliases = new Map(
-    (page.fonts ?? [])
-      .filter((font) => font.format === "truetype" && !/(?:courier|^TTE)/i.test(font.family ?? ""))
-      .map((font) => [font.id, `boxpdf-${page.number}-${font.id}`]),
-  );
+  const fontAliases = visualFontAliases(page.number, page.fonts ?? []);
   const type3Fonts = new Map(
     (page.fonts ?? [])
       .filter((font): font is EmbeddedType3Font => font.format === "type3")
       .map((font) => [font.id, font]),
   );
   if ((options.includeStyles ?? true) && page.fonts?.length) {
-    await write(`<style>${page.fonts.map((font) => fontFace(font, fontAliases)).join("")}</style>`);
+    await write(
+      `<style>${page.fonts.map((font) => visualFontFace(font, fontAliases)).join("")}</style>`,
+    );
   }
   await write(
     `<div class="pdf-page-content pdf-page-content--${page.rotate}" style="width:${number(page.width)}pt;height:${number(page.height)}pt${rotationTransform(page)}">`,
@@ -317,7 +315,7 @@ function positionedSpan(span: TextSpan, fontAliases: Map<string, string>): strin
     `font-size:${number(span.fontSize)}pt`,
     ...(isCssHexColor(span.color) ? [`color:${span.color}`] : []),
     ...(isUnitInterval(span.fillOpacity) ? [`opacity:${number(span.fillOpacity)}`] : []),
-    ...fontStyles(
+    ...visualFontStyles(
       span.fontFamily,
       span.fontAssetId ? fontAliases.get(span.fontAssetId) : undefined,
     ),
@@ -326,9 +324,9 @@ function positionedSpan(span: TextSpan, fontAliases: Map<string, string>): strin
 }
 
 async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<void> {
-  const structured = structurePage(page);
-  const defaultColor = dominantTextColor(structured.lines);
   const media = semanticMedia(page);
+  const structured = structurePage(withoutSemanticMediaSpans(page, media));
+  const defaultColor = dominantTextColor(structured.lines);
   let mediaIndex = 0;
   await write(
     `<section class="pdf-page pdf-page--semantic pdf-page--flow" data-page="${page.number}">`,
@@ -406,7 +404,7 @@ function visualText(
   if (span.renderingMode === 3 || span.renderingMode === 7) return "";
   if (!span.fontAssetId && isAdobeCjkFont(span.fontFamily)) return "";
   const direction = directionAttribute([span]);
-  const font = fontStyles(
+  const font = visualFontStyles(
     span.fontFamily,
     span.fontAssetId ? fontAliases.get(span.fontAssetId) : undefined,
   ).join(";");
@@ -526,27 +524,6 @@ function isSvgPath(value: string): boolean {
   return value.length <= 1_000_000 && /^[\d\s.,+\-eEMmLlCcZz]+$/.test(value);
 }
 
-function fontStyles(fontFamily: string | undefined, alias?: string): string[] {
-  const normalized = fontFamily?.toLowerCase() ?? "";
-  const styles: string[] = [];
-  let fallback: string | undefined;
-  if (/courier|mono|nimbusmono|^cmtt/.test(normalized)) {
-    fallback = "Courier New,Courier,monospace";
-  } else if (
-    /times|minion|serif|baskerville|georgia|nimbusrom|guardian.*egyp|^cm[rs]y?\d/.test(normalized)
-  ) {
-    fallback = "Times New Roman,Times,serif";
-  } else if (/helvetica|arial|sans|nimbussan|calibre|myriad|panton|^tte/.test(normalized)) {
-    fallback = "Arial,Helvetica,sans-serif";
-  } else if (/^mstt/.test(normalized)) {
-    fallback = "Arial,Helvetica,sans-serif";
-  }
-  if (alias || fallback) styles.push(`font-family:${[alias, fallback].filter(Boolean).join(",")}`);
-  if (/bold|black|semibold|demi|medi|^tte/.test(normalized)) styles.push("font-weight:700");
-  if (/italic|oblique|slant|ital(?:$|[_-])/.test(normalized)) styles.push("font-style:italic");
-  return styles;
-}
-
 function isMonospace(fontFamily: string | undefined): boolean {
   return /courier|mono/i.test(fontFamily ?? "");
 }
@@ -561,31 +538,6 @@ function hasNonIdentityTransform(transform: TextSpan["transform"]): boolean {
   if (!transform) return false;
   const identity: [number, number, number, number] = [1, 0, 0, 1];
   return transform.some((value, index) => Math.abs(value - (identity[index] ?? 0)) > 0.000_001);
-}
-
-function fontFace(font: EmbeddedFont, aliases: Map<string, string>): string {
-  if (font.format !== "truetype") return "";
-  const alias = aliases.get(font.id);
-  if (!alias) return "";
-  const styles = fontStyles(font.family, alias).filter(
-    (style) => !style.startsWith("font-family:"),
-  );
-  return `@font-face{font-family:${alias};src:url(data:font/ttf;base64,${base64(font.data)}) format("truetype");${styles.join(";")}}`;
-}
-
-function base64(bytes: Uint8Array): string {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  let output = "";
-  for (let index = 0; index < bytes.length; index += 3) {
-    const first = bytes[index] ?? 0;
-    const second = bytes[index + 1] ?? 0;
-    const third = bytes[index + 2] ?? 0;
-    output += alphabet[first >> 2];
-    output += alphabet[((first & 3) << 4) | (second >> 4)];
-    output += index + 1 < bytes.length ? alphabet[((second & 15) << 2) | (third >> 6)] : "=";
-    output += index + 2 < bytes.length ? alphabet[third & 63] : "=";
-  }
-  return output;
 }
 
 function directionAttribute(spans: TextSpan[]): string {

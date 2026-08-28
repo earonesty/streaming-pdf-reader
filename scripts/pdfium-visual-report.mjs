@@ -172,10 +172,14 @@ if (gate) {
     );
   }
   const passingIds = new Set(passingPageIds);
-  const regressions = baseline.passingPageIds.filter((id) => !passingIds.has(id));
-  if (passingPageIds.length < baseline.passed || regressions.length > 0) {
+  const selectedFixtureIds = new Set(fixtures.map((fixture) => fixture.id));
+  const expectedPageIds = baseline.passingPageIds.filter((id) =>
+    selectedFixtureIds.has(id.slice(0, id.lastIndexOf(":page-"))),
+  );
+  const regressions = expectedPageIds.filter((id) => !passingIds.has(id));
+  if (passingPageIds.length < expectedPageIds.length || regressions.length > 0) {
     throw new Error(
-      `PDFium visual regression: ${passingPageIds.length}/${summary.pageCount} pages pass; baseline ${baseline.passed}/${baseline.pageCount}; regressed pages: ${regressions.join(", ") || "none"}`,
+      `PDFium visual regression: ${passingPageIds.length}/${summary.pageCount} selected pages pass; baseline expects ${expectedPageIds.length}; regressed pages: ${regressions.join(", ") || "none"}`,
     );
   }
 }
