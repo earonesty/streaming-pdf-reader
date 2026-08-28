@@ -7,6 +7,7 @@ import type {
   VectorPath,
 } from "@boxpdf/reader";
 import { type SemanticBlock, structurePage, tableToHtml } from "@boxpdf/reader/structure";
+import { clearMediaCaptionAssociations } from "./semantic-caption.js";
 import { type SemanticDocumentStats, writeSemanticDocument } from "./semantic-document.js";
 import { dominantTextColor, semanticTextHtml } from "./semantic-inline.js";
 import { semanticMedia, withoutSemanticMediaSpans } from "./semantic-media.js";
@@ -328,15 +329,35 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
   const structured = structurePage(withoutSemanticMediaSpans(page, media));
   const defaultColor = dominantTextColor(structured.lines);
   let mediaIndex = 0;
+  const captions = clearMediaCaptionAssociations(
+    media,
+    structured.blocks,
+    page.width,
+    page.height,
+    structured.lines,
+  );
+  const captionedMedia = new Set(captions.values());
   await write(
     `<section class="pdf-page pdf-page--semantic pdf-page--flow" data-page="${page.number}">`,
   );
   for (const block of structured.blocks) {
     const blockY = semanticBlockY(block);
+    let emittedAsCaption = false;
     while ((media[mediaIndex]?.bounds.y ?? -Infinity) >= blockY) {
-      await write(`<div class="pdf-semantic-visual">${media[mediaIndex]?.html}</div>`);
+      const item = media[mediaIndex];
+      if (item && captions.get(block) === item && block.type === "paragraph") {
+        await write(
+          `<figure class="pdf-semantic-figure">${item.html}<figcaption>${semanticTextHtml(block.text, block.lines, defaultColor)}</figcaption></figure>`,
+        );
+        mediaIndex += 1;
+        emittedAsCaption = true;
+        break;
+      }
+      if (item && captionedMedia.has(item)) break;
+      await write(`<div class="pdf-semantic-visual">${item?.html}</div>`);
       mediaIndex += 1;
     }
+    if (emittedAsCaption) continue;
     if (block.type === "table") await write(tableToHtml(block.table));
     else if (block.type === "heading") {
       await write(

@@ -181,6 +181,12 @@ describe("semantic flow fixture gate", () => {
     expect(html).toContain("is a key benefit of tracing");
     expect(html).not.toContain("INT.For");
     expect(html).not.toContain("is akey benefit");
+    expect(html).toMatch(
+      /<figure class="pdf-semantic-figure">[\s\S]*?<figcaption>[\s\S]*?Figure 10\.[\s\S]*?<\/figcaption><\/figure>/,
+    );
+    expect(html).toMatch(
+      /<figure class="pdf-semantic-figure">[\s\S]*?<figcaption>[\s\S]*?Figure 11\.[\s\S]*?<\/figcaption><\/figure>/,
+    );
   });
 });
 

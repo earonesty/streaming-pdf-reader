@@ -6,6 +6,7 @@ import {
   type Table,
   tableToRows,
 } from "@boxpdf/reader/structure";
+import { clearMediaCaptionAssociations } from "./semantic-caption.js";
 import { dominantTextColor, semanticTextHtml } from "./semantic-inline.js";
 import { type SemanticMedia, semanticMedia, withoutSemanticMediaSpans } from "./semantic-media.js";
 
@@ -88,18 +89,38 @@ export async function writeSemanticDocument(
   const emitPage = async (page: BufferedPage, future: BufferedPage[]) => {
     const defaultColor = dominantTextColor(page.structured.lines);
     let mediaIndex = 0;
+    const captions = clearMediaCaptionAssociations(
+      page.media,
+      page.structured.blocks,
+      page.width,
+      page.height,
+      page.structured.lines,
+    );
+    const captionedMedia = new Set(captions.values());
     const futureFurniture = new Set(future.flatMap((candidate) => marginSignatures(candidate)));
     const repeatedFurniture = new Set([...seenFurniture, ...futureFurniture]);
     for (const [blockIndex, block] of page.structured.blocks.entries()) {
       const nextBlock = page.structured.blocks[blockIndex + 1];
       const blockY = semanticBlockY(block);
+      let emittedAsCaption = false;
       while ((page.media[mediaIndex]?.bounds.y ?? -Infinity) >= blockY) {
         await flushPendingParagraph();
-        const html = `<div class="pdf-semantic-visual">${page.media[mediaIndex]?.html}</div>`;
+        const item = page.media[mediaIndex];
+        if (item && captions.get(block) === item && block.type === "paragraph") {
+          const html = `<figure class="pdf-semantic-figure">${item.html}<figcaption>${semanticTextHtml(block.text, block.lines, defaultColor)}</figcaption></figure>`;
+          if (activeTable) pendingMedia.push(html);
+          else await write(html);
+          mediaIndex += 1;
+          emittedAsCaption = true;
+          break;
+        }
+        if (item && captionedMedia.has(item)) break;
+        const html = `<div class="pdf-semantic-visual">${item?.html}</div>`;
         if (activeTable) pendingMedia.push(html);
         else await write(html);
         mediaIndex += 1;
       }
+      if (emittedAsCaption) continue;
       if (isRepeatedFurniture(block, page, repeatedFurniture)) {
         stats.suppressedFurniture += 1;
         continue;
