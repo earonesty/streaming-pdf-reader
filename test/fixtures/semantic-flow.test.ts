@@ -49,6 +49,7 @@ describe("semantic flow fixture gate", () => {
               if (block.type === "employment") {
                 return [block.role, block.organization, block.date];
               }
+              if (block.type === "preformatted") return [block.text];
               return [block.text];
             })
             .join(" "),

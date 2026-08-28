@@ -80,6 +80,45 @@ describe("language-independent semantic inference", () => {
       ],
     });
   });
+
+  it("treats a monospaced run inside proportional text as preformatted", () => {
+    const blocks = inferSemanticBlocks(
+      [
+        line("Introduction", 40, 260, 16, "Fixture-Bold"),
+        line("Proportional body text before the example.", 40, 240, 11),
+        line("Another proportional line establishes document context.", 40, 225, 11),
+        line("One more proportional line follows here.", 40, 210, 11),
+        line("1 boucle {", 40, 180, 10, "Fixture-Mono"),
+        line("2   valeur", 40, 168, 10, "Fixture-Mono"),
+        line("3 }", 40, 156, 10, "Fixture-Mono"),
+      ],
+      [],
+    );
+
+    expect(blocks.find((block) => block.type === "preformatted")).toMatchObject({
+      text: "1 boucle {\n2   valeur\n3 }",
+    });
+  });
+
+  it("uses the shallowest heading level for modestly enlarged byline text", () => {
+    const blocks = inferSemanticBlocks(
+      [
+        line("A Statistical Paper Title", 40, 300, 18, "Fixture-Bold"),
+        line("Ana García*, Benoît Martin*, Chloé Dubois†", 40, 270, 12),
+        line("The first body line establishes the document's dominant size.", 40, 240, 10),
+        line("The second body line supplies more proportional body text.", 40, 225, 10),
+        line("The third body line keeps the statistical signal stable.", 40, 210, 10),
+      ],
+      [],
+    );
+
+    expect(blocks[0]).toMatchObject({ type: "heading", level: 1 });
+    expect(blocks[1]).toMatchObject({
+      type: "heading",
+      level: 4,
+      text: "Ana García*, Benoît Martin*, Chloé Dubois†",
+    });
+  });
 });
 
 function line(

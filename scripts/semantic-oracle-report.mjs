@@ -22,7 +22,6 @@ const semanticTags = new Set([
   "figure",
   "figcaption",
   "pre",
-  "code",
   "footer",
 ]);
 

@@ -6,6 +6,7 @@ import {
   type Table,
   tableToRows,
 } from "@boxpdf/reader/structure";
+import { dominantTextColor, semanticTextHtml } from "./semantic-inline.js";
 
 export interface SemanticDocumentStats {
   pagesProcessed: number;
@@ -47,7 +48,11 @@ export async function writeSemanticDocument(
   let contentStarted = false;
   let employmentOpen = false;
   let pendingParagraph:
-    | { block: Extract<SemanticBlock, { type: "paragraph" }>; height: number }
+    | {
+        block: Extract<SemanticBlock, { type: "paragraph" }>;
+        height: number;
+        defaultColor: string;
+      }
     | undefined;
   await write('<article class="pdf-semantic-document">');
 
@@ -66,7 +71,7 @@ export async function writeSemanticDocument(
 
   const flushPendingParagraph = async () => {
     if (!pendingParagraph) return;
-    await write(semanticBlockHtml(pendingParagraph.block));
+    await write(semanticBlockHtml(pendingParagraph.block, pendingParagraph.defaultColor));
     pendingParagraph = undefined;
   };
 
@@ -77,9 +82,11 @@ export async function writeSemanticDocument(
   };
 
   const emitPage = async (page: BufferedPage, future: BufferedPage[]) => {
+    const defaultColor = dominantTextColor(page.structured.lines);
     const futureFurniture = new Set(future.flatMap((candidate) => marginSignatures(candidate)));
     const repeatedFurniture = new Set([...seenFurniture, ...futureFurniture]);
-    for (const block of page.structured.blocks) {
+    for (const [blockIndex, block] of page.structured.blocks.entries()) {
+      const nextBlock = page.structured.blocks[blockIndex + 1];
       if (isRepeatedFurniture(block, page, repeatedFurniture)) {
         stats.suppressedFurniture += 1;
         continue;
@@ -87,23 +94,29 @@ export async function writeSemanticDocument(
       await flushPendingParagraph();
       if (employmentOpen && block.type !== "list") await closeEmployment();
       if (!contentStarted && !headerOpen && block.type === "heading" && block.level === 1) {
-        await write(`<header><h1>${escapeHtml(block.text)}</h1>`);
+        await write(`<header><h1>${semanticTextHtml(block.text, block.lines, defaultColor)}</h1>`);
         headerOpen = true;
         continue;
       }
       if (headerOpen) {
         if (block.type === "paragraph") {
           const tag = isContactBlock(block) ? "address" : "p";
-          await write(`<${tag}>${escapeHtml(block.text)}</${tag}>`);
+          await write(
+            `<${tag}>${semanticTextHtml(block.text, block.lines, defaultColor)}</${tag}>`,
+          );
           headerHasParagraph = true;
           continue;
         }
         if (
           block.type === "heading" &&
           !headerHasParagraph &&
-          (block.level === 1 || block.text.trimStart().startsWith("#"))
+          (block.level === 1 ||
+            block.text.trimStart().startsWith("#") ||
+            (block.level === 4 && nextBlock?.type === "paragraph" && isContactBlock(nextBlock)))
         ) {
-          await write(`<h${block.level}>${escapeHtml(block.text)}</h${block.level}>`);
+          await write(
+            `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor)}</h${block.level}>`,
+          );
           continue;
         }
         await write("</header>");
@@ -140,7 +153,7 @@ export async function writeSemanticDocument(
         const level = contentStarted && block.level === 1 ? 2 : block.level;
         await closeSections(level);
         await write(
-          `<section data-level="${level}"><h${level}>${escapeHtml(block.text)}</h${level}>`,
+          `<section data-level="${level}"><h${level}>${semanticTextHtml(block.text, block.lines, defaultColor)}</h${level}>`,
         );
         sectionLevels.push(level);
         continue;
@@ -158,7 +171,7 @@ export async function writeSemanticDocument(
           );
           continue;
         }
-        pendingParagraph = { block, height: page.height };
+        pendingParagraph = { block, height: page.height, defaultColor };
         continue;
       }
       if (block.type === "employment") {
@@ -168,7 +181,7 @@ export async function writeSemanticDocument(
         employmentOpen = true;
         continue;
       }
-      await write(semanticBlockHtml(block));
+      await write(semanticBlockHtml(block, defaultColor));
     }
     for (const signature of marginSignatures(page)) seenFurniture.add(signature);
   };
@@ -196,7 +209,9 @@ export async function writeSemanticDocument(
   await closeEmployment();
   if (pendingParagraph && isFooterParagraph(pendingParagraph.block, pendingParagraph.height)) {
     await closeSections();
-    await write(`<footer>${semanticBlockHtml(pendingParagraph.block)}</footer>`);
+    await write(
+      `<footer>${semanticBlockHtml(pendingParagraph.block, pendingParagraph.defaultColor)}</footer>`,
+    );
     pendingParagraph = undefined;
   } else {
     await flushPendingParagraph();
@@ -343,10 +358,15 @@ function financialSummaryRow(
   return `<tr><th scope="row"${colspan}>${escapeHtml(entry.term)}</th><td>${escapeHtml(entry.description)}</td></tr>`;
 }
 
-function semanticBlockHtml(block: Exclude<SemanticBlock, { type: "table" }>): string {
+function semanticBlockHtml(
+  block: Exclude<SemanticBlock, { type: "table" }>,
+  defaultColor = "#000000",
+): string {
   if (block.type === "heading")
-    return `<h${block.level}>${escapeHtml(block.text)}</h${block.level}>`;
-  if (block.type === "paragraph") return `<p>${escapeHtml(block.text)}</p>`;
+    return `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor)}</h${block.level}>`;
+  if (block.type === "paragraph")
+    return `<p>${semanticTextHtml(block.text, block.lines, defaultColor)}</p>`;
+  if (block.type === "preformatted") return `<pre>${escapeHtml(block.text)}</pre>`;
   if (block.type === "definitionList") {
     if (
       block.entries.length <= 3 &&

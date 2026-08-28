@@ -1,8 +1,9 @@
 import type { Table, TextLine } from "./index.js";
 
 export type SemanticBlock =
-  | { type: "heading"; level: 1 | 2 | 3; text: string; lines: TextLine[] }
+  | { type: "heading"; level: 1 | 2 | 3 | 4; text: string; lines: TextLine[] }
   | { type: "paragraph"; text: string; lines: TextLine[] }
+  | { type: "preformatted"; text: string; lines: TextLine[] }
   | { type: "list"; ordered: boolean; items: Array<{ text: string; lines: TextLine[] }> }
   | {
       type: "definitionList";
@@ -45,10 +46,23 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
   const largestSize = fontSizes.at(-1) ?? bodySize;
   const blocks: SemanticBlock[] = [];
   const emittedTables = new Set<Table>();
+  const documentSpans = lines.flatMap((line) => line.spans);
+  const documentIsProportional =
+    documentSpans.filter(isMonospaced).length < documentSpans.length * 0.5;
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     if (!line) continue;
+    const preformatted = documentIsProportional ? preformattedRun(lines, index) : undefined;
+    if (preformatted) {
+      blocks.push({
+        type: "preformatted",
+        text: preformattedText(preformatted.lines),
+        lines: preformatted.lines,
+      });
+      index = preformatted.end - 1;
+      continue;
+    }
     const table = tableForLine.get(line);
     if (table) {
       if (!emittedTables.has(table)) {
@@ -160,6 +174,55 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
     blocks.push({ type: "paragraph", text, lines: paragraphLines });
   }
   return blocks;
+}
+
+function preformattedRun(
+  lines: TextLine[],
+  start: number,
+): { lines: TextLine[]; end: number } | undefined {
+  const run: TextLine[] = [];
+  let cursor = start;
+  while (cursor < lines.length) {
+    const line = lines[cursor];
+    if (!line || monospacedRatio(line) < 0.8) break;
+    const previous = run.at(-1);
+    if (previous) {
+      const gap = previous.bounds.y - (line.bounds.y + line.bounds.height);
+      if (gap < -3 || gap > Math.max(previous.bounds.height, line.bounds.height) * 1.5) break;
+    }
+    run.push(line);
+    cursor += 1;
+  }
+  return run.length >= 2 ? { lines: run, end: cursor } : undefined;
+}
+
+function monospacedRatio(line: TextLine): number {
+  return line.spans.length === 0 ? 0 : line.spans.filter(isMonospaced).length / line.spans.length;
+}
+
+function isMonospaced(span: TextLine["spans"][number]): boolean {
+  return /(?:courier|mono|typewriter|cmtt)/i.test(span.fontFamily ?? "");
+}
+
+function preformattedText(lines: TextLine[]): string {
+  const spans = lines.flatMap((line) => line.spans).filter(isMonospaced);
+  const widths = spans
+    .map((span) => span.bounds.width / Math.max(1, [...span.text].length))
+    .filter((width) => Number.isFinite(width) && width > 0)
+    .sort((left, right) => left - right);
+  const characterWidth = widths[Math.floor(widths.length / 2)] ?? 1;
+  const origin = Math.min(...spans.map((span) => span.bounds.x));
+  return lines
+    .map((line) => {
+      let output = "";
+      for (const span of [...line.spans].sort((left, right) => left.bounds.x - right.bounds.x)) {
+        const column = Math.max(0, Math.round((span.bounds.x - origin) / characterWidth));
+        if (output.length < column) output += " ".repeat(column - output.length);
+        output += span.text;
+      }
+      return output.trimEnd();
+    })
+    .join("\n");
 }
 
 function tableDefinitions(table: Table): Array<{ term: string; description: string }> | undefined {
@@ -320,18 +383,25 @@ function inferHeadingLevel(
   line: TextLine,
   bodySize: number,
   largestSize: number,
-): 1 | 2 | 3 | undefined {
+): 1 | 2 | 3 | 4 | undefined {
   const text = line.text.trim();
   if (!text || text.length > 100) return undefined;
   const size = Math.max(...line.spans.map((span) => span.fontSize));
+  const emphasized = line.spans.some((span) =>
+    /(?:bold|semibold|demi|medi)/i.test(span.fontFamily ?? ""),
+  );
   if (size >= largestSize * 0.94 && size >= bodySize * 1.35) return 1;
   if (
     /^\d+(?:\.\d+)*\.?(?:\s+|$)/.test(text) &&
     /[A-Za-z]/.test(text) &&
     text.split(/\s+/).length <= 6
   )
-    return 2;
-  if (size >= bodySize * 1.18) return 2;
+    return size >= bodySize * 1.35 ? 3 : 4;
+  const ratio = size / bodySize;
+  if (ratio >= 1.7) return 1;
+  if (ratio >= 1.5) return 2;
+  if (ratio >= 1.35) return 3;
+  if (ratio >= 1.15 || (emphasized && ratio >= 1.08)) return 4;
   return undefined;
 }
 

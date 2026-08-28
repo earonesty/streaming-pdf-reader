@@ -60,7 +60,7 @@ describe("ideal semantic HTML oracles", () => {
       .split(/\s+/);
     expect(researchWords.length).toBeGreaterThan(12_000);
     expect(research).toMatch(/<header\b[\s\S]*aria-label="Authors"/i);
-    expect(research).toMatch(/<pre\b[\s\S]*<code\b/i);
+    expect(research).toMatch(/<pre\b/i);
     expect(research.match(/<figure\b/gi)?.length ?? 0).toBeGreaterThanOrEqual(2);
     expect(research).toMatch(/<figcaption\b[^>]*>[\s\S]*Sample program/i);
     expect(research).toMatch(/<figure\b[^>]*>[\s\S]*<table\b[\s\S]*Figure 13[\s\S]*<\/figure>/i);

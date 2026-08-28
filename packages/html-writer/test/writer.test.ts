@@ -576,7 +576,7 @@ describe("HTML writer", () => {
     const semanticPage: ExtractedPage = {
       ...page,
       spans: [
-        { ...span("Document title", 20, 700), fontSize: 24 },
+        { ...span("Document title", 20, 700), fontSize: 24, color: "#b91c1c" },
         { ...span("Summary", 20, 670), fontSize: 16, fontFamily: "Fixture-Bold" },
         span("A wrapped paragraph", 20, 645),
         span("continues on this line.", 20, 630),
@@ -591,8 +591,8 @@ describe("HTML writer", () => {
     };
 
     const html = await pageToHtml(semanticPage, { profile: "semantic" });
-    expect(html).toContain("<h1>Document title</h1>");
-    expect(html).toContain("<h2>Summary</h2>");
+    expect(html).toContain('<h1><span style="color:#b91c1c">Document title</span></h1>');
+    expect(html).toContain("<h4>Summary</h4>");
     expect(html).toContain("<p>A wrapped paragraph continues on this line.</p>");
     expect(html).toContain(
       "<ul><li>First bullet with enough words to continue on this line.</li></ul>",

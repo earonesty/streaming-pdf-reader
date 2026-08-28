@@ -103,6 +103,45 @@ describe("structured extraction quality gate", () => {
     expect(structurePage(page).lines[0]?.text).toBe("24-164 (c) hello");
   });
 
+  it("restores narrow proportional-font word gaps", () => {
+    const page: ExtractedPage = {
+      number: 1,
+      width: 300,
+      height: 100,
+      rotate: 0,
+      spans: [
+        span("compiled", 20, 50, 33.373, 8.966, "NimbusRomNo9L-Regu"),
+        span("twice,", 55.139, 50, 21.663, 8.966, "NimbusRomNo9L-Regu"),
+        span("and", 78.577, 50, 12.947, 8.966, "NimbusRomNo9L-Regu"),
+        span("both", 93.3, 50, 15.942, 8.966, "NimbusRomNo9L-Regu"),
+      ],
+    };
+
+    expect(structurePage(page).lines[0]?.text).toBe("compiled twice, and both");
+  });
+
+  it("keeps superscripts attached to their visual text line", () => {
+    const page: ExtractedPage = {
+      number: 1,
+      width: 300,
+      height: 100,
+      rotate: 0,
+      spans: [
+        span("Andreas Gal", 20, 50, 55, 11, "Regular"),
+        { ...span("*", 75, 54, 4, 8, "Symbol"), bounds: { x: 75, y: 54, width: 4, height: 8 } },
+        span(", Brendan Eich", 80, 50, 66, 11, "Regular"),
+        {
+          ...span("*", 146, 54, 4, 8, "Symbol"),
+          bounds: { x: 146, y: 54, width: 4, height: 8 },
+        },
+      ],
+    };
+
+    expect(structurePage(page).lines.map((line) => line.text)).toEqual([
+      "Andreas Gal*, Brendan Eich*",
+    ]);
+  });
+
   it("groups vertical spans into right-to-left columns and top-to-bottom text", () => {
     const vertical = (text: string, x: number, y: number): TextSpan => ({
       ...span(text, x, y, 10, 10, "F1"),

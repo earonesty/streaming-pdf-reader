@@ -9,6 +9,7 @@ import type {
 } from "@boxpdf/reader";
 import { structurePage, tableToHtml } from "@boxpdf/reader/structure";
 import { type SemanticDocumentStats, writeSemanticDocument } from "./semantic-document.js";
+import { dominantTextColor, semanticTextHtml } from "./semantic-inline.js";
 
 export type { SemanticDocumentStats } from "./semantic-document.js";
 
@@ -31,7 +32,7 @@ export interface HtmlWriterOptions {
   onSemanticStats?: (stats: Readonly<SemanticDocumentStats>) => void;
 }
 
-const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--visual,.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom;unicode-bidi:isolate}.pdf-span[data-direction=ttb]{writing-mode:vertical-rl}.pdf-page--semantic,.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--semantic p,.pdf-page--flow p{white-space:pre-wrap;unicode-bidi:plaintext}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
+const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--visual,.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom;unicode-bidi:isolate}.pdf-span[data-direction=ttb]{writing-mode:vertical-rl}.pdf-page--semantic,.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--semantic p,.pdf-page--flow p{white-space:pre-wrap;unicode-bidi:plaintext}.pdf-semantic-document h1,.pdf-page--semantic h1{font-size:1.7em}.pdf-semantic-document h2,.pdf-page--semantic h2{font-size:1.5em}.pdf-semantic-document h3,.pdf-page--semantic h3{font-size:1.35em}.pdf-semantic-document h4,.pdf-page--semantic h4{font-size:1.1em}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
 
 export async function writeHtmlDocument(
   pages: AsyncIterable<ExtractedPage> | Iterable<ExtractedPage>,
@@ -325,17 +326,22 @@ function positionedSpan(span: TextSpan, fontAliases: Map<string, string>): strin
 
 async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<void> {
   const structured = structurePage(page);
+  const defaultColor = dominantTextColor(structured.lines);
   await write(
     `<section class="pdf-page pdf-page--semantic pdf-page--flow" data-page="${page.number}">`,
   );
   for (const block of structured.blocks) {
     if (block.type === "table") await write(tableToHtml(block.table));
     else if (block.type === "heading") {
-      await write(`<h${block.level}>${escapeHtml(block.text)}</h${block.level}>`);
+      await write(
+        `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor)}</h${block.level}>`,
+      );
     } else if (block.type === "paragraph") {
       await write(
-        `<p${directionAttribute(block.lines.flatMap((line) => line.spans))}>${escapeHtml(block.text)}</p>`,
+        `<p${directionAttribute(block.lines.flatMap((line) => line.spans))}>${semanticTextHtml(block.text, block.lines, defaultColor)}</p>`,
       );
+    } else if (block.type === "preformatted") {
+      await write(`<pre>${escapeHtml(block.text)}</pre>`);
     } else if (block.type === "definitionList") {
       await write("<dl>");
       for (const entry of block.entries) {

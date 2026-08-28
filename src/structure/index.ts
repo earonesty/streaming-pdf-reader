@@ -129,6 +129,8 @@ function groupHorizontalLines(spans: TextSpan[], tolerance: number): TextLine[] 
     else rows.push([span]);
   }
 
+  attachSuperscriptRows(rows, tolerance);
+
   return rows.map((row) => {
     row.sort((left, right) => left.bounds.x - right.bounds.x);
     return {
@@ -140,6 +142,55 @@ function groupHorizontalLines(spans: TextSpan[], tolerance: number): TextLine[] 
       reasons: ["shared-baseline"],
     };
   });
+}
+
+function attachSuperscriptRows(rows: TextSpan[][], tolerance: number): void {
+  for (let index = 1; index < rows.length; index += 1) {
+    const base = rows[index - 1];
+    const superscript = rows[index];
+    if (!base || !superscript || !isAttachedSuperscript(base, superscript, tolerance)) continue;
+    base.push(...superscript);
+    rows.splice(index, 1);
+    const continuation = rows[index];
+    if (continuation && continuesSuperscriptLine(base, continuation, tolerance)) {
+      base.push(...continuation);
+      rows.splice(index, 1);
+    }
+    index -= 1;
+  }
+}
+
+function isAttachedSuperscript(
+  base: TextSpan[],
+  superscript: TextSpan[],
+  tolerance: number,
+): boolean {
+  const baseBounds = union(base.map((span) => span.bounds));
+  const superscriptBounds = union(superscript.map((span) => span.bounds));
+  const sourceIsSmaller = superscriptBounds.height <= baseBounds.height * 0.85;
+  const center = superscriptBounds.y + superscriptBounds.height / 2;
+  const verticallyAttached =
+    center >= baseBounds.y - tolerance && center <= baseBounds.y + baseBounds.height + tolerance;
+  const gap = superscriptBounds.x - baseBounds.x - baseBounds.width;
+  return (
+    sourceIsSmaller && verticallyAttached && gap >= -tolerance && gap <= baseBounds.height * 1.5
+  );
+}
+
+function continuesSuperscriptLine(
+  base: TextSpan[],
+  continuation: TextSpan[],
+  tolerance: number,
+): boolean {
+  const regularBase = base.filter(
+    (span) => span.bounds.height >= Math.max(...base.map((item) => item.bounds.height)) * 0.85,
+  );
+  const baseBounds = union(base.map((span) => span.bounds));
+  const regularBounds = union(regularBase.map((span) => span.bounds));
+  const continuationBounds = union(continuation.map((span) => span.bounds));
+  const sameBaseline = Math.abs(regularBounds.y - continuationBounds.y) <= tolerance;
+  const gap = continuationBounds.x - baseBounds.x - baseBounds.width;
+  return sameBaseline && gap >= -tolerance && gap <= Math.max(18, regularBounds.height * 1.5);
 }
 
 function groupVerticalLines(spans: TextSpan[], tolerance: number): TextLine[] {
@@ -261,7 +312,7 @@ function shouldInsertSpace(previous: TextSpan, current: TextSpan): boolean {
   const gap = current.bounds.x - (previous.bounds.x + previous.bounds.width);
   if (gap > current.fontSize) return true;
   const tokenBoundary = [...previous.text].length > 1 || [...current.text].length > 1;
-  return gap > current.fontSize * 0.2 && tokenBoundary;
+  return gap > current.fontSize * 0.18 && tokenBoundary;
 }
 
 function union(rectangles: Rect[]): Rect {
