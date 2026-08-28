@@ -352,10 +352,10 @@
     {
       "id": "rich-content",
       "file": "rich-content.pdf",
-      "sha256": "ba38f83908bca52895c7dd76c89a1d8223c543fb5ebdbe4aa1d83dccffcccc0d",
+      "sha256": "1f4c5656c788d7ef07918b3fe7803f38d4787514177f2cabb026a3bc03ae8a29",
       "source": "boxpdf docs/gallery/pdf/rich-content.pdf",
       "pages": [1],
-      "challenge": "Mixed inline prose, a hard-broken token, and a real comparison table",
+      "challenge": "Mixed inline prose, a statistically clear inset group, a hard-broken token, and a real comparison table",
       "expect": {
         "readingOrder": [
           [
@@ -364,6 +364,8 @@
             "linked run that can wrap",
             "Long tokens still hard-break inside the paragraph",
             "supercalifragilisticexpialidocious-supercalifragilisticexpialidocious",
+            "This inset note is visually grouped by a narrower measure",
+            "Normal body text resumes at the outer measure",
             "Plan comparison",
             "Feature",
             "Basic",
@@ -376,7 +378,12 @@
             "Included"
           ]
         ],
-        "elements": { "h1": { "min": 1 }, "p": { "min": 2 }, "table": { "min": 1, "max": 1 } },
+        "elements": {
+          "h1": { "min": 1 },
+          "p": { "min": 4 },
+          "div": { "min": 1 },
+          "table": { "min": 1, "max": 1 }
+        },
         "tables": [
           {
             "headers": ["Feature", "Basic", "Pro"],
@@ -387,7 +394,7 @@
             ]
           }
         ],
-        "notes": "Inline style boundaries must not split paragraphs; visual hard wrapping must not split words."
+        "notes": "Inline style boundaries must not split paragraphs; visual hard wrapping must not split words; a bracketed shared inset with a distinct typeface remains grouped without assigning a speculative semantic label."
       }
     },
     {

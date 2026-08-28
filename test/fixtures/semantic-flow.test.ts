@@ -51,6 +51,7 @@ describe("semantic flow fixture gate", () => {
                 return [block.role, block.organization, block.date];
               }
               if (block.type === "preformatted") return [block.text];
+              if (block.type === "insetGroup") return block.blocks.flatMap(blockText);
               return [block.text];
             })
             .join(" "),
@@ -67,6 +68,15 @@ describe("semantic flow fixture gate", () => {
         expect(matched).toBe(assertions.length);
 
         const tables = pages.flatMap((page) => page.tables);
+        if (fixture.id === "rich-content") {
+          const inset = pages
+            .flatMap((page) => page.blocks)
+            .find((block) => block.type === "insetGroup");
+          expect(inset).toMatchObject({ type: "insetGroup", indentEm: 4 });
+          expect(inset?.lines.map((line) => line.text).join(" ")).toContain(
+            "without guessing whether the block is a quotation, abstract, sidebar, or figure",
+          );
+        }
         const tableConstraint = fixture.expect.elements.table;
         if (tableConstraint?.min !== undefined)
           expect(tables.length).toBeGreaterThanOrEqual(tableConstraint.min);
@@ -181,4 +191,20 @@ function normalize(value: string): string {
     .replace(/\s*×\s*/g, "×")
     .trim()
     .toLocaleLowerCase("en");
+}
+
+function blockText(block: ReturnType<typeof structurePage>["blocks"][number]): string[] {
+  if (block.type === "table") return tableToRows(block.table).flat();
+  if (block.type === "list") return block.items.map((item) => item.text);
+  if (block.type === "definitionList") {
+    return block.entries.flatMap((entry) => [entry.term, entry.description]);
+  }
+  if (block.type === "cardList")
+    return block.items.flatMap((item) => [item.title, ...item.details]);
+  if (block.type === "sectionGroup") {
+    return block.items.flatMap((item) => [item.label, ...item.content]);
+  }
+  if (block.type === "employment") return [block.role, block.organization, block.date];
+  if (block.type === "insetGroup") return block.blocks.flatMap(blockText);
+  return [block.text];
 }

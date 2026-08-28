@@ -376,6 +376,10 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
       await write(
         `<section><h3>${escapeHtml(block.role)}</h3><p>${escapeHtml(block.organization)}</p><p>${escapeHtml(block.date)}</p></section>`,
       );
+    } else if (block.type === "insetGroup") {
+      await write(
+        `<div class="pdf-semantic-inset" style="margin-inline-start:${number(block.indentEm)}em">${block.blocks.map((item) => nestedSemanticBlockHtml(item, defaultColor)).join("")}</div>`,
+      );
     } else {
       const tag = block.ordered ? "ol" : "ul";
       await write(`<${tag}>`);
@@ -390,6 +394,34 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
     mediaIndex += 1;
   }
   await write("</section>");
+}
+
+function nestedSemanticBlockHtml(block: SemanticBlock, defaultColor: string): string {
+  if (block.type === "insetGroup") {
+    return `<div class="pdf-semantic-inset" style="margin-inline-start:${number(block.indentEm)}em">${block.blocks.map((item) => nestedSemanticBlockHtml(item, defaultColor)).join("")}</div>`;
+  }
+  if (block.type === "table") return tableToHtml(block.table);
+  if (block.type === "heading") {
+    return `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor, false)}</h${block.level}>`;
+  }
+  if (block.type === "paragraph") {
+    return `<p>${semanticTextHtml(block.text, block.lines, defaultColor)}</p>`;
+  }
+  if (block.type === "preformatted") return `<pre>${escapeHtml(block.text)}</pre>`;
+  if (block.type === "definitionList") {
+    return `<dl>${block.entries.map((entry) => `<div><dt>${escapeHtml(entry.term)}</dt><dd>${escapeHtml(entry.description)}</dd></div>`).join("")}</dl>`;
+  }
+  if (block.type === "cardList") {
+    return `<div class="pdf-semantic-cards">${block.items.map((item) => `<article><h3>${escapeHtml(item.title)}</h3>${item.details.map((detail) => `<p>${escapeHtml(detail)}</p>`).join("")}</article>`).join("")}</div>`;
+  }
+  if (block.type === "sectionGroup") {
+    return `<div class="pdf-semantic-sections">${block.items.map((item) => `<section><h3>${escapeHtml(item.label)}</h3>${item.content.map((content) => `<p>${escapeHtml(content)}</p>`).join("")}</section>`).join("")}</div>`;
+  }
+  if (block.type === "employment") {
+    return `<section><h3>${escapeHtml(block.role)}</h3><p>${escapeHtml(block.organization)}</p><p>${escapeHtml(block.date)}</p></section>`;
+  }
+  const tag = block.ordered ? "ol" : "ul";
+  return `<${tag}>${block.items.map((item) => `<li>${semanticTextHtml(item.text, item.lines, defaultColor)}</li>`).join("")}</${tag}>`;
 }
 
 function semanticBlockY(block: SemanticBlock): number {

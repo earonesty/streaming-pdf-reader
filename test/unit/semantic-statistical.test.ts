@@ -142,6 +142,45 @@ describe("language-independent semantic inference", () => {
       },
     ]);
   });
+
+  it("groups a bracketed inset region when indentation and typography agree", () => {
+    const blocks = inferSemanticBlocks(
+      [
+        line("Outer text establishes the normal measure.", 40, 280, 11),
+        line("More outer text precedes the inset region.", 40, 266, 11),
+        line("The inset begins on its own shared edge.", 60, 246, 9, "Fixture-Aside"),
+        line("Every line remains inside that visual block.", 60, 234, 9, "Fixture-Aside"),
+        line("The inset finishes without returning outward.", 60, 222, 9, "Fixture-Aside"),
+        line("Normal text resumes at the outer measure.", 40, 202, 11),
+        line("A second outer line confirms the boundary.", 40, 188, 11),
+        line("A third outer line supports the page edge.", 40, 174, 11),
+      ],
+      [],
+    );
+
+    expect(blocks.find((block) => block.type === "insetGroup")).toMatchObject({
+      type: "insetGroup",
+      blocks: [{ type: "paragraph" }],
+    });
+  });
+
+  it("leaves weakly supported indentation flat", () => {
+    const blocks = inferSemanticBlocks(
+      [
+        line("Outer text establishes the normal measure.", 40, 280, 11),
+        line("More outer text precedes the shifted prose.", 40, 266, 11),
+        line("A slightly shifted line is not enough.", 52, 246, 11),
+        line("This line shares the shift but not a font change.", 52, 234, 11),
+        line("A third line still provides ambiguous evidence.", 52, 222, 11),
+        line("Normal text resumes at the outer measure.", 40, 202, 11),
+        line("A second outer line confirms the boundary.", 40, 188, 11),
+        line("A third outer line supports the page edge.", 40, 174, 11),
+      ],
+      [],
+    );
+
+    expect(blocks.some((block) => block.type === "insetGroup")).toBe(false);
+  });
 });
 
 function line(

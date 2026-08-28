@@ -660,6 +660,33 @@ describe("HTML writer", () => {
     expect(html).toContain("<div><dt>SEAT</dt><dd>14A</dd></div></dl>");
   });
 
+  it("renders strongly supported inset regions as generic indented divs", async () => {
+    const insetPage: ExtractedPage = {
+      ...page,
+      spans: [
+        span("Outer line one establishes the measure.", 20, 700),
+        span("Outer line two supports the same edge.", 20, 686),
+        { ...span("Inset line one uses a changed face.", 44, 660), fontFamily: "Aside-Italic" },
+        {
+          ...span("Inset line two shares the narrower measure.", 44, 646),
+          fontFamily: "Aside-Italic",
+        },
+        {
+          ...span("Inset line three completes the visual group.", 44, 632),
+          fontFamily: "Aside-Italic",
+        },
+        span("Outer text resumes after the group.", 20, 606),
+        span("Another outer line confirms that boundary.", 20, 592),
+        span("The final outer line strengthens the edge.", 20, 578),
+      ],
+    };
+
+    const html = await pageToHtml(insetPage, { profile: "semantic" });
+    expect(html).toContain(
+      '<div class="pdf-semantic-inset" style="margin-inline-start:2em"><p><em>Inset line one uses a changed face. Inset line two shares the narrower measure. Inset line three completes the visual group.</em></p></div>',
+    );
+  });
+
   it("merges continued tables and suppresses repeated furniture with bounded lookahead", async () => {
     const first: ExtractedPage = {
       ...page,

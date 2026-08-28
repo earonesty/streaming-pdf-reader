@@ -381,10 +381,15 @@ function financialSummaryRow(
   return `<tr><th scope="row"${colspan}>${escapeHtml(entry.term)}</th><td>${escapeHtml(entry.description)}</td></tr>`;
 }
 
-function semanticBlockHtml(
-  block: Exclude<SemanticBlock, { type: "table" }>,
-  defaultColor = "#000000",
-): string {
+function semanticBlockHtml(block: SemanticBlock, defaultColor = "#000000"): string {
+  if (block.type === "insetGroup") {
+    return `<div class="pdf-semantic-inset" style="margin-inline-start:${block.indentEm}em">${block.blocks.map((item) => semanticBlockHtml(item, defaultColor)).join("")}</div>`;
+  }
+  if (block.type === "table") {
+    const rows = tableToRows(block.table);
+    const header = tableHeader(rows);
+    return `<table>${rows.map((row, index) => tableRow(row, Boolean(header && index === 0))).join("")}</table>`;
+  }
   if (block.type === "heading")
     return `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor, false)}</h${block.level}>`;
   if (block.type === "paragraph")

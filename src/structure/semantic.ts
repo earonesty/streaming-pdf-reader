@@ -1,4 +1,5 @@
 import type { Table, TextLine } from "./index.js";
+import { groupInsetBlocks } from "./inset.js";
 
 export type SemanticBlock =
   | { type: "heading"; level: 1 | 2 | 3 | 4; text: string; lines: TextLine[] }
@@ -25,6 +26,12 @@ export type SemanticBlock =
       role: string;
       organization: string;
       date: string;
+      lines: TextLine[];
+    }
+  | {
+      type: "insetGroup";
+      indentEm: number;
+      blocks: SemanticBlock[];
       lines: TextLine[];
     }
   | { type: "table"; table: Table; lines: TextLine[] };
@@ -177,7 +184,7 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
     }
     blocks.push({ type: "paragraph", text, lines: paragraphLines });
   }
-  return blocks;
+  return groupInsetBlocks(blocks, lines);
 }
 
 function endsSentence(line: TextLine | undefined): boolean {
