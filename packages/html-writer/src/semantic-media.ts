@@ -19,12 +19,13 @@ export interface SemanticMedia {
   bounds: Rect;
   html: string;
   consumedSpans?: TextSpan[];
+  kind?: "raster" | "vector" | "composite";
 }
 
 export function semanticMedia(page: ExtractedPage): SemanticMedia[] {
   const output = (page.images ?? []).map((image) => rasterMedia(image));
   output.push(...vectorMedia(page));
-  return output.sort((left, right) => right.bounds.y - left.bounds.y);
+  return mediaComponents(output, page).sort((left, right) => right.bounds.y - left.bounds.y);
 }
 
 function rasterMedia(image: RasterImage): SemanticMedia {
@@ -34,6 +35,7 @@ function rasterMedia(image: RasterImage): SemanticMedia {
   const opacity = unitInterval(image.opacity) ? `;opacity:${number(image.opacity)}` : "";
   return {
     bounds,
+    kind: "raster",
     html: `<img class="pdf-semantic-media" src="data:${mime};base64,${base64(data)}" width="${number(bounds.width)}" height="${number(bounds.height)}" alt="" style="max-width:100%;height:auto${opacity}">`,
   };
 }
@@ -90,10 +92,80 @@ function vectorMedia(page: ExtractedPage): SemanticMedia[] {
       .join("");
     return {
       bounds,
+      kind: "vector" as const,
       html: `<svg class="pdf-semantic-media" xmlns="http://www.w3.org/2000/svg" viewBox="${number(bounds.x)} ${number(page.height - bounds.y - bounds.height)} ${number(bounds.width)} ${number(bounds.height)}" style="display:block;max-width:100%;height:auto" aria-hidden="true">${fontFaces ? `<style>${fontFaces}</style>` : ""}${paths.length ? `<defs>${vectorPathClipDefinitions(paths, page.number)}</defs>` : ""}<g transform="translate(0 ${number(page.height)}) scale(1 -1)">${fills.map(vectorFillSvg).join("") + paths.map(({ path, index }) => vectorPathSvg(path, page.number, index)).join("")}</g>${overlay.map((span) => vectorText(span, page.height, aliases)).join("")}</svg>`,
       ...(consumedSpans.length > 0 ? { consumedSpans } : {}),
     };
   });
+}
+
+function mediaComponents(media: SemanticMedia[], page: ExtractedPage): SemanticMedia[] {
+  const components: SemanticMedia[][] = [];
+  for (const item of media) {
+    if (isPageBackdrop(item.bounds, page)) {
+      components.push([item]);
+      continue;
+    }
+    const matches = components.filter(
+      (component) =>
+        !component.some((member) => isPageBackdrop(member.bounds, page)) &&
+        component.some((member) => mediaPiecesTouch(member.bounds, item.bounds)),
+    );
+    if (matches.length === 0) {
+      components.push([item]);
+      continue;
+    }
+    const target = matches[0] as SemanticMedia[];
+    target.push(item);
+    for (const component of matches.slice(1)) {
+      target.push(...component);
+      components.splice(components.indexOf(component), 1);
+    }
+  }
+  return components.map((component) => compositeMedia(component));
+}
+
+function compositeMedia(items: SemanticMedia[]): SemanticMedia {
+  if (items.length === 1) return items[0] as SemanticMedia;
+  const bounds = unionBounds(items.map((item) => item.bounds)) as Rect;
+  const layers = items
+    .map((item) => {
+      const left = ((item.bounds.x - bounds.x) / bounds.width) * 100;
+      const top =
+        ((bounds.y + bounds.height - item.bounds.y - item.bounds.height) / bounds.height) * 100;
+      const width = (item.bounds.width / bounds.width) * 100;
+      const height = (item.bounds.height / bounds.height) * 100;
+      return `<div style="position:absolute;left:${number(left)}%;top:${number(top)}%;width:${number(width)}%;height:${number(height)}%;overflow:hidden">${item.html}</div>`;
+    })
+    .join("");
+  return {
+    bounds,
+    kind: "composite",
+    html: `<div class="pdf-semantic-media pdf-semantic-media-composite" style="position:relative;max-width:100%;width:${number(bounds.width)}px;aspect-ratio:${number(bounds.width)}/${number(bounds.height)}">${layers}</div>`,
+    consumedSpans: items.flatMap((item) => item.consumedSpans ?? []),
+  };
+}
+
+function mediaPiecesTouch(left: Rect, right: Rect): boolean {
+  const xOverlap = overlap(left.x, left.width, right.x, right.width);
+  const yOverlap = overlap(left.y, left.height, right.y, right.height);
+  if (xOverlap > 0 && yOverlap > 0) return true;
+  const horizontalGap = axisGap(left.x, left.width, right.x, right.width);
+  const verticalGap = axisGap(left.y, left.height, right.y, right.height);
+  if (horizontalGap <= 2 && yOverlap / Math.min(left.height, right.height) >= 0.65) return true;
+  return verticalGap <= 2 && xOverlap / Math.min(left.width, right.width) >= 0.65;
+}
+
+function isPageBackdrop(bounds: Rect, page: ExtractedPage): boolean {
+  return bounds.width * bounds.height >= page.width * page.height * 0.7;
+}
+
+function overlap(left: number, leftSize: number, right: number, rightSize: number): number {
+  return Math.max(0, Math.min(left + leftSize, right + rightSize) - Math.max(left, right));
+}
+
+function axisGap(left: number, leftSize: number, right: number, rightSize: number): number {
+  return Math.max(0, right - left - leftSize, left - right - rightSize);
 }
 
 type VectorPrimitive =

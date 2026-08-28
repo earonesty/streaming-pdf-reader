@@ -50,6 +50,20 @@ describe("semantic vector components", () => {
     expect(media[0]?.bounds).toEqual({ x: 40, y: 40, width: 40, height: 40 });
     expect(media[0]?.html).toContain('fill="#ff0000"');
   });
+
+  it("combines touching raster and vector pieces but leaves page backdrops independent", () => {
+    const page = {
+      ...fixturePage([rectangle(48, 100, 30, 40)], []),
+      images: [raster([40, 0, 0, 40, 10, 100]), raster([200, 0, 0, 200, 0, 0])],
+    };
+    const media = semanticMedia(page);
+    expect(media).toHaveLength(2);
+    const composite = media.find((item) => item.kind === "composite");
+    expect(composite?.bounds).toEqual({ x: 10, y: 100, width: 68, height: 40 });
+    expect(composite?.html).toContain('<img class="pdf-semantic-media"');
+    expect(composite?.html).toContain('<svg class="pdf-semantic-media"');
+    expect(media.filter((item) => item.kind === "raster")).toHaveLength(1);
+  });
 });
 
 function fixturePage(paths: VectorPath[], fills: VectorFill[]): ExtractedPage {
@@ -71,4 +85,14 @@ function line(): VectorPath {
 
 function fill(color: string, points: VectorFill["points"]): VectorFill {
   return { color, points, opacity: 1 };
+}
+
+function raster(transform: [number, number, number, number, number, number]) {
+  return {
+    width: 1,
+    height: 1,
+    format: "rgb" as const,
+    data: Uint8Array.of(255, 0, 0),
+    transform,
+  };
 }

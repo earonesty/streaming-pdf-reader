@@ -97,12 +97,16 @@ export async function writeSemanticDocument(
       page.structured.lines,
     );
     const captionedMedia = new Set(captions.values());
+    const emittedMedia = new Set<SemanticMedia>();
     const futureFurniture = new Set(future.flatMap((candidate) => marginSignatures(candidate)));
     const repeatedFurniture = new Set([...seenFurniture, ...futureFurniture]);
     for (const [blockIndex, block] of page.structured.blocks.entries()) {
       const nextBlock = page.structured.blocks[blockIndex + 1];
       const blockY = semanticBlockY(block);
       let emittedAsCaption = false;
+      while (page.media[mediaIndex] && emittedMedia.has(page.media[mediaIndex] as SemanticMedia)) {
+        mediaIndex += 1;
+      }
       while ((page.media[mediaIndex]?.bounds.y ?? -Infinity) >= blockY) {
         await flushPendingParagraph();
         const item = page.media[mediaIndex];
@@ -110,6 +114,7 @@ export async function writeSemanticDocument(
           const html = `<figure class="pdf-semantic-figure">${item.html}<figcaption>${semanticTextHtml(block.text, block.lines, defaultColor)}</figcaption></figure>`;
           if (activeTable) pendingMedia.push(html);
           else await write(html);
+          emittedMedia.add(item);
           mediaIndex += 1;
           emittedAsCaption = true;
           break;
@@ -119,6 +124,15 @@ export async function writeSemanticDocument(
         if (activeTable) pendingMedia.push(html);
         else await write(html);
         mediaIndex += 1;
+      }
+      const associatedMedia = captions.get(block);
+      if (!emittedAsCaption && associatedMedia && block.type === "paragraph") {
+        await flushPendingParagraph();
+        const html = `<figure class="pdf-semantic-figure">${associatedMedia.html}<figcaption>${semanticTextHtml(block.text, block.lines, defaultColor)}</figcaption></figure>`;
+        if (activeTable) pendingMedia.push(html);
+        else await write(html);
+        emittedMedia.add(associatedMedia);
+        emittedAsCaption = true;
       }
       if (emittedAsCaption) continue;
       if (isRepeatedFurniture(block, page, repeatedFurniture)) {
@@ -220,10 +234,13 @@ export async function writeSemanticDocument(
       await write(semanticBlockHtml(block, defaultColor));
     }
     while (mediaIndex < page.media.length) {
-      await flushPendingParagraph();
-      const html = `<div class="pdf-semantic-visual">${page.media[mediaIndex]?.html}</div>`;
-      if (activeTable) pendingMedia.push(html);
-      else await write(html);
+      const item = page.media[mediaIndex];
+      if (item && !emittedMedia.has(item)) {
+        await flushPendingParagraph();
+        const html = `<div class="pdf-semantic-visual">${item.html}</div>`;
+        if (activeTable) pendingMedia.push(html);
+        else await write(html);
+      }
       mediaIndex += 1;
     }
     for (const signature of marginSignatures(page)) seenFurniture.add(signature);

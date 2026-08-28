@@ -9,7 +9,7 @@ import { type SemanticBlock, structurePage, tableToHtml } from "@boxpdf/reader/s
 import { clearMediaCaptionAssociations } from "./semantic-caption.js";
 import { type SemanticDocumentStats, writeSemanticDocument } from "./semantic-document.js";
 import { dominantTextColor, semanticTextHtml } from "./semantic-inline.js";
-import { semanticMedia, withoutSemanticMediaSpans } from "./semantic-media.js";
+import { type SemanticMedia, semanticMedia, withoutSemanticMediaSpans } from "./semantic-media.js";
 import {
   isSvgPath,
   vectorFillSvg,
@@ -297,18 +297,22 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
     structured.lines,
   );
   const captionedMedia = new Set(captions.values());
+  const emittedMedia = new Set<SemanticMedia>();
   await write(
     `<section class="pdf-page pdf-page--semantic pdf-page--flow" data-page="${page.number}">`,
   );
   for (const block of structured.blocks) {
     const blockY = semanticBlockY(block);
     let emittedAsCaption = false;
+    while (media[mediaIndex] && emittedMedia.has(media[mediaIndex] as SemanticMedia))
+      mediaIndex += 1;
     while ((media[mediaIndex]?.bounds.y ?? -Infinity) >= blockY) {
       const item = media[mediaIndex];
       if (item && captions.get(block) === item && block.type === "paragraph") {
         await write(
           `<figure class="pdf-semantic-figure">${item.html}<figcaption>${semanticTextHtml(block.text, block.lines, defaultColor)}</figcaption></figure>`,
         );
+        emittedMedia.add(item);
         mediaIndex += 1;
         emittedAsCaption = true;
         break;
@@ -316,6 +320,14 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
       if (item && captionedMedia.has(item)) break;
       await write(`<div class="pdf-semantic-visual">${item?.html}</div>`);
       mediaIndex += 1;
+    }
+    const associatedMedia = captions.get(block);
+    if (!emittedAsCaption && associatedMedia && block.type === "paragraph") {
+      await write(
+        `<figure class="pdf-semantic-figure">${associatedMedia.html}<figcaption>${semanticTextHtml(block.text, block.lines, defaultColor)}</figcaption></figure>`,
+      );
+      emittedMedia.add(associatedMedia);
+      emittedAsCaption = true;
     }
     if (emittedAsCaption) continue;
     if (block.type === "table") await write(tableToHtml(block.table));
@@ -371,7 +383,10 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
     }
   }
   while (mediaIndex < media.length) {
-    await write(`<div class="pdf-semantic-visual">${media[mediaIndex]?.html}</div>`);
+    const item = media[mediaIndex];
+    if (item && !emittedMedia.has(item)) {
+      await write(`<div class="pdf-semantic-visual">${item.html}</div>`);
+    }
     mediaIndex += 1;
   }
   await write("</section>");
