@@ -38,6 +38,29 @@ export function remapTrueTypeCmap(
   return buildFont(font, records);
 }
 
+export async function symbolicTrueTypeGlyphMap(
+  reader: PdfObjectReader,
+  font: PdfDict,
+  data: Uint8Array,
+  encoding: FontDecoder,
+): Promise<Map<number, number>> {
+  if (!isName(font.get("Subtype"), "TrueType")) return new Map();
+  const descriptor = await reader.resolveDict(font.get("FontDescriptor"));
+  const flags = descriptor?.get("Flags");
+  if (typeof flags !== "number" || (flags & 4) === 0) return new Map();
+  const cmap = parseTrueTypeCmap(data);
+  if (!cmap) return new Map();
+  const mappings = new Map<number, number>();
+  for (let code = 0; code <= 0xff; code += 1) {
+    const decoded = encoding.decode(Uint8Array.of(code));
+    const codePoint = decoded.codePointAt(0);
+    if (codePoint === undefined || [...decoded].length !== 1) continue;
+    const glyph = cmap.glyphOfCodePoint(0xf000 + code) ?? cmap.glyphOfCodePoint(code);
+    if (glyph !== undefined) mappings.set(codePoint, glyph);
+  }
+  return mappings;
+}
+
 function repairHorizontalMetrics(tables: TableRecord[]): void {
   const hhea = tables.find((table) => table.tag === "hhea")?.data;
   const maxp = tables.find((table) => table.tag === "maxp")?.data;
@@ -270,3 +293,8 @@ function setU32(bytes: Uint8Array, offset: number, value: number): void {
   bytes[offset + 2] = (value >>> 8) & 0xff;
   bytes[offset + 3] = value & 0xff;
 }
+
+import type { PdfObjectReader } from "../syntax/document.js";
+import { isName, type PdfDict } from "../syntax/values.js";
+import type { FontDecoder } from "./encoding.js";
+import { parseTrueTypeCmap } from "./truetype.js";

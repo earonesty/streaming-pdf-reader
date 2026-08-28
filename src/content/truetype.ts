@@ -1,5 +1,11 @@
 export interface TrueTypeMetrics {
   widthOfCodePoint(codePoint: number): number | undefined;
+  glyphOfCodePoint(codePoint: number): number | undefined;
+  codePointOfGlyph(glyph: number): number | undefined;
+}
+
+export interface TrueTypeCmap {
+  glyphOfCodePoint(codePoint: number): number | undefined;
   codePointOfGlyph(glyph: number): number | undefined;
 }
 
@@ -38,8 +44,19 @@ export function parseTrueTypeMetrics(bytes: Uint8Array): TrueTypeMetrics | undef
       const metric = Math.min(glyph, numberOfHMetrics - 1);
       return view.getUint16(hmtx.offset + metric * 4) / unitsPerEm;
     },
+    glyphOfCodePoint: mapping.glyphOfCodePoint,
     codePointOfGlyph: mapping.codePointOfGlyph,
   };
+}
+
+export function parseTrueTypeCmap(bytes: Uint8Array): TrueTypeCmap | undefined {
+  if (bytes.length < 12) return undefined;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const tables = readTableDirectory(bytes, view);
+  const cmap = tables.get("cmap");
+  const maxp = tables.get("maxp");
+  if (!cmap || !maxp || !contains(maxp, 6)) return undefined;
+  return readCmap(view, cmap, view.getUint16(maxp.offset + 4));
 }
 
 function readTableDirectory(bytes: Uint8Array, view: DataView): Map<string, TableRecord> {
@@ -74,15 +91,54 @@ function readCmap(
     if (offset + 2 > table.offset + table.length) continue;
     const format = view.getUint16(offset);
     const score =
-      platform === 3 && encoding === 10 ? 3 : platform === 3 ? 2 : platform === 0 ? 1 : 0;
-    if ((format === 4 || format === 12) && score > 0) candidates.push({ format, offset, score });
+      platform === 3 && encoding === 10
+        ? 4
+        : platform === 3
+          ? 3
+          : platform === 0
+            ? 2
+            : platform === 1
+              ? 1
+              : 0;
+    if ((format === 4 || format === 6 || format === 12) && score > 0)
+      candidates.push({ format, offset, score });
   }
   candidates.sort((left, right) => right.score - left.score || right.format - left.format);
   const selected = candidates[0];
   if (!selected) return undefined;
   return selected.format === 12
     ? readFormat12(view, table, selected.offset)
-    : readFormat4(view, table, selected.offset, numberOfGlyphs);
+    : selected.format === 6
+      ? readFormat6(view, table, selected.offset, numberOfGlyphs)
+      : readFormat4(view, table, selected.offset, numberOfGlyphs);
+}
+
+function readFormat6(
+  view: DataView,
+  table: TableRecord,
+  offset: number,
+  numberOfGlyphs: number,
+): CmapMapping | undefined {
+  if (offset + 10 > table.offset + table.length) return undefined;
+  const length = view.getUint16(offset + 2);
+  const firstCode = view.getUint16(offset + 6);
+  const entryCount = view.getUint16(offset + 8);
+  if (length < 10 || offset + length > table.offset + table.length || 10 + entryCount * 2 > length)
+    return undefined;
+  return {
+    glyphOfCodePoint(codePoint) {
+      const index = codePoint - firstCode;
+      if (index < 0 || index >= entryCount) return undefined;
+      const glyph = view.getUint16(offset + 10 + index * 2);
+      return glyph < numberOfGlyphs ? glyph : undefined;
+    },
+    codePointOfGlyph(glyph) {
+      for (let index = 0; index < entryCount; index += 1) {
+        if (view.getUint16(offset + 10 + index * 2) === glyph) return firstCode + index;
+      }
+      return undefined;
+    },
+  };
 }
 
 function readFormat12(view: DataView, table: TableRecord, offset: number): CmapMapping | undefined {

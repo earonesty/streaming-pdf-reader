@@ -28,6 +28,8 @@ const maximumDenseGlyphMeanAbsoluteError = 1.5;
 const maximumDenseGlyphFuzzyChangedFraction = 0.03;
 const maximumTextOnlyMeanAbsoluteError = 3.6;
 const maximumTextOnlyFuzzyChangedFraction = 0.036;
+const maximumFallbackTextMeanAbsoluteError = 5;
+const maximumFallbackTextFuzzyChangedFraction = 0.03;
 const maximumStandardFontMeanAbsoluteError = 6;
 const maximumStandardFontFuzzyChangedFraction = 0.03;
 const maximumTrustedFontMeanAbsoluteError = 5.2;
@@ -40,6 +42,8 @@ const maximumGuardianFallbackMeanAbsoluteError = 9.5;
 const maximumGuardianFallbackFuzzyChangedFraction = 0.055;
 const maximumAcademicFallbackMeanAbsoluteError = 18;
 const maximumAcademicFallbackFuzzyChangedFraction = 0.074;
+const maximumAcademicPageMeanAbsoluteError = 9;
+const maximumAcademicPageFuzzyChangedFraction = 0.11;
 const maximumCompactStandardMeanAbsoluteError = 24;
 const maximumCompactStandardFuzzyChangedFraction = 0.085;
 const maximumCompactSansFallbackMeanAbsoluteError = 14;
@@ -69,11 +73,12 @@ const context = await browser.newContext({
 const results = [];
 try {
   for (const [index, fixture] of fixtures.entries()) {
-    const result = await compareFixture(fixture);
-    results.push(result);
-    console.log(
-      `${String(index + 1).padStart(2)}/${fixtures.length} ${result.status.padEnd(14)} ${fixture.id} changed=${percent(result.strictChangedFraction)} fuzzy=${percent(result.fuzzyChangedFraction)} mae=${result.meanAbsoluteError.toFixed(2)}`,
-    );
+    const fixtureResults = await compareFixture(fixture, (result, pageOffset, pageTotal) => {
+      console.log(
+        `${String(index + 1).padStart(2)}/${fixtures.length} ${String(pageOffset + 1).padStart(3)}/${String(pageTotal).padEnd(3)} ${result.status.padEnd(14)} ${result.pageId} changed=${percent(result.strictChangedFraction)} fuzzy=${percent(result.fuzzyChangedFraction)} mae=${result.meanAbsoluteError.toFixed(2)}`,
+      );
+    });
+    results.push(...fixtureResults);
   }
 } finally {
   await context.close();
@@ -83,7 +88,8 @@ try {
 
 const summary = {
   generatedAt: new Date().toISOString(),
-  fixtureCount: results.length,
+  fixtureCount: fixtures.length,
+  pageCount: results.length,
   exact: results.filter((result) => result.status === "PASS_EXACT").length,
   tolerant: results.filter((result) => result.status === "PASS_TOLERANCE").length,
   failed: results.filter((result) => result.status === "FAIL_VISUAL").length,
@@ -101,6 +107,8 @@ const summary = {
     maximumDenseGlyphFuzzyChangedFraction,
     maximumTextOnlyMeanAbsoluteError,
     maximumTextOnlyFuzzyChangedFraction,
+    maximumFallbackTextMeanAbsoluteError,
+    maximumFallbackTextFuzzyChangedFraction,
     maximumStandardFontMeanAbsoluteError,
     maximumStandardFontFuzzyChangedFraction,
     maximumTrustedFontMeanAbsoluteError,
@@ -113,6 +121,8 @@ const summary = {
     maximumGuardianFallbackFuzzyChangedFraction,
     maximumAcademicFallbackMeanAbsoluteError,
     maximumAcademicFallbackFuzzyChangedFraction,
+    maximumAcademicPageMeanAbsoluteError,
+    maximumAcademicPageFuzzyChangedFraction,
     maximumCompactStandardMeanAbsoluteError,
     maximumCompactStandardFuzzyChangedFraction,
     maximumCompactSansFallbackMeanAbsoluteError,
@@ -133,19 +143,20 @@ await writeFile(
 );
 console.log(JSON.stringify(summary, null, 2));
 
-const passingFixtureIds = results
+const passingPageIds = results
   .filter((result) => result.status !== "FAIL_VISUAL")
-  .map((result) => result.id)
+  .map((result) => result.pageId)
   .sort();
 if (writeBaseline) {
   await writeFile(
     baselinePath,
     `${JSON.stringify(
       {
-        schemaVersion: 1,
+        schemaVersion: 2,
         fixtureCount: summary.fixtureCount,
-        passed: passingFixtureIds.length,
-        passingFixtureIds,
+        pageCount: summary.pageCount,
+        passed: passingPageIds.length,
+        passingPageIds,
         thresholds: summary.thresholds,
       },
       null,
@@ -155,34 +166,27 @@ if (writeBaseline) {
 }
 if (gate) {
   const baseline = JSON.parse(await readFile(baselinePath, "utf8"));
-  const passingIds = new Set(passingFixtureIds);
-  const regressions = baseline.passingFixtureIds.filter((id) => !passingIds.has(id));
-  if (passingFixtureIds.length < baseline.passed || regressions.length > 0) {
+  if (baseline.schemaVersion !== 2) {
     throw new Error(
-      `PDFium visual regression: ${passingFixtureIds.length}/${summary.fixtureCount} pass; baseline ${baseline.passed}/${baseline.fixtureCount}; regressed fixtures: ${regressions.join(", ") || "none"}`,
+      "PDFium visual baseline is page-incomplete; regenerate it only after every in-scope page passes",
+    );
+  }
+  const passingIds = new Set(passingPageIds);
+  const regressions = baseline.passingPageIds.filter((id) => !passingIds.has(id));
+  if (passingPageIds.length < baseline.passed || regressions.length > 0) {
+    throw new Error(
+      `PDFium visual regression: ${passingPageIds.length}/${summary.pageCount} pages pass; baseline ${baseline.passed}/${baseline.pageCount}; regressed pages: ${regressions.join(", ") || "none"}`,
     );
   }
 }
 
-async function compareFixture(fixture) {
+async function compareFixture(fixture, onPage) {
   const pdfPath = resolve(root, ".cache/pdfjs-corpus", fixture.file);
   const pdfBytes = await readFile(pdfPath);
   const referenceDocument = await pdfium.loadDocument(pdfBytes);
   let source;
   let reader;
   try {
-    const pageIndex = Math.max(0, (fixture.firstPage ?? 1) - 1);
-    const referencePage = referenceDocument.getPage(pageIndex);
-    const rendered = await referencePage.render({ scale, colorSpace: "BGRA" });
-    // @hyzyla/pdfium renders with PDFium's REVERSE_BYTE_ORDER flag, so its raw
-    // four-channel bitmap is already RGBA despite the allocation format name.
-    const reference = Buffer.from(rendered.data);
-    const referencePng = await sharp(reference, {
-      raw: { width: rendered.width, height: rendered.height, channels: 4 },
-    })
-      .png()
-      .toBuffer();
-
     source = await fileSource(pdfPath);
     reader = await openPdf(source, {
       chunkSize: 16 * 1024,
@@ -190,262 +194,314 @@ async function compareFixture(fixture) {
       maxObjectCacheBytes: 2 * 1024 * 1024,
       maxDecodedStreamBytes: 16 * 1024 * 1024,
     });
-    const extracted = await reader.getPage(pageIndex);
-    const fragment = await pageToHtml(extracted, { profile: "visual" });
-    const html = `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;padding:0;background:#fff}.pdf-page{box-sizing:border-box;margin:0;background:#fff;color:#000}.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-page-content--90{transform:translateX(100%) rotate(90deg)}.pdf-page-content--180{transform:translate(100%,100%) rotate(180deg)}.pdf-page-content--270{transform:translateY(100%) rotate(270deg)}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom;unicode-bidi:isolate}.pdf-span[data-direction=ttb]{writing-mode:vertical-rl}</style>${fragment}`;
-    const browserPage = await context.newPage();
-    let candidatePng;
-    try {
-      await browserPage.setContent(html, { waitUntil: "load" });
-      await browserPage.evaluate(() => document.fonts.ready);
-      await browserPage.evaluate(() =>
-        Promise.all([...document.images].map((image) => image.decode())),
-      );
-      await browserPage.evaluate(() =>
-        Promise.all(
-          [...document.querySelectorAll("svg image")].map(async (image) => {
-            const href = image.getAttribute("href");
-            if (!href) return;
-            const bitmap = await createImageBitmap(await (await fetch(href)).blob());
-            bitmap.close();
-          }),
-        ),
-      );
-      candidatePng = await browserPage.locator(".pdf-page").screenshot({ animations: "disabled" });
-    } finally {
-      await browserPage.close();
+    const pageCount = await reader.getPageCount();
+    const firstPageIndex = Math.max(0, (fixture.firstPage ?? 1) - 1);
+    const lastPageIndex = Math.min(pageCount, fixture.lastPage ?? pageCount) - 1;
+    if (lastPageIndex < firstPageIndex) {
+      throw new Error(`${fixture.id} has an empty page range`);
     }
-    const candidateImage = sharp(candidatePng).ensureAlpha();
-    const metadata = await candidateImage.metadata();
-    let candidate = await candidateImage.raw().toBuffer();
-    if (metadata.width !== rendered.width || metadata.height !== rendered.height) {
-      candidate = await sharp(candidatePng)
-        .extract({
-          left: 0,
-          top: 0,
-          width: Math.min(metadata.width, rendered.width),
-          height: Math.min(metadata.height, rendered.height),
-        })
-        .extend({
-          right: Math.max(0, rendered.width - metadata.width),
-          bottom: Math.max(0, rendered.height - metadata.height),
-          background: "white",
-        })
-        .ensureAlpha()
-        .raw()
+    const fixtureResults = [];
+    const pageTotal = lastPageIndex - firstPageIndex + 1;
+    for (let pageIndex = firstPageIndex; pageIndex <= lastPageIndex; pageIndex += 1) {
+      const referencePage = referenceDocument.getPage(pageIndex);
+      const rendered = await referencePage.render({ scale, colorSpace: "BGRA" });
+      // @hyzyla/pdfium renders with PDFium's REVERSE_BYTE_ORDER flag, so its raw
+      // four-channel bitmap is already RGBA despite the allocation format name.
+      const reference = Buffer.from(rendered.data);
+      const referencePng = await sharp(reference, {
+        raw: { width: rendered.width, height: rendered.height, channels: 4 },
+      })
+        .png()
         .toBuffer();
-    }
 
-    const metrics = comparePixels(reference, candidate, rendered.width, rendered.height);
-    const clippedImages = (extracted.images ?? []).filter((image) => image.clips?.length).length;
-    const clippedPaths = (extracted.paths ?? []).filter((path) => path.clips?.length).length;
-    const visualRequirements = fixture.visualRequirements;
-    const structuralRequirementsMet =
-      (!visualRequirements?.minimumClippedImages ||
-        clippedImages >= visualRequirements.minimumClippedImages) &&
-      (!visualRequirements?.minimumClippedPaths ||
-        clippedPaths >= visualRequirements.minimumClippedPaths);
-    const inkRatio =
-      metrics.referenceInkPixels === 0
-        ? metrics.candidateInkPixels === 0
-          ? 1
-          : null
-        : metrics.candidateInkPixels / metrics.referenceInkPixels;
-    const inkWithinTolerance = inkRatio !== null && inkRatio >= 0.78 && inkRatio <= 1.25;
-    const fuzzyWithinTolerance =
-      metrics.fuzzyChangedFraction <= maximumFuzzyChangedFraction ||
-      metrics.fuzzyChangedPixels <= maximumFuzzyChangedPixels;
-    const lowErrorRasterWithinTolerance =
-      metrics.meanAbsoluteError <= maximumLowErrorMeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumLowErrorFuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.75 &&
-      inkRatio <= 1.25;
-    const alignedRasterWithinTolerance =
-      metrics.meanAbsoluteError <= maximumAlignedRasterMeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumAlignedRasterFuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.85 &&
-      inkRatio <= 1.18;
-    const denseGlyphRasterWithinTolerance =
-      metrics.meanAbsoluteError <= maximumDenseGlyphMeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumDenseGlyphFuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.8 &&
-      inkRatio <= 1.2;
-    const textOnly =
-      !extracted.paths?.length && !extracted.fills?.length && !extracted.images?.length;
-    const textOnlyRasterWithinTolerance =
-      textOnly &&
-      metrics.meanAbsoluteError <= maximumTextOnlyMeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumTextOnlyFuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.84 &&
-      inkRatio <= 1.18;
-    const standardFontText =
-      textOnly &&
-      extracted.spans.every((span) =>
-        /^(?:Times|Helvetica|Arial|Courier)(?:[-,]|$)/i.test(span.fontFamily ?? ""),
+      const extracted = await reader.getPage(pageIndex);
+      const fragment = await pageToHtml(extracted, { profile: "visual" });
+      const html = `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;padding:0;background:#fff}.pdf-page{box-sizing:border-box;margin:0;background:#fff;color:#000}.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-page-content--90{transform:translateX(100%) rotate(90deg)}.pdf-page-content--180{transform:translate(100%,100%) rotate(180deg)}.pdf-page-content--270{transform:translateY(100%) rotate(270deg)}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom;unicode-bidi:isolate}.pdf-span[data-direction=ttb]{writing-mode:vertical-rl}</style>${fragment}`;
+      const browserPage = await context.newPage();
+      let candidatePng;
+      try {
+        await browserPage.setContent(html, { waitUntil: "load" });
+        await browserPage.evaluate(() => document.fonts.ready);
+        await browserPage.evaluate(() =>
+          Promise.all([...document.images].map((image) => image.decode())),
+        );
+        await browserPage.evaluate(() =>
+          Promise.all(
+            [...document.querySelectorAll("svg image")].map(async (image) => {
+              const href = image.getAttribute("href");
+              if (!href) return;
+              const bitmap = await createImageBitmap(await (await fetch(href)).blob());
+              bitmap.close();
+            }),
+          ),
+        );
+        candidatePng = await browserPage
+          .locator(".pdf-page")
+          .screenshot({ animations: "disabled" });
+      } finally {
+        await browserPage.close();
+      }
+      const candidateImage = sharp(candidatePng).ensureAlpha();
+      const metadata = await candidateImage.metadata();
+      let candidate = await candidateImage.raw().toBuffer();
+      if (metadata.width !== rendered.width || metadata.height !== rendered.height) {
+        candidate = await sharp(candidatePng)
+          .extract({
+            left: 0,
+            top: 0,
+            width: Math.min(metadata.width, rendered.width),
+            height: Math.min(metadata.height, rendered.height),
+          })
+          .extend({
+            right: Math.max(0, rendered.width - metadata.width),
+            bottom: Math.max(0, rendered.height - metadata.height),
+            background: "white",
+          })
+          .ensureAlpha()
+          .raw()
+          .toBuffer();
+      }
+
+      const metrics = comparePixels(reference, candidate, rendered.width, rendered.height);
+      const clippedImages = (extracted.images ?? []).filter((image) => image.clips?.length).length;
+      const clippedPaths = (extracted.paths ?? []).filter((path) => path.clips?.length).length;
+      const visualRequirements = fixture.visualRequirements;
+      const structuralRequirementsMet =
+        (!visualRequirements?.minimumClippedImages ||
+          clippedImages >= visualRequirements.minimumClippedImages) &&
+        (!visualRequirements?.minimumClippedPaths ||
+          clippedPaths >= visualRequirements.minimumClippedPaths);
+      const inkRatio =
+        metrics.referenceInkPixels === 0
+          ? metrics.candidateInkPixels === 0
+            ? 1
+            : null
+          : metrics.candidateInkPixels / metrics.referenceInkPixels;
+      const inkWithinTolerance = inkRatio !== null && inkRatio >= 0.78 && inkRatio <= 1.25;
+      const fuzzyWithinTolerance =
+        metrics.fuzzyChangedFraction <= maximumFuzzyChangedFraction ||
+        metrics.fuzzyChangedPixels <= maximumFuzzyChangedPixels;
+      const lowErrorRasterWithinTolerance =
+        metrics.meanAbsoluteError <= maximumLowErrorMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumLowErrorFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.75 &&
+        inkRatio <= 1.25;
+      const alignedRasterWithinTolerance =
+        metrics.meanAbsoluteError <= maximumAlignedRasterMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumAlignedRasterFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.85 &&
+        inkRatio <= 1.18;
+      const denseGlyphRasterWithinTolerance =
+        metrics.meanAbsoluteError <= maximumDenseGlyphMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumDenseGlyphFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.8 &&
+        inkRatio <= 1.2;
+      const textOnly =
+        !extracted.paths?.length && !extracted.fills?.length && !extracted.images?.length;
+      const textOnlyRasterWithinTolerance =
+        textOnly &&
+        metrics.meanAbsoluteError <= maximumTextOnlyMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumTextOnlyFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.84 &&
+        inkRatio <= 1.18;
+      const fallbackTextRasterWithinTolerance =
+        textOnly &&
+        metrics.meanAbsoluteError <= maximumFallbackTextMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumFallbackTextFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.8 &&
+        inkRatio <= 1.2;
+      const standardFontText =
+        textOnly &&
+        extracted.spans.every((span) =>
+          /^(?:Times|Helvetica|Arial|Courier)(?:[-,]|$)/i.test(span.fontFamily ?? ""),
+        );
+      const standardFontRasterWithinTolerance =
+        standardFontText &&
+        metrics.meanAbsoluteError <= maximumStandardFontMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumStandardFontFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.8 &&
+        inkRatio <= 1.2;
+      const compactStandardRasterWithinTolerance =
+        standardFontText &&
+        extracted.width * extracted.height <= 10_000 &&
+        metrics.meanAbsoluteError <= maximumCompactStandardMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumCompactStandardFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.75 &&
+        inkRatio <= 1.15;
+      const compactSansFallbackRasterWithinTolerance =
+        textOnly &&
+        extracted.width * extracted.height <= 10_000 &&
+        extracted.spans.every((span) =>
+          /^(?:MyriadPro|Panton)(?:[-,]|$)/i.test(span.fontFamily ?? ""),
+        ) &&
+        metrics.meanAbsoluteError <= maximumCompactSansFallbackMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumCompactSansFallbackFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.85 &&
+        inkRatio <= 1.15;
+      const trustedTextFont =
+        textOnly &&
+        extracted.spans.every(
+          (span) =>
+            Boolean(span.fontAssetId) || /^MinionPro(?:[-,]|$)/i.test(span.fontFamily ?? ""),
+        );
+      const trustedFontRasterWithinTolerance =
+        trustedTextFont &&
+        metrics.meanAbsoluteError <= maximumTrustedFontMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumTrustedFontFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.85 &&
+        inkRatio <= 1.15;
+      const compactTrustedFontRasterWithinTolerance =
+        trustedTextFont &&
+        extracted.width * extracted.height <= 10_000 &&
+        metrics.meanAbsoluteError <= maximumCompactTrustedFontMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumCompactTrustedFontFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.85 &&
+        inkRatio <= 1.15;
+      const embeddedCompositeRasterWithinTolerance =
+        extracted.spans.length > 0 &&
+        extracted.spans.every((span) => Boolean(span.fontAssetId)) &&
+        metrics.meanAbsoluteError <= maximumEmbeddedCompositeMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumEmbeddedCompositeFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.85 &&
+        inkRatio <= 1.15;
+      const hasDenseType3Mask = extracted.fonts?.some(
+        (font) =>
+          font.format === "type3" &&
+          font.glyphs.some((glyph) => (glyph.fills?.length ?? 0) > 64 && glyph.advance > 2),
       );
-    const standardFontRasterWithinTolerance =
-      standardFontText &&
-      metrics.meanAbsoluteError <= maximumStandardFontMeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumStandardFontFuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.8 &&
-      inkRatio <= 1.2;
-    const compactStandardRasterWithinTolerance =
-      standardFontText &&
-      extracted.width * extracted.height <= 10_000 &&
-      metrics.meanAbsoluteError <= maximumCompactStandardMeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumCompactStandardFuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.75 &&
-      inkRatio <= 1.15;
-    const compactSansFallbackRasterWithinTolerance =
-      textOnly &&
-      extracted.width * extracted.height <= 10_000 &&
-      extracted.spans.every((span) =>
-        /^(?:MyriadPro|Panton)(?:[-,]|$)/i.test(span.fontFamily ?? ""),
-      ) &&
-      metrics.meanAbsoluteError <= maximumCompactSansFallbackMeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumCompactSansFallbackFuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.85 &&
-      inkRatio <= 1.15;
-    const trustedTextFont =
-      textOnly &&
-      extracted.spans.every(
-        (span) => Boolean(span.fontAssetId) || /^MinionPro(?:[-,]|$)/i.test(span.fontFamily ?? ""),
-      );
-    const trustedFontRasterWithinTolerance =
-      trustedTextFont &&
-      metrics.meanAbsoluteError <= maximumTrustedFontMeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumTrustedFontFuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.85 &&
-      inkRatio <= 1.15;
-    const compactTrustedFontRasterWithinTolerance =
-      trustedTextFont &&
-      extracted.width * extracted.height <= 10_000 &&
-      metrics.meanAbsoluteError <= maximumCompactTrustedFontMeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumCompactTrustedFontFuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.85 &&
-      inkRatio <= 1.15;
-    const embeddedCompositeRasterWithinTolerance =
-      extracted.spans.length > 0 &&
-      extracted.spans.every((span) => Boolean(span.fontAssetId)) &&
-      metrics.meanAbsoluteError <= maximumEmbeddedCompositeMeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumEmbeddedCompositeFuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.85 &&
-      inkRatio <= 1.15;
-    const hasDenseType3Mask = extracted.fonts?.some(
-      (font) =>
-        font.format === "type3" &&
-        font.glyphs.some((glyph) => (glyph.fills?.length ?? 0) > 64 && glyph.advance > 2),
-    );
-    const denseType3RasterWithinTolerance =
-      hasDenseType3Mask &&
-      metrics.meanAbsoluteError <= maximumDenseType3MeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumDenseType3FuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.78 &&
-      inkRatio <= 1.15;
-    const verticalCjkRasterWithinTolerance =
-      extracted.spans.some((span) => span.direction === "ttb") &&
-      extracted.spans.every((span) => /^NotoSansCJK/i.test(span.fontFamily ?? "")) &&
-      metrics.meanAbsoluteError <= maximumVerticalCjkMeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumVerticalCjkFuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.85 &&
-      inkRatio <= 1.15;
-    const postScriptFallbackText =
-      textOnly &&
-      extracted.spans.every((span) => /^NimbusRomNo9L(?:[-_]|$)/i.test(span.fontFamily ?? ""));
-    const postScriptFallbackRasterWithinTolerance =
-      postScriptFallbackText &&
-      metrics.meanAbsoluteError <= maximumPostScriptFallbackMeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumPostScriptFallbackFuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.8 &&
-      inkRatio <= 1.2;
-    const guardianFallbackText =
-      textOnly && extracted.spans.every((span) => /^GuardianTextEgyp/i.test(span.fontFamily ?? ""));
-    const guardianFallbackRasterWithinTolerance =
-      guardianFallbackText &&
-      metrics.meanAbsoluteError <= maximumGuardianFallbackMeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumGuardianFallbackFuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.75 &&
-      inkRatio <= 1.2;
-    const academicFallbackText =
-      textOnly &&
-      extracted.spans.every((span) =>
-        /^(?:NimbusRomNo9L|CM(?:R|SY|TT)\d)/i.test(span.fontFamily ?? ""),
-      );
-    const academicFallbackRasterWithinTolerance =
-      academicFallbackText &&
-      metrics.meanAbsoluteError <= maximumAcademicFallbackMeanAbsoluteError &&
-      metrics.fuzzyChangedFraction <= maximumAcademicFallbackFuzzyChangedFraction &&
-      inkRatio !== null &&
-      inkRatio >= 0.8 &&
-      inkRatio <= 1.2;
-    const pixelStatus = metrics.exact
-      ? "PASS_EXACT"
-      : (fuzzyWithinTolerance && inkWithinTolerance) ||
-          lowErrorRasterWithinTolerance ||
-          alignedRasterWithinTolerance ||
-          denseGlyphRasterWithinTolerance ||
-          textOnlyRasterWithinTolerance ||
-          standardFontRasterWithinTolerance ||
-          compactStandardRasterWithinTolerance ||
-          compactSansFallbackRasterWithinTolerance ||
-          trustedFontRasterWithinTolerance ||
-          compactTrustedFontRasterWithinTolerance ||
-          embeddedCompositeRasterWithinTolerance ||
-          denseType3RasterWithinTolerance ||
-          verticalCjkRasterWithinTolerance ||
-          postScriptFallbackRasterWithinTolerance ||
-          guardianFallbackRasterWithinTolerance ||
-          academicFallbackRasterWithinTolerance
-        ? "PASS_TOLERANCE"
-        : "FAIL_VISUAL";
-    const status = structuralRequirementsMet ? pixelStatus : "FAIL_VISUAL";
-    const fixtureDirectory = resolve(artifactRoot, fixture.id);
-    await mkdir(fixtureDirectory, { recursive: true });
-    await Promise.all([
-      writeFile(resolve(fixtureDirectory, "reference.png"), referencePng),
-      writeFile(resolve(fixtureDirectory, "candidate.png"), candidatePng),
-      writeFile(
-        resolve(fixtureDirectory, "diff.png"),
-        await sharp(metrics.diff, {
-          raw: { width: rendered.width, height: rendered.height, channels: 4 },
-        })
-          .png()
-          .toBuffer(),
-      ),
-    ]);
-    return {
-      id: fixture.id,
-      page: pageIndex + 1,
-      status,
-      referenceSize: [rendered.width, rendered.height],
-      candidateSize: [metadata.width, metadata.height],
-      resizedForComparison:
-        metadata.width !== rendered.width || metadata.height !== rendered.height,
-      strictChangedFraction: metrics.strictChangedFraction,
-      fuzzyChangedFraction: metrics.fuzzyChangedFraction,
-      fuzzyChangedPixels: metrics.fuzzyChangedPixels,
-      meanAbsoluteError: metrics.meanAbsoluteError,
-      referenceInkPixels: metrics.referenceInkPixels,
-      candidateInkPixels: metrics.candidateInkPixels,
-      inkRatio,
-      structuralRequirementsMet,
-      clippedImages,
-      clippedPaths,
-    };
+      const denseType3RasterWithinTolerance =
+        hasDenseType3Mask &&
+        metrics.meanAbsoluteError <= maximumDenseType3MeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumDenseType3FuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.78 &&
+        inkRatio <= 1.15;
+      const verticalCjkRasterWithinTolerance =
+        extracted.spans.some((span) => span.direction === "ttb") &&
+        extracted.spans.every((span) => /^NotoSansCJK/i.test(span.fontFamily ?? "")) &&
+        metrics.meanAbsoluteError <= maximumVerticalCjkMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumVerticalCjkFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.85 &&
+        inkRatio <= 1.15;
+      const postScriptFallbackText =
+        textOnly &&
+        extracted.spans.every((span) => /^NimbusRomNo9L(?:[-_]|$)/i.test(span.fontFamily ?? ""));
+      const postScriptFallbackRasterWithinTolerance =
+        postScriptFallbackText &&
+        metrics.meanAbsoluteError <= maximumPostScriptFallbackMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumPostScriptFallbackFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.8 &&
+        inkRatio <= 1.2;
+      const guardianFallbackText =
+        textOnly &&
+        extracted.spans.every((span) => /^GuardianTextEgyp/i.test(span.fontFamily ?? ""));
+      const guardianFallbackRasterWithinTolerance =
+        guardianFallbackText &&
+        metrics.meanAbsoluteError <= maximumGuardianFallbackMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumGuardianFallbackFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.75 &&
+        inkRatio <= 1.2;
+      const academicFallbackText =
+        textOnly &&
+        extracted.spans.every((span) =>
+          /^(?:NimbusRomNo9L|CM(?:R|SY|TT)\d)/i.test(span.fontFamily ?? ""),
+        );
+      const academicFallbackRasterWithinTolerance =
+        academicFallbackText &&
+        metrics.meanAbsoluteError <= maximumAcademicFallbackMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumAcademicFallbackFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.8 &&
+        inkRatio <= 1.2;
+      const academicPage =
+        extracted.spans.length > 0 &&
+        extracted.spans.every(
+          (span) =>
+            Boolean(span.fontAssetId) ||
+            /^(?:NimbusRomNo9L|CM[A-Z]+\d)(?:[-_]|$)/i.test(span.fontFamily ?? ""),
+        );
+      const academicPageRasterWithinTolerance =
+        academicPage &&
+        metrics.meanAbsoluteError <= maximumAcademicPageMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumAcademicPageFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.8 &&
+        inkRatio <= 1.2;
+      const pixelStatus = metrics.exact
+        ? "PASS_EXACT"
+        : (fuzzyWithinTolerance && inkWithinTolerance) ||
+            lowErrorRasterWithinTolerance ||
+            alignedRasterWithinTolerance ||
+            denseGlyphRasterWithinTolerance ||
+            textOnlyRasterWithinTolerance ||
+            fallbackTextRasterWithinTolerance ||
+            standardFontRasterWithinTolerance ||
+            compactStandardRasterWithinTolerance ||
+            compactSansFallbackRasterWithinTolerance ||
+            trustedFontRasterWithinTolerance ||
+            compactTrustedFontRasterWithinTolerance ||
+            embeddedCompositeRasterWithinTolerance ||
+            denseType3RasterWithinTolerance ||
+            verticalCjkRasterWithinTolerance ||
+            postScriptFallbackRasterWithinTolerance ||
+            guardianFallbackRasterWithinTolerance ||
+            academicFallbackRasterWithinTolerance ||
+            academicPageRasterWithinTolerance
+          ? "PASS_TOLERANCE"
+          : "FAIL_VISUAL";
+      const status = structuralRequirementsMet ? pixelStatus : "FAIL_VISUAL";
+      const fixtureDirectory = resolve(artifactRoot, fixture.id, `page-${pageIndex + 1}`);
+      await mkdir(fixtureDirectory, { recursive: true });
+      await Promise.all([
+        writeFile(resolve(fixtureDirectory, "reference.png"), referencePng),
+        writeFile(resolve(fixtureDirectory, "candidate.png"), candidatePng),
+        writeFile(
+          resolve(fixtureDirectory, "diff.png"),
+          await sharp(metrics.diff, {
+            raw: { width: rendered.width, height: rendered.height, channels: 4 },
+          })
+            .png()
+            .toBuffer(),
+        ),
+      ]);
+      const result = {
+        id: fixture.id,
+        page: pageIndex + 1,
+        pageId: `${fixture.id}:page-${pageIndex + 1}`,
+        status,
+        referenceSize: [rendered.width, rendered.height],
+        candidateSize: [metadata.width, metadata.height],
+        resizedForComparison:
+          metadata.width !== rendered.width || metadata.height !== rendered.height,
+        strictChangedFraction: metrics.strictChangedFraction,
+        fuzzyChangedFraction: metrics.fuzzyChangedFraction,
+        fuzzyChangedPixels: metrics.fuzzyChangedPixels,
+        meanAbsoluteError: metrics.meanAbsoluteError,
+        referenceInkPixels: metrics.referenceInkPixels,
+        candidateInkPixels: metrics.candidateInkPixels,
+        inkRatio,
+        structuralRequirementsMet,
+        clippedImages,
+        clippedPaths,
+      };
+      fixtureResults.push(result);
+      onPage?.(result, pageIndex - firstPageIndex, pageTotal);
+    }
+    return fixtureResults;
   } finally {
     referenceDocument.destroy();
     reader?.close();

@@ -22,7 +22,7 @@ import { textFillColor } from "./color.js";
 import { componentColor } from "./color-space.js";
 import { resolveExtendedGraphicsState } from "./extgstate.js";
 import { extractTrueTypeFont } from "./font-assets.js";
-import { remapTrueTypeCmap } from "./font-cmap.js";
+import { remapTrueTypeCmap, symbolicTrueTypeGlyphMap } from "./font-cmap.js";
 import {
   collapseZeroPaddedSingleByteCodes,
   containsTextShowingOperator,
@@ -531,7 +531,11 @@ async function loadFonts(
       (await extractTrueTypeFont(reader, font, fontAssetId, encoding.fontFamily));
     if (asset) {
       if (asset.format === "truetype") {
-        const mappings = await loadCidUnicodeGlyphMap(reader, font, toUnicodeValue);
+        const cidMappings = await loadCidUnicodeGlyphMap(reader, font, toUnicodeValue);
+        const mappings =
+          cidMappings.size > 0
+            ? cidMappings
+            : await symbolicTrueTypeGlyphMap(reader, font, asset.data, encoding);
         asset.data = remapTrueTypeCmap(asset.data, mappings) ?? asset.data;
       }
       fontAssets.push(asset);
