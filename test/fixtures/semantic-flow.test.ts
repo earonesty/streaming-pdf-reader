@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { writeHtmlDocument } from "../../packages/html-writer/src/index.js";
 import { openPdf } from "../../src/index.js";
 import { fileSource } from "../../src/node.js";
 import { structurePage, tableToRows } from "../../src/structure/index.js";
@@ -133,6 +134,43 @@ describe("semantic flow fixture gate", () => {
       pdf.close();
       await source.close();
     }
+  });
+
+  it("preserves the research paper's observed table, list, emphasis, and word spacing", async () => {
+    const source = await fileSource(resolve(fixtureRoot, "research-paper.pdf"));
+    const pdf = await openPdf(source);
+    let html = "";
+    try {
+      await writeHtmlDocument(
+        pdf.pages(),
+        (chunk) => {
+          html += chunk;
+        },
+        { profile: "semantic" },
+      );
+    } finally {
+      pdf.close();
+      await source.close();
+    }
+
+    expect(html).toContain("<table><tr><th>Tag</th><th>JS Type</th><th>Description</th></tr>");
+    expect(html).toContain(
+      "<tr><td>110</td><td>boolean null, or undefined</td><td>enumeration for null, undefined, true, false</td></tr>",
+    );
+
+    const causesNeedle = html.indexOf("The implementation does not currently trace recursion");
+    const causesStart = html.lastIndexOf("<ul>", causesNeedle);
+    const causesEnd = html.indexOf("</ul>", causesNeedle);
+    const causes = html.slice(causesStart, causesEnd + "</ul>".length);
+    expect(causesStart).toBeGreaterThanOrEqual(0);
+    expect(causesEnd).toBeGreaterThan(causesStart);
+    expect(causes.match(/<li>/g)).toHaveLength(5);
+    expect(causes).toContain("Some programs trace very well");
+    expect(html).toContain("</ul><p><strong>Detailed performance metrics.</strong> In Figure 11");
+    expect(html).toContain("allow DOUBLE to be replaced with INT. For example");
+    expect(html).toContain("is a key benefit of tracing");
+    expect(html).not.toContain("INT.For");
+    expect(html).not.toContain("is akey benefit");
   });
 });
 
