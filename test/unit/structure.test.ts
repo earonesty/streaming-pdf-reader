@@ -120,6 +120,48 @@ describe("structured extraction quality gate", () => {
     expect(structurePage(page).lines[0]?.text).toBe("compiled twice, and both");
   });
 
+  it("uses repeated alignments to recover narrow table columns and wrapped cells", () => {
+    const page: ExtractedPage = {
+      number: 1,
+      width: 300,
+      height: 200,
+      rotate: 0,
+      spans: [
+        span("Tag", 20, 150, 15, 9),
+        span("JS Type", 45, 150, 32, 9),
+        span("Description", 98, 150, 45, 9),
+        span("000", 20, 138, 15, 9),
+        span("object", 45, 138, 25, 9),
+        span("pointer to handle", 98, 138, 70, 9),
+        span("010", 20, 126, 15, 9),
+        span("number", 45, 126, 28, 9),
+        span("pointer to double", 98, 126, 72, 9),
+        span("110", 20, 114, 15, 9),
+        span("boolean", 45, 114, 30, 9),
+        span("enumeration", 98, 114, 48, 9),
+        span("null or undefined", 45, 102, 65, 9),
+      ],
+    };
+
+    expect(tableToRows(structurePage(page).tables[0] as never)).toEqual([
+      ["Tag", "JS Type", "Description"],
+      ["000", "object", "pointer to handle"],
+      ["010", "number", "pointer to double"],
+      ["110", "boolean null or undefined", "enumeration"],
+    ]);
+  });
+
+  it("restores spaces between single-letter font fragments when geometry shows a word gap", () => {
+    const page: ExtractedPage = {
+      number: 1,
+      width: 100,
+      height: 100,
+      rotate: 0,
+      spans: [span("a", 10, 50, 4, 9), span("k", 16, 50, 4, 9), span("ey", 20, 50, 8, 9)],
+    };
+    expect(structurePage(page).lines[0]?.text).toBe("a key");
+  });
+
   it("keeps superscripts attached to their visual text line", () => {
     const page: ExtractedPage = {
       number: 1,

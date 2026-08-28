@@ -142,10 +142,11 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
         if (!marker || marker.ordered !== list.ordered) break;
         const itemLines = [itemLine];
         let text = marker.text;
-        while (cursor + 1 < lines.length && isContinuation(itemLine, lines[cursor + 1])) {
+        while (cursor + 1 < lines.length && isContinuation(itemLines.at(-1), lines[cursor + 1])) {
           const continuation = lines[cursor + 1];
           if (!continuation || listMarker(continuation.text) || tableForLine.has(continuation))
             break;
+          if (endsSentence(itemLines.at(-1)) && startsEmphasizedLead(continuation)) break;
           cursor += 1;
           itemLines.push(continuation);
           text = joinText(text, continuation.text);
@@ -165,6 +166,7 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
       if (!next || tableForLine.has(next) || listMarker(next.text)) break;
       if (
         inferHeadingLevel(next, bodySize, largestSize) ||
+        (endsSentence(paragraphLines.at(-1)) && startsEmphasizedLead(next)) ||
         startsNextHangingItem(paragraphLines, next, hangingEdges) ||
         !isContinuation(paragraphLines.at(-1), next)
       )
@@ -176,6 +178,21 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
     blocks.push({ type: "paragraph", text, lines: paragraphLines });
   }
   return blocks;
+}
+
+function endsSentence(line: TextLine | undefined): boolean {
+  return /[.!?][”')]?$/u.test(line?.text.trim() ?? "");
+}
+
+function startsEmphasizedLead(line: TextLine): boolean {
+  const meaningful = line.spans.filter((span) => /\S/u.test(span.text));
+  const first = meaningful[0];
+  if (!first || !isBold(first)) return false;
+  return meaningful.some((span) => !isBold(span));
+}
+
+function isBold(span: TextLine["spans"][number]): boolean {
+  return /(?:bold|semibold|demi|medium|medi)/i.test(span.fontFamily ?? "");
 }
 
 function startsNextHangingItem(

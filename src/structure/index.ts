@@ -235,9 +235,20 @@ function inferTables(page: number, lines: TextLine[], options: StructureOptions)
   }
   if (run.length >= minimumRows) runs.push(run);
 
-  return runs.map((rows) => {
-    const columns = (rows[0]?.cells ?? []).map((cell) => cell.bounds.x);
-    const cells = rows.flatMap((candidate, row) =>
+  const tables: Table[] = runs.map((rows) => {
+    const repeatedColumns = repeatedColumnStarts(rows, columnTolerance);
+    const refinedRows =
+      repeatedColumns.length > (rows[0]?.cells.length ?? 0)
+        ? rows.map((candidate) => ({
+            line: candidate.line,
+            cells: cellsAtColumns(candidate.line, repeatedColumns),
+          }))
+        : rows;
+    const columns =
+      repeatedColumns.length > (rows[0]?.cells.length ?? 0)
+        ? repeatedColumns
+        : (rows[0]?.cells ?? []).map((cell) => cell.bounds.x);
+    const cells = refinedRows.flatMap((candidate, row) =>
       candidate.cells.map((cell, column) => ({
         row,
         column,
@@ -260,6 +271,77 @@ function inferTables(page: number, lines: TextLine[], options: StructureOptions)
       reasons: ["consecutive-rows", "repeated-column-alignment"],
     };
   });
+  attachWrappedTableCells(tables, lines, columnTolerance);
+  return tables;
+}
+
+function attachWrappedTableCells(tables: Table[], lines: TextLine[], tolerance: number): void {
+  const assigned = new Set(tables.flatMap((table) => table.cells.flatMap((cell) => cell.spans)));
+  for (const table of tables) {
+    const rowHeight = median(table.cells.map((cell) => cell.bounds.height));
+    for (const line of lines) {
+      if (line.spans.some((span) => assigned.has(span))) continue;
+      const gap = table.bounds.y - (line.bounds.y + line.bounds.height);
+      if (gap < -2 || gap > Math.max(4, rowHeight * 0.6)) continue;
+      const column = table.columns.findIndex(
+        (x, index) => index > 0 && Math.abs(line.bounds.x - x) <= tolerance * 0.35,
+      );
+      if (column < 1) continue;
+      const lastRow = Math.max(...table.cells.map((cell) => cell.row));
+      const cell = table.cells.find(
+        (candidate) => candidate.row === lastRow && candidate.column === column,
+      );
+      if (!cell) continue;
+      cell.text = `${cell.text} ${line.text}`;
+      cell.spans.push(...line.spans);
+      cell.bounds = union([cell.bounds, line.bounds]);
+      table.bounds = union([table.bounds, line.bounds]);
+      for (const span of line.spans) assigned.add(span);
+    }
+  }
+}
+
+function median(values: number[]): number {
+  const ordered = [...values].sort((left, right) => left - right);
+  return ordered[Math.floor(ordered.length / 2)] ?? 0;
+}
+
+function repeatedColumnStarts(
+  rows: Array<{ line: TextLine; cells: Array<{ bounds: Rect; spans: TextSpan[] }> }>,
+  tolerance: number,
+): number[] {
+  const candidates: Array<{ x: number; rows: Set<number> }> = [];
+  for (const [row, candidate] of rows.entries()) {
+    for (const [index, span] of candidate.line.spans.entries()) {
+      const previous = candidate.line.spans[index - 1];
+      if (previous && !shouldInsertSpace(previous, span)) continue;
+      const match = candidates.find((item) => Math.abs(item.x - span.bounds.x) <= tolerance * 0.2);
+      if (match) match.rows.add(row);
+      else candidates.push({ x: span.bounds.x, rows: new Set([row]) });
+    }
+  }
+  const minimumSupport = Math.max(2, Math.ceil(rows.length * 0.6));
+  return candidates
+    .filter((candidate) => candidate.rows.size >= minimumSupport)
+    .map((candidate) => candidate.x)
+    .sort((left, right) => left - right);
+}
+
+function cellsAtColumns(
+  line: TextLine,
+  columns: number[],
+): Array<{ bounds: Rect; spans: TextSpan[] }> {
+  const cells = columns.map(() => [] as TextSpan[]);
+  for (const span of line.spans) {
+    let column = 0;
+    for (let index = 1; index < columns.length; index += 1) {
+      if (span.bounds.x >= ((columns[index - 1] ?? 0) + (columns[index] ?? 0)) / 2) column = index;
+    }
+    cells[column]?.push(span);
+  }
+  return cells
+    .filter((spans) => spans.length > 0)
+    .map((spans) => ({ bounds: union(spans.map((span) => span.bounds)), spans }));
 }
 
 function splitCells(line: TextLine): Array<{ bounds: Rect; spans: TextSpan[] }> {
@@ -306,12 +388,21 @@ function joinSpans(spans: TextSpan[]): string {
 function shouldInsertSpace(previous: TextSpan, current: TextSpan): boolean {
   if (/\s$/u.test(previous.text) || /^\s/u.test(current.text)) return false;
   if (current.hasLeadingSpace) return true;
+  const gap = current.bounds.x - (previous.bounds.x + previous.bounds.width);
+  if (/^[.!?]$/u.test(previous.text) && /^\p{Lu}/u.test(current.text)) {
+    return gap > current.fontSize * 0.18;
+  }
+  if (/\p{L}[.!?]$/u.test(previous.text) && /^\p{Lu}/u.test(current.text)) {
+    return gap > -current.fontSize * 0.1;
+  }
   const continuation = /[-‐‑‒–—([{/]$/u.test(previous.text);
   const closingPunctuation = /^[,.;:!?%)\]}]/u.test(current.text);
   if (continuation || closingPunctuation) return false;
-  const gap = current.bounds.x - (previous.bounds.x + previous.bounds.width);
   if (gap > current.fontSize) return true;
-  const tokenBoundary = [...previous.text].length > 1 || [...current.text].length > 1;
+  const tokenBoundary =
+    [...previous.text].length > 1 ||
+    [...current.text].length > 1 ||
+    (/\p{L}$/u.test(previous.text) && /^\p{L}/u.test(current.text));
   return gap > current.fontSize * 0.18 && tokenBoundary;
 }
 

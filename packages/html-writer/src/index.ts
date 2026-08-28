@@ -340,7 +340,7 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
     if (block.type === "table") await write(tableToHtml(block.table));
     else if (block.type === "heading") {
       await write(
-        `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor)}</h${block.level}>`,
+        `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor, false)}</h${block.level}>`,
       );
     } else if (block.type === "paragraph") {
       await write(
@@ -379,7 +379,9 @@ async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<voi
     } else {
       const tag = block.ordered ? "ol" : "ul";
       await write(`<${tag}>`);
-      for (const item of block.items) await write(`<li>${escapeHtml(item.text)}</li>`);
+      for (const item of block.items) {
+        await write(`<li>${semanticTextHtml(item.text, item.lines, defaultColor)}</li>`);
+      }
       await write(`</${tag}>`);
     }
   }

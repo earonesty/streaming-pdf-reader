@@ -107,7 +107,9 @@ export async function writeSemanticDocument(
       await flushPendingParagraph();
       if (employmentOpen && block.type !== "list") await closeEmployment();
       if (!contentStarted && !headerOpen && block.type === "heading" && block.level === 1) {
-        await write(`<header><h1>${semanticTextHtml(block.text, block.lines, defaultColor)}</h1>`);
+        await write(
+          `<header><h1>${semanticTextHtml(block.text, block.lines, defaultColor, false)}</h1>`,
+        );
         headerOpen = true;
         continue;
       }
@@ -128,7 +130,7 @@ export async function writeSemanticDocument(
             (block.level === 4 && nextBlock?.type === "paragraph" && isContactBlock(nextBlock)))
         ) {
           await write(
-            `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor)}</h${block.level}>`,
+            `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor, false)}</h${block.level}>`,
           );
           continue;
         }
@@ -166,7 +168,7 @@ export async function writeSemanticDocument(
         const level = contentStarted && block.level === 1 ? 2 : block.level;
         await closeSections(level);
         await write(
-          `<section data-level="${level}"><h${level}>${semanticTextHtml(block.text, block.lines, defaultColor)}</h${level}>`,
+          `<section data-level="${level}"><h${level}>${semanticTextHtml(block.text, block.lines, defaultColor, false)}</h${level}>`,
         );
         sectionLevels.push(level);
         continue;
@@ -384,7 +386,7 @@ function semanticBlockHtml(
   defaultColor = "#000000",
 ): string {
   if (block.type === "heading")
-    return `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor)}</h${block.level}>`;
+    return `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor, false)}</h${block.level}>`;
   if (block.type === "paragraph")
     return `<p>${semanticTextHtml(block.text, block.lines, defaultColor)}</p>`;
   if (block.type === "preformatted") return `<pre>${escapeHtml(block.text)}</pre>`;
@@ -419,7 +421,7 @@ function semanticBlockHtml(
     return `<section><h3>${escapeHtml(block.role)}</h3><p>${escapeHtml(block.organization)}</p><p>${escapeHtml(block.date)}</p></section>`;
   }
   const tag = block.ordered ? "ol" : "ul";
-  return `<${tag}>${block.items.map((item) => `<li>${escapeHtml(item.text)}</li>`).join("")}</${tag}>`;
+  return `<${tag}>${block.items.map((item) => `<li>${semanticTextHtml(item.text, item.lines, defaultColor)}</li>`).join("")}</${tag}>`;
 }
 
 function semanticBlockY(block: SemanticBlock): number {
