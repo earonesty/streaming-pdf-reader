@@ -40,26 +40,23 @@ describe("HTML writer", () => {
     expect(semantic).not.toContain("visual");
   });
 
-  it("coalesces compatible visual words into one SVG text element", async () => {
-    const words = [
-      { ...span("paths", 20, 700), bounds: { x: 20, y: 700, width: 26, height: 12 } },
-      {
-        ...span("through", 49, 700),
-        hasLeadingSpace: true,
-        bounds: { x: 49, y: 700, width: 38, height: 12 },
-      },
-      {
-        ...span("PDF", 90, 700),
-        hasLeadingSpace: true,
-        bounds: { x: 90, y: 700, width: 20, height: 12 },
-      },
-    ];
-    const html = await pageToHtml({ ...page, spans: words });
+  it("does not insert extracted text while coalescing visual spans", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [
+        { ...span("paths", 20, 700), bounds: { x: 20, y: 700, width: 26, height: 12 } },
+        {
+          ...span("through", 49, 700),
+          hasLeadingSpace: true,
+          bounds: { x: 49, y: 700, width: 38, height: 12 },
+        },
+      ],
+    });
 
-    expect(html.match(/<text/g)).toHaveLength(1);
-    expect(html).toContain('x="20" y="92"');
-    expect(html).toContain('textLength="90"');
-    expect(html).toContain(">paths through PDF</text>");
+    expect(html.match(/<text/g)).toHaveLength(2);
+    expect(html).toContain(">paths</text>");
+    expect(html).toContain(">through</text>");
+    expect(html).not.toContain(">paths through</text>");
   });
 
   it("coalesces zero-gap fragments without inserting a space", async () => {
@@ -98,7 +95,9 @@ describe("HTML writer", () => {
     const inline = await pageToHtml({ ...page, spans: styled }, { includeStyles: false });
 
     expect(html.match(/\.boxpdf-p1-t1\{/g)).toHaveLength(1);
-    expect(html.match(/class="boxpdf-p1-t1"/g)).toHaveLength(2);
+    expect(html.match(/class="boxpdf-p1-t1"/g)).toHaveLength(1);
+    expect(html).toContain('<g class="boxpdf-p1-t1" transform="translate(0 92)">');
+    expect(html.match(/<text x=/g)).toHaveLength(2);
     expect(html).toContain("fill:#112233;font-family:Times New Roman,Times,serif");
     expect(inline).not.toContain("boxpdf-p1-t1");
     expect(

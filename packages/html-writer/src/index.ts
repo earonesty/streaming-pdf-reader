@@ -219,9 +219,20 @@ async function writePositionedPage(
       if (source) await write(visualImage(image, page.height, page.number, index, source));
     }
   }
-  for (const span of visualSpans) {
+  for (let spanIndex = 0; spanIndex < visualSpans.length; spanIndex += 1) {
+    const span = visualSpans[spanIndex];
+    if (!span) continue;
     if (!usesPositionedSpan(span)) {
       const type3 = span.fontAssetId ? type3Fonts.get(span.fontAssetId) : undefined;
+      const line =
+        !type3 && textClasses
+          ? visualTextLine(visualSpans, spanIndex, textClasses.names, page.height, fontAliases)
+          : undefined;
+      if (line) {
+        await write(line.html);
+        spanIndex = line.endIndex;
+        continue;
+      }
       await write(
         type3
           ? visualType3Text(span, type3, page.height)
@@ -258,7 +269,7 @@ function coalesceVisualSpans(spans: TextSpan[]): TextSpan[] {
     }
     output[output.length - 1] = {
       ...previous,
-      text: previous.text + (span.hasLeadingSpace ? " " : "") + span.text,
+      text: previous.text + span.text,
       bounds: {
         ...previous.bounds,
         width: span.bounds.x + span.bounds.width - previous.bounds.x,
@@ -279,8 +290,7 @@ function canCoalesceVisualSpans(left: TextSpan, right: TextSpan): boolean {
   const tolerance = Math.max(0.02, left.fontSize * 0.015);
   if (Math.abs(left.bounds.y - right.bounds.y) > tolerance) return false;
   const gap = right.bounds.x - (left.bounds.x + left.bounds.width);
-  if (gap < -tolerance || gap > left.fontSize * 0.65) return false;
-  return Boolean(right.hasLeadingSpace) || gap <= tolerance;
+  return !right.hasLeadingSpace && gap >= -tolerance && gap <= tolerance;
 }
 
 function sameVisualTextState(left: TextSpan, right: TextSpan): boolean {
@@ -315,13 +325,62 @@ function visualTextClasses(
     if (usesPositionedSpan(span) || span.glyphCodes) {
       continue;
     }
-    const style = visualTextStyle(span, fontAliases);
+    const style = visualTextClassStyle(span, fontAliases);
     if (!style || names.has(style)) continue;
     const name = `boxpdf-p${number(pageNumber)}-t${names.size + 1}`;
     names.set(style, name);
     css += `.${name}{${style}}`;
   }
   return { css, names };
+}
+
+function visualTextLine(
+  spans: TextSpan[],
+  startIndex: number,
+  styleClasses: Map<string, string>,
+  pageHeight: number,
+  fontAliases: Map<string, string>,
+): { html: string; endIndex: number } | undefined {
+  const first = spans[startIndex];
+  if (!first || !canGroupVisualTextLine(first)) return undefined;
+  const style = visualTextClassStyle(first, fontAliases);
+  const className = styleClasses.get(style);
+  if (!className) return undefined;
+  let endIndex = startIndex;
+  while (endIndex + 1 < spans.length) {
+    const next = spans[endIndex + 1];
+    if (
+      !next ||
+      !canGroupVisualTextLine(next) ||
+      Math.abs(next.bounds.y - first.bounds.y) > 0.001 ||
+      visualTextClassStyle(next, fontAliases) !== style
+    ) {
+      break;
+    }
+    endIndex += 1;
+  }
+  if (endIndex === startIndex) return undefined;
+  const baseline = pageHeight - first.bounds.y;
+  const content = spans
+    .slice(startIndex, endIndex + 1)
+    .map((span) => visualText(span, pageHeight, fontAliases, false, undefined, baseline))
+    .join("");
+  return {
+    html: `<g class="${className}" transform="translate(0 ${number(baseline)})">${content}</g>`,
+    endIndex,
+  };
+}
+
+function canGroupVisualTextLine(span: TextSpan): boolean {
+  return (
+    !usesPositionedSpan(span) &&
+    !span.glyphCodes &&
+    span.direction === "ltr" &&
+    !hasNonIdentityTransform(span.transform) &&
+    span.renderingMode !== 3 &&
+    span.renderingMode !== 7 &&
+    (span.fontAssetId !== undefined || !isAdobeCjkFont(span.fontFamily))
+  );
 }
 
 function usesReflectedVisualOverlay(page: ExtractedPage, spans: TextSpan[]): boolean {
@@ -608,13 +667,16 @@ function visualText(
   fontAliases: Map<string, string>,
   counterRotateReflectedText = false,
   styleClasses?: Map<string, string>,
+  inheritedBaseline?: number,
 ): string {
   if (span.renderingMode === 3 || span.renderingMode === 7) return "";
   if (!span.fontAssetId && isAdobeCjkFont(span.fontFamily)) return "";
   const direction = directionAttribute([span]);
   const style = visualTextStyle(span, fontAliases);
-  const styleClass = styleClasses?.get(style);
+  const styleClass = styleClasses?.get(visualTextClassStyle(span, fontAliases));
   const presentation = styleClass ? ` class="${styleClass}"` : style ? ` style="${style}"` : "";
+  const fontSize =
+    styleClass || inheritedBaseline !== undefined ? "" : ` font-size="${number(span.fontSize)}"`;
   const textExtent = span.direction === "ttb" ? span.bounds.height : span.bounds.width;
   const textLength =
     textExtent > 0 && !isHebrewPaintOrder(span)
@@ -634,11 +696,17 @@ function visualText(
   const basisX = transform?.[0] ?? 1;
   const basisY = transform?.[1] ?? 0;
   const anchorX = span.bounds.x + basisX * rtlOffset;
-  const anchorY = pageHeight - span.bounds.y + basisY * rtlOffset;
+  const anchorY = pageHeight - span.bounds.y + basisY * rtlOffset - (inheritedBaseline ?? 0);
   const position = transformed
     ? ` x="0" y="0" transform="matrix(${transform?.map(number).join(" ")} ${number(anchorX)} ${number(anchorY)})"`
     : ` x="${number(anchorX)}" y="${number(anchorY)}"`;
-  return `<text${direction}${position} font-size="${number(span.fontSize)}"${textLength}${presentation}>${escapeHtml(span.text)}</text>`;
+  return `<text${direction}${position}${fontSize}${textLength}${inheritedBaseline === undefined ? presentation : ""}>${escapeHtml(span.text)}</text>`;
+}
+
+function visualTextClassStyle(span: TextSpan, fontAliases: Map<string, string>): string {
+  const style = visualTextStyle(span, fontAliases);
+  const fontSize = `font-size:${number(span.fontSize)}px`;
+  return style ? `${style};${fontSize}` : fontSize;
 }
 
 function visualTextStyle(span: TextSpan, fontAliases: Map<string, string>): string {
