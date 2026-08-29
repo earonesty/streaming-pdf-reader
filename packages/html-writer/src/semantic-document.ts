@@ -7,7 +7,7 @@ import {
   tableToRows,
 } from "@boxpdf/reader/structure";
 import { clearMediaCaptionAssociations } from "./semantic-caption.js";
-import { dominantTextColor, semanticTextHtml } from "./semantic-inline.js";
+import { dominantTextColor, semanticTextHtml, semanticTextMarkdown } from "./semantic-inline.js";
 import {
   type HtmlImageAsset,
   type HtmlImageOptions,
@@ -23,6 +23,8 @@ export interface SemanticDocumentStats {
   mergedTables: number;
   suppressedFurniture: number;
 }
+
+export type SemanticDocumentFormat = "html" | "markdown";
 
 interface BufferedPage {
   width: number;
@@ -42,6 +44,7 @@ export async function writeSemanticDocument(
   lookaheadPages: number,
   imageOptions: HtmlImageOptions,
   onImage?: (image: Readonly<HtmlImageAsset>) => void | Promise<void>,
+  format: SemanticDocumentFormat = "html",
 ): Promise<SemanticDocumentStats> {
   const stats: SemanticDocumentStats = {
     pagesProcessed: 0,
@@ -66,31 +69,42 @@ export async function writeSemanticDocument(
         defaultColor: string;
       }
     | undefined;
-  await write('<article class="pdf-semantic-document">');
+  const markdown = format === "markdown";
+  const output = (html: string, markdownValue = "") => write(markdown ? markdownValue : html);
+  const inlineText = (
+    text: string,
+    lines: Parameters<typeof semanticTextHtml>[1],
+    defaultColor: string,
+    preserveWeight = true,
+  ) =>
+    markdown
+      ? semanticTextMarkdown(text, lines, defaultColor, preserveWeight)
+      : semanticTextHtml(text, lines, defaultColor, preserveWeight);
+  await output('<article class="pdf-semantic-document">');
 
   const closeTable = async () => {
     if (!activeTable) return;
-    await write("</table>");
+    await output("</table>", "\n");
     activeTable = undefined;
     while (pendingMedia.length > 0) await write(pendingMedia.shift() ?? "");
   };
 
   const closeSections = async (minimumLevel = 0) => {
     while ((sectionLevels.at(-1) ?? -1) >= minimumLevel && sectionLevels.length > 0) {
-      await write("</section>");
+      await output("</section>");
       sectionLevels.pop();
     }
   };
 
   const flushPendingParagraph = async () => {
     if (!pendingParagraph) return;
-    await write(semanticBlockHtml(pendingParagraph.block, pendingParagraph.defaultColor));
+    await write(semanticBlockOutput(pendingParagraph.block, pendingParagraph.defaultColor, format));
     pendingParagraph = undefined;
   };
 
   const closeEmployment = async () => {
     if (!employmentOpen) return;
-    await write("</section>");
+    await output("</section>");
     employmentOpen = false;
   };
 
@@ -119,7 +133,9 @@ export async function writeSemanticDocument(
         await flushPendingParagraph();
         const item = page.media[mediaIndex];
         if (item && captions.get(block) === item && block.type === "paragraph") {
-          const html = `<figure class="pdf-semantic-figure">${item.html}<figcaption>${semanticTextHtml(block.text, block.lines, defaultColor)}</figcaption></figure>`;
+          const html = markdown
+            ? `${item.markdown}\n\n*${inlineText(block.text, block.lines, defaultColor)}*\n\n`
+            : `<figure class="pdf-semantic-figure">${item.html}<figcaption>${inlineText(block.text, block.lines, defaultColor)}</figcaption></figure>`;
           if (activeTable) pendingMedia.push(html);
           else await write(html);
           emittedMedia.add(item);
@@ -128,7 +144,9 @@ export async function writeSemanticDocument(
           break;
         }
         if (item && captionedMedia.has(item)) break;
-        const html = `<div class="pdf-semantic-visual">${item?.html}</div>`;
+        const html = markdown
+          ? `${item?.markdown ?? ""}\n\n`
+          : `<div class="pdf-semantic-visual">${item?.html}</div>`;
         if (activeTable) pendingMedia.push(html);
         else await write(html);
         mediaIndex += 1;
@@ -136,7 +154,9 @@ export async function writeSemanticDocument(
       const associatedMedia = captions.get(block);
       if (!emittedAsCaption && associatedMedia && block.type === "paragraph") {
         await flushPendingParagraph();
-        const html = `<figure class="pdf-semantic-figure">${associatedMedia.html}<figcaption>${semanticTextHtml(block.text, block.lines, defaultColor)}</figcaption></figure>`;
+        const html = markdown
+          ? `${associatedMedia.markdown}\n\n*${inlineText(block.text, block.lines, defaultColor)}*\n\n`
+          : `<figure class="pdf-semantic-figure">${associatedMedia.html}<figcaption>${inlineText(block.text, block.lines, defaultColor)}</figcaption></figure>`;
         if (activeTable) pendingMedia.push(html);
         else await write(html);
         emittedMedia.add(associatedMedia);
@@ -150,8 +170,9 @@ export async function writeSemanticDocument(
       await flushPendingParagraph();
       if (employmentOpen && block.type !== "list") await closeEmployment();
       if (!contentStarted && !headerOpen && block.type === "heading" && block.level === 1) {
-        await write(
-          `<header><h1>${semanticTextHtml(block.text, block.lines, defaultColor, false)}</h1>`,
+        await output(
+          `<header><h1>${inlineText(block.text, block.lines, defaultColor, false)}</h1>`,
+          `# ${inlineText(block.text, block.lines, defaultColor, false)}\n\n`,
         );
         headerOpen = true;
         continue;
@@ -159,8 +180,9 @@ export async function writeSemanticDocument(
       if (headerOpen) {
         if (block.type === "paragraph") {
           const tag = isContactBlock(block) ? "address" : "p";
-          await write(
-            `<${tag}>${semanticTextHtml(block.text, block.lines, defaultColor)}</${tag}>`,
+          await output(
+            `<${tag}>${inlineText(block.text, block.lines, defaultColor)}</${tag}>`,
+            `${inlineText(block.text, block.lines, defaultColor)}\n\n`,
           );
           headerHasParagraph = true;
           continue;
@@ -172,12 +194,13 @@ export async function writeSemanticDocument(
             block.text.trimStart().startsWith("#") ||
             (block.level === 4 && nextBlock?.type === "paragraph" && isContactBlock(nextBlock)))
         ) {
-          await write(
-            `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor, false)}</h${block.level}>`,
+          await output(
+            `<h${block.level}>${inlineText(block.text, block.lines, defaultColor, false)}</h${block.level}>`,
+            `${"#".repeat(block.level)} ${inlineText(block.text, block.lines, defaultColor, false)}\n\n`,
           );
           continue;
         }
-        await write("</header>");
+        await output("</header>");
         headerOpen = false;
         contentStarted = true;
       }
@@ -185,23 +208,36 @@ export async function writeSemanticDocument(
         const rows = tableToRows(block.table);
         if (activeTable && tablesContinue(activeTable.table, block.table, page.width)) {
           const continuationRows = sameRow(activeTable.header, rows[0]) ? rows.slice(1) : rows;
-          for (const row of continuationRows) await write(tableRow(row, false));
+          for (const row of continuationRows)
+            await write(markdown ? markdownTableRow(row) : tableRow(row, false));
           activeTable.table = block.table;
           stats.mergedTables += 1;
           continue;
         }
         await closeTable();
         const header = tableHeader(rows);
-        await write("<table>");
-        for (const [index, row] of rows.entries())
-          await write(tableRow(row, Boolean(header && index === 0)));
+        await output("<table>", markdownTableStart(rows, header));
+        const markdownRows = markdown ? (header ? rows.slice(1) : rows) : rows;
+        for (const [index, row] of markdownRows.entries())
+          await write(
+            markdown ? markdownTableRow(row) : tableRow(row, Boolean(header && index === 0)),
+          );
         activeTable = { table: block.table, header };
         continue;
       }
       if (activeTable && block.type === "definitionList" && isFinancialSummary(block)) {
         const columns = activeTable.table.columns.length;
-        await write(
+        await output(
           `<tfoot>${block.entries.map((entry) => financialSummaryRow(entry, columns)).join("")}</tfoot>`,
+          block.entries
+            .map((entry) =>
+              markdownTableRow([
+                entry.term,
+                ...Array(Math.max(0, columns - 2)).fill(""),
+                entry.description,
+              ]),
+            )
+            .join(""),
         );
         await closeTable();
         continue;
@@ -210,8 +246,9 @@ export async function writeSemanticDocument(
       if (block.type === "heading") {
         const level = contentStarted && block.level === 1 ? 2 : block.level;
         await closeSections(level);
-        await write(
-          `<section data-level="${level}"><h${level}>${semanticTextHtml(block.text, block.lines, defaultColor, false)}</h${level}>`,
+        await output(
+          `<section data-level="${level}"><h${level}>${inlineText(block.text, block.lines, defaultColor, false)}</h${level}>`,
+          `${"#".repeat(level)} ${inlineText(block.text, block.lines, defaultColor, false)}\n\n`,
         );
         sectionLevels.push(level);
         continue;
@@ -219,13 +256,19 @@ export async function writeSemanticDocument(
       if (block.type === "paragraph") {
         if (isTitledRecord(block)) {
           const [institution, ...details] = block.lines;
-          if (institution) await write(`<h3>${escapeHtml(institution.text)}</h3>`);
-          for (const detail of details) await write(`<p>${escapeHtml(detail.text)}</p>`);
+          if (institution)
+            await output(
+              `<h3>${escapeHtml(institution.text)}</h3>`,
+              `### ${escapeMarkdown(institution.text)}\n\n`,
+            );
+          for (const detail of details)
+            await output(`<p>${escapeHtml(detail.text)}</p>`, `${escapeMarkdown(detail.text)}\n\n`);
           continue;
         }
         if (isUnmarkedList(block)) {
-          await write(
+          await output(
             `<ul>${block.lines.map((line) => `<li>${escapeHtml(line.text)}</li>`).join("")}</ul>`,
+            `${block.lines.map((line) => `- ${escapeMarkdown(line.text)}`).join("\n")}\n\n`,
           );
           continue;
         }
@@ -233,19 +276,22 @@ export async function writeSemanticDocument(
         continue;
       }
       if (block.type === "employment") {
-        await write(
+        await output(
           `<section><h3>${escapeHtml(block.role)}</h3><p>${escapeHtml(block.organization)}</p><p>${escapeHtml(block.date)}</p>`,
+          `### ${escapeMarkdown(block.role)}\n\n${escapeMarkdown(block.organization)}\n\n${escapeMarkdown(block.date)}\n\n`,
         );
         employmentOpen = true;
         continue;
       }
-      await write(semanticBlockHtml(block, defaultColor));
+      await write(semanticBlockOutput(block, defaultColor, format));
     }
     while (mediaIndex < page.media.length) {
       const item = page.media[mediaIndex];
       if (item && !emittedMedia.has(item)) {
         await flushPendingParagraph();
-        const html = `<div class="pdf-semantic-visual">${item.html}</div>`;
+        const html = markdown
+          ? `${item.markdown}\n\n`
+          : `<div class="pdf-semantic-visual">${item.html}</div>`;
         if (activeTable) pendingMedia.push(html);
         else await write(html);
       }
@@ -273,20 +319,21 @@ export async function writeSemanticDocument(
     const ready = buffer.shift();
     if (ready) await emitPage(ready, buffer);
   }
-  if (headerOpen) await write("</header>");
+  if (headerOpen) await output("</header>");
   await closeTable();
   await closeEmployment();
   if (pendingParagraph && isFooterParagraph(pendingParagraph.block, pendingParagraph.height)) {
     await closeSections();
-    await write(
+    await output(
       `<footer>${semanticBlockHtml(pendingParagraph.block, pendingParagraph.defaultColor)}</footer>`,
+      `---\n\n${semanticBlockMarkdown(pendingParagraph.block, pendingParagraph.defaultColor)}`,
     );
     pendingParagraph = undefined;
   } else {
     await flushPendingParagraph();
     await closeSections();
   }
-  await write("</article>");
+  await output("</article>");
   return stats;
 }
 
@@ -407,6 +454,24 @@ function tableRow(row: string[], header: boolean): string {
   return `<tr>${row.map((value) => `<${cell}>${escapeHtml(value)}</${cell}>`).join("")}</tr>`;
 }
 
+function markdownTableStart(rows: string[][], header: string[] | undefined): string {
+  const columns = rows[0]?.length ?? 0;
+  if (columns === 0) return "";
+  const heading = header ?? Array(columns).fill("");
+  return `${markdownTableRow(heading)}${markdownTableRow(Array(columns).fill("---"), false)}`;
+}
+
+function markdownTableRow(row: string[], shouldEscape = true): string {
+  const cells = row.map((value) => (shouldEscape ? escapeMarkdownTableCell(value) : value));
+  return `| ${cells.join(" | ")} |\n`;
+}
+
+function escapeMarkdownTableCell(value: string): string {
+  return escapeMarkdown(value)
+    .replaceAll("|", "\\|")
+    .replace(/\s*\n\s*/g, "<br>");
+}
+
 function isFinancialSummary(block: Extract<SemanticBlock, { type: "definitionList" }>): boolean {
   return (
     block.entries.length > 0 &&
@@ -475,6 +540,89 @@ function semanticBlockHtml(block: SemanticBlock, defaultColor = "#000000"): stri
   return `<${tag}>${block.items.map((item) => `<li>${semanticTextHtml(item.text, item.lines, defaultColor)}</li>`).join("")}</${tag}>`;
 }
 
+function semanticBlockOutput(
+  block: SemanticBlock,
+  defaultColor: string,
+  format: SemanticDocumentFormat,
+): string {
+  return format === "markdown"
+    ? semanticBlockMarkdown(block, defaultColor)
+    : semanticBlockHtml(block, defaultColor);
+}
+
+function semanticBlockMarkdown(block: SemanticBlock, defaultColor = "#000000"): string {
+  if (block.type === "insetGroup") {
+    const content = block.blocks.map((item) => semanticBlockMarkdown(item, defaultColor)).join("");
+    return `${content
+      .trimEnd()
+      .split("\n")
+      .map((line) => (line ? `> ${line}` : ">"))
+      .join("\n")}\n\n`;
+  }
+  if (block.type === "table") {
+    const rows = tableToRows(block.table);
+    const header = tableHeader(rows);
+    return `${markdownTableStart(rows, header)}${(header ? rows.slice(1) : rows)
+      .map((row) => markdownTableRow(row))
+      .join("")}\n`;
+  }
+  if (block.type === "heading") {
+    return `${"#".repeat(block.level)} ${semanticTextMarkdown(block.text, block.lines, defaultColor, false)}\n\n`;
+  }
+  if (block.type === "paragraph") {
+    return `${semanticTextMarkdown(block.text, block.lines, defaultColor)}\n\n`;
+  }
+  if (block.type === "preformatted") {
+    const fence = block.text.includes("```") ? "````" : "```";
+    return `${fence}\n${block.text}\n${fence}\n\n`;
+  }
+  if (block.type === "definitionList") {
+    return `${block.entries
+      .map((entry) => `**${escapeMarkdown(entry.term)}:** ${escapeMarkdown(entry.description)}`)
+      .join("\n\n")}\n\n`;
+  }
+  if (block.type === "cardList") {
+    const rows = [
+      ["Item", "Quantity", "Amount"],
+      ...block.items.map((item) => {
+        const trailing = item.details.at(-1) ?? "";
+        const match = /^\s*[×x]\s*(\d+)\s+(.+)$/u.exec(trailing);
+        const detail = item.details.slice(0, -1).join(" ");
+        return [
+          `${item.title}${detail ? ` — ${detail}` : ""}`,
+          match?.[1] ?? "",
+          match?.[2] ?? trailing,
+        ];
+      }),
+    ];
+    return `## Items ordered\n\n${markdownTableStart(rows, rows[0])}${rows
+      .slice(1)
+      .map((row) => markdownTableRow(row))
+      .join("")}\n`;
+  }
+  if (block.type === "sectionGroup") {
+    return block.items
+      .map(
+        (item) =>
+          `## ${escapeMarkdown(titleCase(item.label))}\n\n${item.content
+            .map((content, index) =>
+              index === 0 ? `**${escapeMarkdown(content)}**` : escapeMarkdown(content),
+            )
+            .join("\n\n")}\n\n`,
+      )
+      .join("");
+  }
+  if (block.type === "employment") {
+    return `### ${escapeMarkdown(block.role)}\n\n${escapeMarkdown(block.organization)}\n\n${escapeMarkdown(block.date)}\n\n`;
+  }
+  return `${block.items
+    .map(
+      (item, index) =>
+        `${block.ordered ? `${index + 1}.` : "-"} ${semanticTextMarkdown(item.text, item.lines, defaultColor)}`,
+    )
+    .join("\n")}\n\n`;
+}
+
 function semanticBlockY(block: SemanticBlock): number {
   const lines = block.type === "list" ? block.items.flatMap((item) => item.lines) : block.lines;
   return Math.max(...lines.map((line) => line.bounds.y + line.bounds.height));
@@ -522,4 +670,8 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function escapeMarkdown(value: string): string {
+  return value.replace(/([\\`*_[\]<>])/g, "\\$1");
 }

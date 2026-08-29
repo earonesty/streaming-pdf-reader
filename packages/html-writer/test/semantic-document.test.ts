@@ -2,7 +2,11 @@ import { fileURLToPath } from "node:url";
 import { openPdf } from "@boxpdf/reader";
 import { fileSource } from "@boxpdf/reader/node";
 import { describe, expect, it } from "vitest";
-import { type SemanticDocumentStats, writeHtmlDocument } from "../src/index.js";
+import {
+  type SemanticDocumentStats,
+  writeHtmlDocument,
+  writeMarkdownDocument,
+} from "../src/index.js";
 
 describe("semantic document flow", () => {
   it("renders labeled invoice metadata as sections and preserves wrapped values", async () => {
@@ -250,6 +254,60 @@ describe("semantic document flow", () => {
       peakBufferedLines: 4,
     });
   });
+
+  it("streams Markdown from the same merged semantic document", async () => {
+    const source = await fileSource(
+      fileURLToPath(new URL("../../../fixtures/semantic/multipage-invoice.pdf", import.meta.url)),
+    );
+    const pdf = await openPdf(source);
+    let markdown = "";
+    let stats: SemanticDocumentStats | undefined;
+    try {
+      await writeMarkdownDocument(
+        pdf.pages(),
+        (chunk) => {
+          markdown += chunk;
+        },
+        {
+          semanticLookaheadPages: 3,
+          onSemanticStats: (value) => {
+            stats = value;
+          },
+        },
+      );
+    } finally {
+      pdf.close();
+      await source.close();
+    }
+
+    expect(markdown).toContain("# INVOICE");
+    expect(markdown).toContain("| Description | Qty | Unit | Amount |");
+    expect(markdown).toContain("| --- | --- | --- | --- |");
+    expect(markdown.match(/Service line item #/g)).toHaveLength(80);
+    expect(markdown).toContain("| Subtotal |  |  | $21,000.00 |");
+    expect(markdown).not.toContain("Page 1 of 3");
+    expect(markdown).not.toContain("<article");
+    expect(stats).toMatchObject({ pagesProcessed: 3, peakBufferedPages: 3, mergedTables: 2 });
+  });
+
+  it("serializes diverse semantic blocks as native Markdown", async () => {
+    const resume = await fixtureMarkdown("resume.pdf");
+    expect(resume).toContain("avery.chen@example.com");
+    expect(resume).toContain("### B.A. Computer Science");
+    expect(resume).toContain("- TypeScript, Rust, Go");
+
+    const order = await fixtureMarkdown("order-confirmation.pdf");
+    expect(order).toContain("## Items ordered");
+    expect(order).toContain("| Item | Quantity | Amount |");
+    expect(order).toContain("## Ship to");
+    expect(order).toContain("**Sam Reyes**");
+
+    const paper = await fixtureMarkdown("research-paper.pdf");
+    expect(paper).toContain("```\n");
+    expect(paper).toContain("**Figure 9.");
+    expect(paper).toContain("| Tag | JS Type | Description |");
+    expect(paper).not.toContain("data:image");
+  });
 });
 
 function semanticPage(number: number, rows: Array<[text: string, fontSize: number]>) {
@@ -266,4 +324,21 @@ function semanticPage(number: number, rows: Array<[text: string, fontSize: numbe
       source: { page: number },
     })),
   };
+}
+
+async function fixtureMarkdown(file: string): Promise<string> {
+  const source = await fileSource(
+    fileURLToPath(new URL(`../../../fixtures/semantic/${file}`, import.meta.url)),
+  );
+  const pdf = await openPdf(source);
+  let markdown = "";
+  try {
+    await writeMarkdownDocument(pdf.pages(), (chunk) => {
+      markdown += chunk;
+    });
+    return markdown;
+  } finally {
+    pdf.close();
+    await source.close();
+  }
 }

@@ -11,6 +11,7 @@ describe("language-independent media captions", () => {
   const media: SemanticMedia = {
     bounds: { x: 50, y: 300, width: 300, height: 180 },
     html: "<svg></svg>",
+    markdown: "<svg></svg>",
   };
   const body = line("Texte courant autour du média.", 50, 500, 300, "Body-Regular");
   const captionLine = line("説明文は画像の直下で中央揃えされる。", 52, 280, 296, "Caption-Medium");

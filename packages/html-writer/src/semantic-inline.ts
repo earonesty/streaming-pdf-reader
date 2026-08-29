@@ -23,6 +23,25 @@ export function semanticTextHtml(
   defaultColor: string,
   preserveWeight = true,
 ): string {
+  return semanticText(text, lines, defaultColor, preserveWeight, "html");
+}
+
+export function semanticTextMarkdown(
+  text: string,
+  lines: TextLine[],
+  defaultColor: string,
+  preserveWeight = true,
+): string {
+  return semanticText(text, lines, defaultColor, preserveWeight, "markdown");
+}
+
+function semanticText(
+  text: string,
+  lines: TextLine[],
+  defaultColor: string,
+  preserveWeight: boolean,
+  format: "html" | "markdown",
+): string {
   const ranges: StyledRange[] = [];
   let cursor = 0;
   for (const span of lines.flatMap((line) => line.spans)) {
@@ -49,11 +68,11 @@ export function semanticTextHtml(
   let html = "";
   let offset = 0;
   for (const range of merged) {
-    html += escapeHtml(text.slice(offset, range.start));
-    html += styledHtml(text.slice(range.start, range.end), range);
+    html += escapeText(text.slice(offset, range.start), format);
+    html += styledText(text.slice(range.start, range.end), range, format);
     offset = range.end;
   }
-  return html + escapeHtml(text.slice(offset));
+  return html + escapeText(text.slice(offset), format);
 }
 
 function mergeRanges(ranges: StyledRange[], text: string): StyledRange[] {
@@ -75,12 +94,20 @@ function mergeRanges(ranges: StyledRange[], text: string): StyledRange[] {
   return merged;
 }
 
-function styledHtml(value: string, range: StyledRange): string {
-  let html = escapeHtml(value);
+function styledText(value: string, range: StyledRange, format: "html" | "markdown"): string {
+  let html = escapeText(value, format);
   if (range.color) html = `<span style="color:${range.color}">${html}</span>`;
-  if (range.italic) html = `<em>${html}</em>`;
-  if (range.bold) html = `<strong>${html}</strong>`;
+  if (range.italic) html = format === "html" ? `<em>${html}</em>` : `_${html}_`;
+  if (range.bold) html = format === "html" ? `<strong>${html}</strong>` : `**${html}**`;
   return html;
+}
+
+function escapeText(value: string, format: "html" | "markdown"): string {
+  return format === "html" ? escapeHtml(value) : escapeMarkdown(value);
+}
+
+function escapeMarkdown(value: string): string {
+  return value.replace(/([\\`*_[\]<>])/g, "\\$1");
 }
 
 function normalizedColor(value: string | undefined): string | undefined {

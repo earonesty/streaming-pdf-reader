@@ -23,6 +23,23 @@ try {
 }
 ```
 
+For LLM and text-oriented workflows, stream Markdown from the same semantic
+document inference without generating HTML first:
+
+```ts
+import { writeMarkdownDocument } from "@boxpdf/html-writer";
+
+await writeMarkdownDocument(pdf.pages(), write, {
+  semanticLookaheadPages: 4,
+  imageOptions: "excluded",
+});
+```
+
+Markdown preserves inferred headings, emphasis, lists, tables, preformatted
+blocks, and grouped content. It uses the same bounded lookahead, table merging,
+repeated-furniture suppression, image options, and semantic statistics as
+semantic HTML.
+
 The default `visual` profile preserves page dimensions and text coordinates for
 display presentation. The `semantic` profile uses inferred reading order,
 lines, nesting, and tables to produce reflowable HTML. The visual model comes

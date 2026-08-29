@@ -1,6 +1,11 @@
 import type { ExtractedPage } from "@boxpdf/reader";
 import { describe, expect, it } from "vitest";
-import { pageToHtml, type SemanticDocumentStats, writeHtmlDocument } from "../src/index.js";
+import {
+  pageToHtml,
+  type SemanticDocumentStats,
+  writeHtmlDocument,
+  writeMarkdownDocument,
+} from "../src/index.js";
 
 const page: ExtractedPage = {
   number: 1,
@@ -82,6 +87,23 @@ describe("HTML writer", () => {
     });
 
     expect(html.match(/<text/g)).toHaveLength(4);
+  });
+
+  it("deduplicates repeated visual text styles into page-scoped CSS classes", async () => {
+    const styled = [
+      { ...span("first", 20, 700), color: "#112233", fontFamily: "Times-Roman" },
+      { ...span("second", 200, 700), color: "#112233", fontFamily: "Times-Roman" },
+    ];
+    const html = await pageToHtml({ ...page, spans: styled });
+    const inline = await pageToHtml({ ...page, spans: styled }, { includeStyles: false });
+
+    expect(html.match(/\.boxpdf-p1-t1\{/g)).toHaveLength(1);
+    expect(html.match(/class="boxpdf-p1-t1"/g)).toHaveLength(2);
+    expect(html).toContain("fill:#112233;font-family:Times New Roman,Times,serif");
+    expect(inline).not.toContain("boxpdf-p1-t1");
+    expect(
+      inline.match(/style="fill:#112233;font-family:Times New Roman,Times,serif"/g),
+    ).toHaveLength(2);
   });
 
   it("writes visual, escaped page HTML by default", async () => {
@@ -361,6 +383,42 @@ describe("HTML writer", () => {
     await expect(
       pageToHtml(page, { profile: "semantic", imageOptions: "references" }),
     ).rejects.toThrow('imageOptions "references" requires an onImage callback');
+  });
+
+  it("writes referenced raster and SVG media as Markdown images", async () => {
+    const assets: string[] = [];
+    let markdown = "";
+    await writeMarkdownDocument(
+      [
+        {
+          ...page,
+          images: [
+            {
+              width: 1,
+              height: 1,
+              format: "rgb",
+              data: Uint8Array.of(255, 0, 0),
+              transform: [80, 0, 0, 40, 20, 620],
+            },
+          ],
+          paths: [{ d: "M20 500L120 500L120 560Z", fill: "#112233" }],
+        },
+      ],
+      (chunk) => {
+        markdown += chunk;
+      },
+      {
+        imageOptions: "references",
+        onImage: ({ name }) => {
+          assets.push(name);
+        },
+      },
+    );
+
+    expect(assets.sort()).toEqual(["page-1-image-1.bmp", "page-1-vector-1.svg"]);
+    expect(markdown).toContain("![](page-1-image-1.bmp)");
+    expect(markdown).toContain("![](page-1-vector-1.svg)");
+    expect(markdown).not.toContain("<article");
   });
 
   it("applies extracted clipping paths to images and vector paths", async () => {

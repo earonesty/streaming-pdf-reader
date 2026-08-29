@@ -50,6 +50,14 @@ export interface HtmlWriterOptions {
   onImage?: (image: Readonly<HtmlImageAsset>) => void | Promise<void>;
 }
 
+export interface MarkdownWriterOptions {
+  semanticLookaheadPages?: number;
+  onSemanticStats?: (stats: Readonly<SemanticDocumentStats>) => void;
+  /** Defaults to excluded. */
+  imageOptions?: HtmlImageOptions;
+  onImage?: (image: Readonly<HtmlImageAsset>) => void | Promise<void>;
+}
+
 const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--visual,.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom;unicode-bidi:isolate}.pdf-span[data-direction=ttb]{writing-mode:vertical-rl}.pdf-page--semantic,.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--semantic p,.pdf-page--flow p{white-space:pre-wrap;unicode-bidi:plaintext}.pdf-semantic-document h1,.pdf-page--semantic h1{font-size:1.7em}.pdf-semantic-document h2,.pdf-page--semantic h2{font-size:1.5em}.pdf-semantic-document h3,.pdf-page--semantic h3{font-size:1.35em}.pdf-semantic-document h4,.pdf-page--semantic h4{font-size:1.1em}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
 
 export async function writeHtmlDocument(
@@ -87,6 +95,26 @@ export async function writeHtmlDocument(
   }
   await write("</main>");
   if (includeDocument) await write("</body></html>");
+}
+
+/** Streams reflowed Markdown from the same bounded semantic inference used by semantic HTML. */
+export async function writeMarkdownDocument(
+  pages: AsyncIterable<ExtractedPage> | Iterable<ExtractedPage>,
+  write: HtmlWrite,
+  options: MarkdownWriterOptions = {},
+): Promise<void> {
+  const imageOptions = options.imageOptions ?? "excluded";
+  validateImageOptions(imageOptions, options);
+  const lookahead = semanticLookahead(options.semanticLookaheadPages);
+  const stats = await writeSemanticDocument(
+    pages,
+    write,
+    lookahead,
+    imageOptions,
+    options.onImage,
+    "markdown",
+  );
+  options.onSemanticStats?.(stats);
 }
 
 function semanticLookahead(value: number | undefined): number {
@@ -144,11 +172,16 @@ async function writePositionedPage(
       .filter((font): font is EmbeddedType3Font => font.format === "type3")
       .map((font) => [font.id, font]),
   );
+  const textClasses =
+    (options.includeStyles ?? true)
+      ? visualTextClasses(page.number, visualSpans, fontAliases)
+      : undefined;
   if ((options.includeStyles ?? true) && page.fonts?.length) {
     await write(
       `<style>${page.fonts.map((font) => visualFontFace(font, fontAliases)).join("")}</style>`,
     );
   }
+  if (textClasses?.css) await write(`<style>${textClasses.css}</style>`);
   await write(
     `<div class="pdf-page-content pdf-page-content--${page.rotate}" style="width:${number(page.width)}pt;height:${number(page.height)}pt${rotationTransform(page)}">`,
   );
@@ -192,7 +225,13 @@ async function writePositionedPage(
       await write(
         type3
           ? visualType3Text(span, type3, page.height)
-          : visualText(span, page.height, fontAliases, reflectedOverlay && page.rotate === 180),
+          : visualText(
+              span,
+              page.height,
+              fontAliases,
+              reflectedOverlay && page.rotate === 180,
+              textClasses?.names,
+            ),
       );
     }
   }
@@ -233,6 +272,8 @@ function coalesceVisualSpans(spans: TextSpan[]): TextSpan[] {
 function canCoalesceVisualSpans(left: TextSpan, right: TextSpan): boolean {
   if (usesPositionedSpan(left) || usesPositionedSpan(right)) return false;
   if (left.direction !== "ltr" || right.direction !== "ltr") return false;
+  // Guardian fallback text sits just outside the safe whole-span width model.
+  if (/guardian/i.test(left.fontFamily ?? "")) return false;
   if (left.glyphCodes || right.glyphCodes) return false;
   if (!sameVisualTextState(left, right)) return false;
   const tolerance = Math.max(0.02, left.fontSize * 0.015);
@@ -261,6 +302,26 @@ function sameVisualTextState(left: TextSpan, right: TextSpan): boolean {
 function sameTransform(left: TextSpan["transform"], right: TextSpan["transform"]): boolean {
   if (!left || !right) return left === right;
   return left.every((value, index) => Math.abs(value - (right[index] ?? 0)) <= 0.000_001);
+}
+
+function visualTextClasses(
+  pageNumber: number,
+  spans: TextSpan[],
+  fontAliases: Map<string, string>,
+): { css: string; names: Map<string, string> } {
+  const names = new Map<string, string>();
+  let css = "";
+  for (const span of spans) {
+    if (usesPositionedSpan(span) || span.glyphCodes) {
+      continue;
+    }
+    const style = visualTextStyle(span, fontAliases);
+    if (!style || names.has(style)) continue;
+    const name = `boxpdf-p${number(pageNumber)}-t${names.size + 1}`;
+    names.set(style, name);
+    css += `.${name}{${style}}`;
+  }
+  return { css, names };
 }
 
 function usesReflectedVisualOverlay(page: ExtractedPage, spans: TextSpan[]): boolean {
@@ -546,38 +607,14 @@ function visualText(
   pageHeight: number,
   fontAliases: Map<string, string>,
   counterRotateReflectedText = false,
+  styleClasses?: Map<string, string>,
 ): string {
   if (span.renderingMode === 3 || span.renderingMode === 7) return "";
   if (!span.fontAssetId && isAdobeCjkFont(span.fontFamily)) return "";
   const direction = directionAttribute([span]);
-  const font = visualFontStyles(
-    span.fontFamily,
-    span.fontAssetId ? fontAliases.get(span.fontAssetId) : undefined,
-  ).join(";");
-  const stroke = isCssHexColor(span.strokeColor) ? `stroke:${span.strokeColor}` : "";
-  const strokeWidth =
-    stroke && Number.isFinite(span.strokeWidth) && (span.strokeWidth ?? -1) >= 0
-      ? `stroke-width:${number(span.strokeWidth ?? 0)}`
-      : "";
-  const strokeOnly = span.renderingMode === 1 || span.renderingMode === 5;
-  const fillOpacity = isUnitInterval(span.fillOpacity)
-    ? `fill-opacity:${number(span.fillOpacity)}`
-    : "";
-  const strokeOpacity = isUnitInterval(span.strokeOpacity)
-    ? `stroke-opacity:${number(span.strokeOpacity)}`
-    : "";
-  const style = [
-    isHebrewPaintOrder(span) ? "unicode-bidi:bidi-override;direction:ltr" : "",
-    span.direction === "ttb" ? "writing-mode:vertical-rl" : "",
-    strokeOnly ? "fill:none" : isCssHexColor(span.color) ? `fill:${span.color}` : "",
-    stroke,
-    strokeWidth,
-    fillOpacity,
-    strokeOpacity,
-    font,
-  ]
-    .filter(Boolean)
-    .join(";");
+  const style = visualTextStyle(span, fontAliases);
+  const styleClass = styleClasses?.get(style);
+  const presentation = styleClass ? ` class="${styleClass}"` : style ? ` style="${style}"` : "";
   const textExtent = span.direction === "ttb" ? span.bounds.height : span.bounds.width;
   const textLength =
     textExtent > 0 && !isHebrewPaintOrder(span)
@@ -601,7 +638,38 @@ function visualText(
   const position = transformed
     ? ` x="0" y="0" transform="matrix(${transform?.map(number).join(" ")} ${number(anchorX)} ${number(anchorY)})"`
     : ` x="${number(anchorX)}" y="${number(anchorY)}"`;
-  return `<text${direction}${position} font-size="${number(span.fontSize)}"${textLength}${style ? ` style="${style}"` : ""}>${escapeHtml(span.text)}</text>`;
+  return `<text${direction}${position} font-size="${number(span.fontSize)}"${textLength}${presentation}>${escapeHtml(span.text)}</text>`;
+}
+
+function visualTextStyle(span: TextSpan, fontAliases: Map<string, string>): string {
+  const font = visualFontStyles(
+    span.fontFamily,
+    span.fontAssetId ? fontAliases.get(span.fontAssetId) : undefined,
+  ).join(";");
+  const stroke = isCssHexColor(span.strokeColor) ? `stroke:${span.strokeColor}` : "";
+  const strokeWidth =
+    stroke && Number.isFinite(span.strokeWidth) && (span.strokeWidth ?? -1) >= 0
+      ? `stroke-width:${number(span.strokeWidth ?? 0)}`
+      : "";
+  const strokeOnly = span.renderingMode === 1 || span.renderingMode === 5;
+  const fillOpacity = isUnitInterval(span.fillOpacity)
+    ? `fill-opacity:${number(span.fillOpacity)}`
+    : "";
+  const strokeOpacity = isUnitInterval(span.strokeOpacity)
+    ? `stroke-opacity:${number(span.strokeOpacity)}`
+    : "";
+  return [
+    isHebrewPaintOrder(span) ? "unicode-bidi:bidi-override;direction:ltr" : "",
+    span.direction === "ttb" ? "writing-mode:vertical-rl" : "",
+    strokeOnly ? "fill:none" : isCssHexColor(span.color) ? `fill:${span.color}` : "",
+    stroke,
+    strokeWidth,
+    fillOpacity,
+    strokeOpacity,
+    font,
+  ]
+    .filter(Boolean)
+    .join(";");
 }
 
 function isAdobeCjkFont(fontFamily: string | undefined): boolean {
@@ -747,7 +815,10 @@ function resolveImageOptions(profile: HtmlProfile, options: HtmlWriterOptions): 
   return options.imageOptions ?? (profile === "semantic" ? "excluded" : "embedded");
 }
 
-function validateImageOptions(imageOptions: HtmlImageOptions, options: HtmlWriterOptions): void {
+function validateImageOptions(
+  imageOptions: HtmlImageOptions,
+  options: Pick<HtmlWriterOptions, "onImage">,
+): void {
   if (imageOptions === "references" && !options.onImage) {
     throw new Error('imageOptions "references" requires an onImage callback');
   }

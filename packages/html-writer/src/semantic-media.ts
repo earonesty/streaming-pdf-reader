@@ -18,6 +18,7 @@ import { base64, visualFontAliases, visualFontFace, visualFontStyles } from "./v
 export interface SemanticMedia {
   bounds: Rect;
   html: string;
+  markdown: string;
   consumedSpans?: TextSpan[];
   kind?: "raster" | "vector" | "composite";
   assets?: HtmlImageAsset[];
@@ -73,6 +74,7 @@ function rasterMedia(
     bounds,
     kind: "raster",
     html: `<img class="pdf-semantic-media" src="${source}" width="${number(bounds.width)}" height="${number(bounds.height)}" alt="" style="max-width:100%;height:auto${opacity}">`,
+    markdown: `![](${source})`,
     ...(imageOptions === "references" ? { assets: [{ name, mimeType: mime, data }] } : {}),
   };
 }
@@ -136,6 +138,7 @@ function vectorMedia(page: ExtractedPage, imageOptions: HtmlImageOptions): Seman
         imageOptions === "references"
           ? `<img class="pdf-semantic-media" src="${name}" width="${number(bounds.width)}" height="${number(bounds.height)}" alt="">`
           : svg,
+      markdown: imageOptions === "references" ? `![](${name})` : svg,
       ...(imageOptions === "references"
         ? {
             assets: [
@@ -191,6 +194,7 @@ function compositeMedia(items: SemanticMedia[]): SemanticMedia {
     bounds,
     kind: "composite",
     html: `<div class="pdf-semantic-media pdf-semantic-media-composite" style="position:relative;max-width:100%;width:${number(bounds.width)}px;aspect-ratio:${number(bounds.width)}/${number(bounds.height)}">${layers}</div>`,
+    markdown: items.map((item) => item.markdown).join("\n\n"),
     consumedSpans: items.flatMap((item) => item.consumedSpans ?? []),
     assets: items.flatMap((item) => item.assets ?? []),
   };
