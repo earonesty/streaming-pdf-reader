@@ -66,19 +66,20 @@ function type1PrivateDict(text: string, scale: number): Record<string, number | 
   const factor = scale * 1000;
   const output: Record<string, number | number[]> = {};
   const arrays = [
-    "BlueValues",
-    "OtherBlues",
-    "FamilyBlues",
-    "FamilyOtherBlues",
-    "StemSnapH",
-    "StemSnapV",
-  ];
-  for (const name of arrays) {
-    const match = new RegExp(`/${name}\\s*\\[([^\\]]*)\\]`).exec(text);
+    ["BlueValues", 14],
+    ["OtherBlues", 10],
+    ["FamilyBlues", 14],
+    ["FamilyOtherBlues", 10],
+    ["StemSnapH", 12],
+    ["StemSnapV", 12],
+  ] as const;
+  for (const [name, maximumValues] of arrays) {
+    const match = new RegExp(`/${name}\\s*\\[([^\\]]{0,1024})\\]`).exec(text);
     if (!match?.[1]) continue;
-    const values = match[1].match(/[+-]?(?:\d+(?:\.\d*)?|\.\d+)/g)?.map(Number);
-    if (values?.length)
-      output[name[0]?.toLowerCase() + name.slice(1)] = values.map((value) => value * factor);
+    const values = boundedNumbers(match[1], maximumValues);
+    const scaled = values?.map((value) => value * factor);
+    if (scaled?.length && scaled.every(Number.isFinite))
+      output[name.charAt(0).toLowerCase() + name.slice(1)] = scaled;
   }
   const numbers = [
     "BlueScale",
@@ -98,10 +99,21 @@ function type1PrivateDict(text: string, scale: number): Record<string, number | 
     const scaled = /^(?:BlueScale|LanguageGroup|ExpansionFactor)$/.test(name)
       ? value
       : value * factor;
-    output[name[0]?.toLowerCase() + name.slice(1)] = scaled;
+    if (Number.isFinite(scaled)) output[name.charAt(0).toLowerCase() + name.slice(1)] = scaled;
   }
   if (/\/ForceBold\s+true\b/.test(text)) output.forceBold = 1;
   return output;
+}
+
+function boundedNumbers(text: string, maximum: number): number[] | undefined {
+  const values: number[] = [];
+  for (const match of text.matchAll(/[+-]?(?:\d+(?:\.\d*)?|\.\d+)/g)) {
+    if (values.length === maximum) return undefined;
+    const value = Number(match[0]);
+    if (!Number.isFinite(value)) return undefined;
+    values.push(value);
+  }
+  return values;
 }
 
 function readCharStringEntries(

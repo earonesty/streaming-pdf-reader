@@ -461,7 +461,11 @@ async function compareFixture(fixture, onPage) {
         inkRatio <= 1.2;
       const hintedType1PageRasterWithinTolerance =
         academicPage &&
-        extracted.fonts?.some((font) => font.format === "opentype") &&
+        extracted.fonts?.some(
+          (font) =>
+            font.format === "opentype" &&
+            extracted.spans.some((span) => span.fontAssetId === font.id),
+        ) &&
         metrics.meanAbsoluteError <= maximumAcademicPageMeanAbsoluteError &&
         metrics.fuzzyChangedFraction <= maximumAcademicPageFuzzyChangedFraction &&
         inkRatio !== null &&
@@ -649,7 +653,9 @@ function numberArgument(name, fallback) {
 }
 
 function positiveNumberArgument(name, fallback) {
-  const value = Number(stringArgument(name) ?? fallback);
+  const raw = stringArgument(name);
+  if (process.argv.includes(name) && raw === undefined) throw new Error(`${name} requires a value`);
+  const value = Number(raw ?? fallback);
   if (!Number.isFinite(value) || value <= 0) throw new Error(`${name} must be positive`);
   return value;
 }

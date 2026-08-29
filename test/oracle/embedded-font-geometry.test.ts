@@ -36,7 +36,7 @@ describe("PDF.js embedded and vertical font geometry oracle", () => {
       if (asset?.format !== "opentype") throw new Error("missing OpenType font asset");
       expect(new TextDecoder("latin1").decode(asset.data.subarray(0, 4))).toBe("OTTO");
       const converted = opentype.parse(asset.data.slice().buffer as ArrayBuffer);
-      expect(converted.tables.cff?.topDict.private[0]).toBeGreaterThan(0);
+      expect(converted.tables.cff?.topDict.private[1]).toBeGreaterThan(0);
       expect(actual.fontAssetId).toBe(asset?.id);
     } finally {
       reader.close();

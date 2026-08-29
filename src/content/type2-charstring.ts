@@ -23,6 +23,7 @@ export function encodeType2CharString(
     ...stems.filter((stem) => stem.orientation === "horizontal"),
     ...stems.filter((stem) => stem.orientation === "vertical"),
   ];
+  const masks = events.some((event) => "activeStems" in event);
   let firstDeclaration = true;
   for (const orientation of ["horizontal", "vertical"] as const) {
     const selected = ordered.filter((stem) => stem.orientation === orientation);
@@ -35,12 +36,11 @@ export function encodeType2CharString(
         number(stem.width);
         previousEdge = stem.position + stem.width;
       }
-      output.push(orientation === "horizontal" ? 1 : 3);
+      output.push(orientation === "horizontal" ? (masks ? 18 : 1) : masks ? 23 : 3);
       firstDeclaration = false;
       offset += count;
     }
   }
-  const masks = events.some((event) => "activeStems" in event);
   const emitMask = (active: Set<Type1Stem>) => {
     output.push(19);
     for (let offset = 0; offset < ordered.length; offset += 8) {
@@ -65,9 +65,12 @@ export function encodeType2CharString(
 }
 
 function encodeNumber(value: number): number[] {
+  if (!Number.isFinite(value)) throw new RangeError("Type 2 operand must be finite");
   const rounded = Math.round(value);
   if (Math.abs(value - rounded) > 1e-6) {
     const fixed = Math.round(value * 65_536);
+    if (fixed < -2_147_483_648 || fixed > 2_147_483_647)
+      throw new RangeError("Type 2 fixed-point operand is out of range");
     return [255, fixed >>> 24, (fixed >>> 16) & 0xff, (fixed >>> 8) & 0xff, fixed & 0xff];
   }
   if (rounded >= -107 && rounded <= 107) return [rounded + 139];
@@ -77,5 +80,7 @@ function encodeNumber(value: number): number[] {
     const magnitude = -rounded - 108;
     return [251 + (magnitude >> 8), magnitude & 0xff];
   }
+  if (rounded < -32_768 || rounded > 32_767)
+    throw new RangeError("Type 2 integer operand is out of range");
   return [28, (rounded >> 8) & 0xff, rounded & 0xff];
 }
