@@ -73,6 +73,36 @@ describe("HTML writer", () => {
     expect(html).toContain(">Trace</text>");
   });
 
+  it("coalesces tightened PDF fragments without coalescing separated words", async () => {
+    const tightened = await pageToHtml({
+      ...page,
+      spans: [
+        { ...span("paths", 20, 700), bounds: { x: 20, y: 700, width: 26, height: 12 } },
+        {
+          ...span("through", 45, 700),
+          textAdjustmentBefore: -1,
+          bounds: { x: 45, y: 700, width: 38, height: 12 },
+        },
+      ],
+    });
+    const separated = await pageToHtml({
+      ...page,
+      spans: [
+        { ...span("paths", 20, 700), bounds: { x: 20, y: 700, width: 26, height: 12 } },
+        {
+          ...span("through", 50, 700),
+          textAdjustmentBefore: 4,
+          bounds: { x: 50, y: 700, width: 38, height: 12 },
+        },
+      ],
+    });
+
+    expect(tightened).toContain('textLength="63"');
+    expect(tightened).toContain(">pathsthrough</text>");
+    expect(tightened).not.toContain("<tspan");
+    expect(separated.match(/<tspan/g)).toHaveLength(2);
+  });
+
   it("omits zero tspan offsets while retaining exact span extents", async () => {
     const html = await pageToHtml({
       ...page,

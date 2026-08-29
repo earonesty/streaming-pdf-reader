@@ -290,7 +290,13 @@ function canCoalesceVisualSpans(left: TextSpan, right: TextSpan): boolean {
   const tolerance = Math.max(0.02, left.fontSize * 0.015);
   if (Math.abs(left.bounds.y - right.bounds.y) > tolerance) return false;
   const gap = right.bounds.x - (left.bounds.x + left.bounds.width);
-  return !right.hasLeadingSpace && gap >= -tolerance && gap <= tolerance;
+  if (right.hasLeadingSpace) return false;
+  if (gap >= -tolerance && gap <= tolerance) return true;
+  return (
+    right.textAdjustmentBefore !== undefined &&
+    right.textAdjustmentBefore < 0 &&
+    Math.abs(right.textAdjustmentBefore - gap) <= 0.001
+  );
 }
 
 function sameVisualTextState(left: TextSpan, right: TextSpan): boolean {
