@@ -28,6 +28,8 @@ export class XrefIndex {
   readonly #chunks = new Map<number, XrefChunk>();
   readonly #maxBytes: number;
   #size = 0;
+  #directCount = 0;
+  #sortedDirectOffsets: Float64Array | undefined;
 
   constructor(maxBytes = 16 * 1024 * 1024) {
     if (!Number.isSafeInteger(maxBytes) || maxBytes < BYTES_PER_CHUNK) {
@@ -41,7 +43,7 @@ export class XrefIndex {
   }
 
   get residentBytes(): number {
-    return this.#chunks.size * BYTES_PER_CHUNK;
+    return this.#chunks.size * BYTES_PER_CHUNK + this.#directCount * Float64Array.BYTES_PER_ELEMENT;
   }
 
   has(object: number): boolean {
@@ -76,13 +78,20 @@ export class XrefIndex {
       throw new RangeError("invalid xref object number");
     const chunkNumber = Math.floor(object / CHUNK_SIZE);
     let chunk = this.#chunks.get(chunkNumber);
+    const index = this.#slotIndex(object);
+    const previousType = chunk?.types[index] ?? 0;
+    const directDelta = (entry.kind === "direct" ? 1 : 0) - (previousType === 1 ? 1 : 0);
+    const additionalChunkBytes = chunk ? 0 : BYTES_PER_CHUNK;
+    if (
+      this.residentBytes + additionalChunkBytes + directDelta * Float64Array.BYTES_PER_ELEMENT >
+      this.#maxBytes
+    ) {
+      throw new PdfError(
+        "RESOURCE_LIMIT",
+        `xref index exceeds configured ${this.#maxBytes}-byte cache limit`,
+      );
+    }
     if (!chunk) {
-      if (this.residentBytes + BYTES_PER_CHUNK > this.#maxBytes) {
-        throw new PdfError(
-          "RESOURCE_LIMIT",
-          `xref index exceeds configured ${this.#maxBytes}-byte cache limit`,
-        );
-      }
       chunk = {
         types: new Uint8Array(CHUNK_SIZE),
         primary: new Float64Array(CHUNK_SIZE),
@@ -90,8 +99,9 @@ export class XrefIndex {
       };
       this.#chunks.set(chunkNumber, chunk);
     }
-    const index = this.#slotIndex(object);
     if (chunk.types[index] === 0) this.#size += 1;
+    this.#directCount += directDelta;
+    this.#sortedDirectOffsets = undefined;
     chunk.types[index] = entry.kind === "direct" ? 1 : 2;
     chunk.primary[index] = entry.kind === "direct" ? entry.offset : entry.streamObject;
     chunk.secondary[index] = entry.kind === "direct" ? entry.generation : entry.index;
@@ -118,9 +128,24 @@ export class XrefIndex {
     }
   }
 
+  nextDirectOffset(offset: number): number | undefined {
+    if (!this.#sortedDirectOffsets) this.#sortedDirectOffsets = this.#buildDirectOffsets();
+    const offsets = this.#sortedDirectOffsets;
+    let low = 0;
+    let high = offsets.length;
+    while (low < high) {
+      const middle = low + Math.floor((high - low) / 2);
+      if ((offsets[middle] ?? 0) <= offset) low = middle + 1;
+      else high = middle;
+    }
+    return offsets[low];
+  }
+
   clear(): void {
     this.#chunks.clear();
     this.#size = 0;
+    this.#directCount = 0;
+    this.#sortedDirectOffsets = undefined;
   }
 
   #slot(object: number): { chunk: XrefChunk } | undefined {
@@ -130,5 +155,15 @@ export class XrefIndex {
 
   #slotIndex(object: number): number {
     return object % CHUNK_SIZE;
+  }
+
+  #buildDirectOffsets(): Float64Array {
+    const offsets = new Float64Array(this.#directCount);
+    let output = 0;
+    for (const entry of this.values()) {
+      if (entry.kind === "direct") offsets[output++] = entry.offset;
+    }
+    offsets.sort();
+    return offsets;
   }
 }

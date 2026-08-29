@@ -694,8 +694,9 @@ describe("HTML writer", () => {
       ...page,
       spans: [{ ...span("Hidden", 20, 700), renderingMode: 3 }],
     });
-    expect(invisible).toContain('aria-label="Hidden"');
-    expect(invisible).not.toContain(">Hidden</text>");
+    expect(invisible).toContain(
+      '<text class="pdf-accessible-text" fill-opacity="0" pointer-events="none">Hidden</text>',
+    );
   });
 
   it("does not browser-substitute unembedded Adobe CJK fonts", async () => {
@@ -709,8 +710,9 @@ describe("HTML writer", () => {
       ],
     });
 
-    expect(html).toContain('aria-label="目录"');
-    expect(html).not.toContain(">目录</text>");
+    expect(html).toContain(
+      '<text class="pdf-accessible-text" fill-opacity="0" pointer-events="none">目录</text>',
+    );
   });
 
   it("inlines page-scoped embedded fonts for visual spans", async () => {
@@ -788,9 +790,11 @@ describe("HTML writer", () => {
       spans: [source],
     });
     expect(source.text).toBe("ffi");
-    expect(html).toContain('aria-label="ffi"');
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain(
+      '<text class="pdf-accessible-text" fill-opacity="0" pointer-events="none">ffi</text>',
+    );
     expect(html).toContain(String.fromCodePoint(0xf0002));
-    expect(html).not.toContain(">ffi</text>");
   });
 
   it("embeds identical fonts only once across a visual document", async () => {
@@ -854,8 +858,10 @@ describe("HTML writer", () => {
     expect(html).toContain('transform="scale(12 -12)"');
     expect(html).toContain('<polygon points="0,0 0.75,0 0.75,0.75 0,0.75" fill="#000000"/>');
     expect(html).toContain('<g transform="translate(1 0)"><path d="M0 0L0.375 0.75L0.75 0Z"');
-    expect(html).toContain('aria-label="ab" role="img"');
-    expect(html).not.toContain(">ab</text>");
+    expect(html).toContain('<g aria-hidden="true"');
+    expect(html).toContain(
+      '<text class="pdf-accessible-text" fill-opacity="0" pointer-events="none">ab</text>',
+    );
 
     const hidden = await pageToHtml({
       ...page,
@@ -869,8 +875,9 @@ describe("HTML writer", () => {
         },
       ],
     });
-    expect(hidden).toContain('aria-label="hidden"');
-    expect(hidden).not.toContain(">hidden</text>");
+    expect(hidden).toContain(
+      '<text class="pdf-accessible-text" fill-opacity="0" pointer-events="none">hidden</text>',
+    );
   });
 
   it("paints dense Type3 bitmap masks with crisp SVG cells", async () => {

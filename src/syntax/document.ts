@@ -387,14 +387,12 @@ export class PdfObjectReader {
   }
 
   async #readDirectObject(objectNumber: number, entry: DirectXrefEntry): Promise<PdfValue> {
-    const offsets = [...this.#xref.values()]
-      .filter(
-        (candidate): candidate is DirectXrefEntry =>
-          candidate.kind === "direct" && candidate.offset > entry.offset,
-      )
-      .map((candidate) => candidate.offset);
-    offsets.push(...[...this.#xrefSectionOffsets].filter((offset) => offset > entry.offset));
-    const next = offsets.length > 0 ? Math.min(...offsets) : this.store.source.size;
+    const nextObject = this.#xref.nextDirectOffset(entry.offset) ?? this.store.source.size;
+    const nextXref = Math.min(
+      ...[...this.#xrefSectionOffsets].filter((offset) => offset > entry.offset),
+      this.store.source.size,
+    );
+    const next = Math.min(nextObject, nextXref);
     const length = Math.min(next - entry.offset, this.limits.maxObjectBytes);
     if (length <= 0) throw new Error(`invalid byte range for object ${objectNumber}`);
     const bytes = await this.store.read(entry.offset, length);

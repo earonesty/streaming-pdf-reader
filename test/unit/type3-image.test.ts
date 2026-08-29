@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { decodeGroup4Mask } from "../../src/content/ccitt.js";
 import { extractInlineImageMaskFills } from "../../src/content/type3-image.js";
 
 describe("Type3 inline image masks", () => {
@@ -53,5 +54,11 @@ describe("Type3 inline image masks", () => {
 
     const fills = extractInlineImageMaskFills(bytes, [1, 0, 0, 1, 0, 0]);
     expect(fills.length).toBeGreaterThan(100);
+  });
+
+  it("rejects Group 4 masks whose decoded bitmap exceeds the pixel limit", () => {
+    expect(() => decodeGroup4Mask(Uint8Array.of(0), 100_000, 100_000)).toThrow(
+      "decoded pixel limit",
+    );
   });
 });

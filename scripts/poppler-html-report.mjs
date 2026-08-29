@@ -238,10 +238,11 @@ function summarizeWriter(html) {
           ? [accessibleText]
           : nodes.filter(
               (node) =>
-                attribute(node, "aria-label") || node.tagName === "span" || node.tagName === "text",
+                (node.tagName === "span" || node.tagName === "text") &&
+                attribute(node, "aria-hidden") !== "true",
             );
       })
-      .map((node) => attribute(node, "aria-label") || textContent(node))
+      .map(textContent)
       .join(""),
   };
 }

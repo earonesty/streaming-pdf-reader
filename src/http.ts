@@ -50,12 +50,34 @@ export async function httpSource(
       if (etag) requestHeaders.set("if-range", etag);
       const response = await fetcher(url, { headers: requestHeaders });
       if (response.status === 200) {
+        if (etag) {
+          await response.body?.cancel();
+          throw new Error("HTTP source changed while reading byte ranges");
+        }
         warnAboutFullResponse();
         return readResponseSlice(response, offset, length);
       }
       if (response.status !== 206) {
         await response.body?.cancel();
         throw new Error(`range request returned HTTP ${response.status}; expected 200 or 206`);
+      }
+      const expectedEnd = offset + length - 1;
+      const returnedRange = parseContentRange(response.headers.get("content-range"));
+      if (
+        !returnedRange ||
+        returnedRange.start !== offset ||
+        returnedRange.end !== expectedEnd ||
+        returnedRange.size !== size
+      ) {
+        await response.body?.cancel();
+        throw new Error(
+          `range request returned an invalid Content-Range; expected bytes ${offset}-${expectedEnd}/${size}`,
+        );
+      }
+      const responseEtag = response.headers.get("etag");
+      if (etag && responseEtag && responseEtag !== etag) {
+        await response.body?.cancel();
+        throw new Error("HTTP source changed while reading byte ranges");
       }
       const bytes = new Uint8Array(await response.arrayBuffer());
       if (bytes.byteLength !== length) {
@@ -64,6 +86,19 @@ export async function httpSource(
       return bytes;
     },
   };
+}
+
+function parseContentRange(
+  value: string | null,
+): { start: number; end: number; size: number } | undefined {
+  const match = /^bytes\s+(\d+)-(\d+)\/(\d+)$/.exec(value ?? "");
+  if (!match) return undefined;
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  const size = Number(match[3]);
+  return Number.isSafeInteger(start) && Number.isSafeInteger(end) && Number.isSafeInteger(size)
+    ? { start, end, size }
+    : undefined;
 }
 
 function fullResponseSource(

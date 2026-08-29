@@ -809,8 +809,8 @@ function visualText(
   styleClasses?: Map<string, string>,
   ariaLabel?: string,
 ): string {
-  if (span.renderingMode === 3 || span.renderingMode === 7) return accessibleVisualLabel(span.text);
-  if (!span.fontAssetId && isAdobeCjkFont(span.fontFamily)) return accessibleVisualLabel(span.text);
+  if (span.renderingMode === 3 || span.renderingMode === 7) return accessibleVisualText(span.text);
+  if (!span.fontAssetId && isAdobeCjkFont(span.fontFamily)) return accessibleVisualText(span.text);
   const direction = directionAttribute([span]);
   const style = visualTextStyle(span, fontAliases);
   const styleClass = styleClasses?.get(visualTextClassStyle(span, fontAliases));
@@ -839,8 +839,8 @@ function visualText(
   const position = transformed
     ? ` x="0" y="0" transform="matrix(${transform?.map(number).join(" ")} ${number(anchorX)} ${number(anchorY)})"`
     : ` x="${number(anchorX)}" y="${number(anchorY)}"`;
-  const accessibleName = ariaLabel ? ` aria-label="${escapeAttribute(ariaLabel)}"` : "";
-  return `<text${accessibleName}${direction}${position}${fontSize}${textLength}${presentation}>${escapeHtml(span.text)}</text>`;
+  const visual = `<text${ariaLabel ? ' aria-hidden="true"' : ""}${direction}${position}${fontSize}${textLength}${presentation}>${escapeHtml(span.text)}</text>`;
+  return ariaLabel ? visual + accessibleVisualText(ariaLabel) : visual;
 }
 
 function visualTextClassStyle(span: TextSpan, fontAliases: Map<string, string>): string {
@@ -885,12 +885,12 @@ function isAdobeCjkFont(fontFamily: string | undefined): boolean {
 }
 
 function visualType3Text(span: TextSpan, font: EmbeddedType3Font, pageHeight: number): string {
-  if (span.renderingMode === 3 || span.renderingMode === 7) return accessibleVisualLabel(span.text);
+  if (span.renderingMode === 3 || span.renderingMode === 7) return accessibleVisualText(span.text);
   const glyphs = new Map(font.glyphs.map((glyph) => [glyph.code, glyph]));
   const sequence = (span.glyphCodes ?? []).map((code) => glyphs.get(code));
   const totalAdvance = sequence.reduce((total, glyph) => total + (glyph?.advance ?? 0), 0);
   if (totalAdvance <= 0 || span.bounds.width <= 0 || span.fontSize <= 0)
-    return accessibleVisualLabel(span.text);
+    return accessibleVisualText(span.text);
   const transform = span.transform ?? [1, 0, 0, 1];
   const outer = `matrix(${transform.map(number).join(" ")} ${number(span.bounds.x)} ${number(pageHeight - span.bounds.y)})`;
   const xScale = span.bounds.width / totalAdvance;
@@ -901,11 +901,13 @@ function visualType3Text(span: TextSpan, font: EmbeddedType3Font, pageHeight: nu
     content += `<g transform="translate(${number(offset)} 0)">${type3Glyph(glyph, span.color)}</g>`;
     offset += glyph.advance;
   }
-  return `<g aria-label="${escapeAttribute(span.text)}" role="img" transform="${outer}"><g transform="scale(${number(xScale)} ${number(-span.fontSize)})">${content}</g></g>`;
+  return `<g aria-hidden="true" transform="${outer}"><g transform="scale(${number(xScale)} ${number(-span.fontSize)})">${content}</g></g>${accessibleVisualText(span.text)}`;
 }
 
-function accessibleVisualLabel(text: string): string {
-  return text ? `<text aria-label="${escapeAttribute(text)}" role="img"></text>` : "";
+function accessibleVisualText(text: string): string {
+  return text
+    ? `<text class="pdf-accessible-text" fill-opacity="0" pointer-events="none">${escapeHtml(text)}</text>`
+    : "";
 }
 
 function isHebrewPaintOrder(span: TextSpan): boolean {

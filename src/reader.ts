@@ -74,8 +74,11 @@ export class StreamingPdfReader {
   async *pages(): AsyncGenerator<ExtractedPage> {
     const count = await this.getPageCount();
     for (let index = 0; index < count; index += 1) {
-      yield await this.getPage(index);
-      this.releasePage();
+      try {
+        yield await this.getPage(index);
+      } finally {
+        this.releasePage();
+      }
     }
   }
 
