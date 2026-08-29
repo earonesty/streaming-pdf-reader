@@ -361,14 +361,33 @@ function visualTextLine(
   }
   if (endIndex === startIndex) return undefined;
   const baseline = pageHeight - first.bounds.y;
-  const content = spans
-    .slice(startIndex, endIndex + 1)
-    .map((span) => visualText(span, pageHeight, fontAliases, false, undefined, baseline))
+  const lineSpans = spans.slice(startIndex, endIndex + 1);
+  const content = lineSpans
+    .map((span, index) =>
+      visualTextTspan(span, index > 0 ? textSpanGap(lineSpans[index - 1], span) : undefined),
+    )
     .join("");
   return {
-    html: `<g class="${className}" transform="translate(0 ${number(baseline)})">${content}</g>`,
+    html: `<text class="${className}" x="${number(first.bounds.x)}" y="${number(baseline)}">${content}</text>`,
     endIndex,
   };
+}
+
+function visualTextTspan(span: TextSpan, dx: number | undefined): string {
+  const extent = span.bounds.width;
+  const offset = dx === undefined ? "" : ` dx="${number(dx)}"`;
+  const length =
+    extent > 0
+      ? ` textLength="${number(extent)}" lengthAdjust="${usesSpacingAdjustment(span) ? "spacing" : "spacingAndGlyphs"}"`
+      : "";
+  return `<tspan${offset}${length}>${escapeHtml(span.text)}</tspan>`;
+}
+
+function textSpanGap(previous: TextSpan | undefined, current: TextSpan): number {
+  if (!previous) return 0;
+  const gap = current.bounds.x - (previous.bounds.x + previous.bounds.width);
+  const adjustment = current.textAdjustmentBefore;
+  return adjustment !== undefined && Math.abs(adjustment - gap) <= 0.001 ? adjustment : gap;
 }
 
 function canGroupVisualTextLine(span: TextSpan): boolean {
@@ -376,6 +395,7 @@ function canGroupVisualTextLine(span: TextSpan): boolean {
     !usesPositionedSpan(span) &&
     !span.glyphCodes &&
     span.direction === "ltr" &&
+    !isHebrewPaintOrder(span) &&
     !hasNonIdentityTransform(span.transform) &&
     span.renderingMode !== 3 &&
     span.renderingMode !== 7 &&
@@ -667,7 +687,6 @@ function visualText(
   fontAliases: Map<string, string>,
   counterRotateReflectedText = false,
   styleClasses?: Map<string, string>,
-  inheritedBaseline?: number,
 ): string {
   if (span.renderingMode === 3 || span.renderingMode === 7) return "";
   if (!span.fontAssetId && isAdobeCjkFont(span.fontFamily)) return "";
@@ -675,8 +694,7 @@ function visualText(
   const style = visualTextStyle(span, fontAliases);
   const styleClass = styleClasses?.get(visualTextClassStyle(span, fontAliases));
   const presentation = styleClass ? ` class="${styleClass}"` : style ? ` style="${style}"` : "";
-  const fontSize =
-    styleClass || inheritedBaseline !== undefined ? "" : ` font-size="${number(span.fontSize)}"`;
+  const fontSize = styleClass ? "" : ` font-size="${number(span.fontSize)}"`;
   const textExtent = span.direction === "ttb" ? span.bounds.height : span.bounds.width;
   const textLength =
     textExtent > 0 && !isHebrewPaintOrder(span)
@@ -696,11 +714,11 @@ function visualText(
   const basisX = transform?.[0] ?? 1;
   const basisY = transform?.[1] ?? 0;
   const anchorX = span.bounds.x + basisX * rtlOffset;
-  const anchorY = pageHeight - span.bounds.y + basisY * rtlOffset - (inheritedBaseline ?? 0);
+  const anchorY = pageHeight - span.bounds.y + basisY * rtlOffset;
   const position = transformed
     ? ` x="0" y="0" transform="matrix(${transform?.map(number).join(" ")} ${number(anchorX)} ${number(anchorY)})"`
     : ` x="${number(anchorX)}" y="${number(anchorY)}"`;
-  return `<text${direction}${position}${fontSize}${textLength}${inheritedBaseline === undefined ? presentation : ""}>${escapeHtml(span.text)}</text>`;
+  return `<text${direction}${position}${fontSize}${textLength}${presentation}>${escapeHtml(span.text)}</text>`;
 }
 
 function visualTextClassStyle(span: TextSpan, fontAliases: Map<string, string>): string {

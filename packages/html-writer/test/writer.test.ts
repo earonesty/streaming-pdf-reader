@@ -53,9 +53,10 @@ describe("HTML writer", () => {
       ],
     });
 
-    expect(html.match(/<text/g)).toHaveLength(2);
-    expect(html).toContain(">paths</text>");
-    expect(html).toContain(">through</text>");
+    expect(html.match(/<text/g)).toHaveLength(1);
+    expect(html.match(/<tspan/g)).toHaveLength(2);
+    expect(html).toContain('>paths</tspan><tspan dx="3"');
+    expect(html).toContain(">through</tspan>");
     expect(html).not.toContain(">paths through</text>");
   });
 
@@ -72,7 +73,7 @@ describe("HTML writer", () => {
     expect(html).toContain(">Trace</text>");
   });
 
-  it("keeps visual spans separate across style, baseline, and large-gap boundaries", async () => {
+  it("keeps visual spans separate across style and baseline boundaries", async () => {
     const html = await pageToHtml({
       ...page,
       spans: [
@@ -83,7 +84,8 @@ describe("HTML writer", () => {
       ],
     });
 
-    expect(html.match(/<text/g)).toHaveLength(4);
+    expect(html.match(/<text/g)).toHaveLength(3);
+    expect(html.match(/<tspan/g)).toHaveLength(2);
   });
 
   it("deduplicates repeated visual text styles into page-scoped CSS classes", async () => {
@@ -96,8 +98,10 @@ describe("HTML writer", () => {
 
     expect(html.match(/\.boxpdf-p1-t1\{/g)).toHaveLength(1);
     expect(html.match(/class="boxpdf-p1-t1"/g)).toHaveLength(1);
-    expect(html).toContain('<g class="boxpdf-p1-t1" transform="translate(0 92)">');
-    expect(html.match(/<text x=/g)).toHaveLength(2);
+    expect(html).toContain('<text class="boxpdf-p1-t1" x="20" y="92">');
+    expect(html.match(/<text /g)).toHaveLength(1);
+    expect(html.match(/<tspan/g)).toHaveLength(2);
+    expect(html).toContain('<tspan dx="170" textLength="10"');
     expect(html).toContain("fill:#112233;font-family:Times New Roman,Times,serif");
     expect(inline).not.toContain("boxpdf-p1-t1");
     expect(
