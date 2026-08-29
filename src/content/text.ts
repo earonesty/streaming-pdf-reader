@@ -474,7 +474,10 @@ function showString(
     fontName: state.font,
     ...(font?.fontFamily ? { fontFamily: font.fontFamily } : {}),
     ...(font?.fontAssetId ? { fontAssetId: font.fontAssetId } : {}),
-    ...(font?.fontFormat === "type3" ? { glyphCodes: [...bytes] } : {}),
+    ...(font?.fontFormat === "type3" ||
+    (font?.fontAsset?.format === "opentype" && font?.fontAsset?.visualGlyphMapping)
+      ? { glyphCodes: fontCodes(bytes, font.codeUnitBytes) }
+      : {}),
     color: state.fillColor,
     ...(state.fillOpacity !== 1 ? { fillOpacity: state.fillOpacity } : {}),
     ...(state.renderingMode === 1 ||
@@ -502,6 +505,14 @@ function showString(
     source: { page: 0, objectNumber: page.ref.object },
   });
   state.textMatrix = translate(state.textMatrix, vertical ? 0 : width, vertical ? -width : 0);
+}
+
+function fontCodes(bytes: Uint8Array, codeUnitBytes: 1 | 2 | undefined): number[] {
+  if (codeUnitBytes !== 2) return [...bytes];
+  const output: number[] = [];
+  for (let offset = 0; offset + 1 < bytes.length; offset += 2)
+    output.push(((bytes[offset] ?? 0) << 8) | (bytes[offset + 1] ?? 0));
+  return output;
 }
 
 function visibleText(

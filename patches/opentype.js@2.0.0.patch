@@ -1,0 +1,150 @@
+diff --git a/dist/opentype.js b/dist/opentype.js
+index 4dc6dea3bc470c5932364e0162bca66d614c8045..dc5030c2f40253d3b5c665d7968ddc0f1179610c 100644
+--- a/dist/opentype.js
++++ b/dist/opentype.js
+@@ -1331,6 +1331,13 @@ var opentype = (() => {
+         for (let j = 0; j < enc1.length; j++) {
+           d.push(enc1[j]);
+         }
++      } else if (type === "delta") {
++        let previous = 0;
++        for (const value of v) {
++          const enc1 = encode.NUMBER(value - previous);
++          d.push(...enc1);
++          previous = value;
++        }
+       } else if (type === "real") {
+         const enc1 = encode.REAL(v);
+         for (let j = 0; j < enc1.length; j++) {
+@@ -6519,6 +6526,20 @@ var opentype = (() => {
+     { name: "vstore", op: 24, type: "offset" }
+   ];
+   var PRIVATE_DICT_META = [
++    { name: "blueValues", op: 6, type: "delta" },
++    { name: "otherBlues", op: 7, type: "delta" },
++    { name: "familyBlues", op: 8, type: "delta" },
++    { name: "familyOtherBlues", op: 9, type: "delta" },
++    { name: "blueScale", op: 1209, type: "real", value: 0.039625 },
++    { name: "blueShift", op: 1210, type: "number", value: 7 },
++    { name: "blueFuzz", op: 1211, type: "number", value: 1 },
++    { name: "stdHW", op: 10, type: "number" },
++    { name: "stdVW", op: 11, type: "number" },
++    { name: "stemSnapH", op: 1212, type: "delta" },
++    { name: "stemSnapV", op: 1213, type: "delta" },
++    { name: "forceBold", op: 1214, type: "number", value: 0 },
++    { name: "languageGroup", op: 1217, type: "number", value: 0 },
++    { name: "expansionFactor", op: 1218, type: "real", value: 0.06 },
+     { name: "subrs", op: 19, type: "offset", value: 0 },
+     { name: "defaultWidthX", op: 20, type: "number", value: 0 },
+     { name: "nominalWidthX", op: 21, type: "number", value: 0 }
+@@ -7451,6 +7472,8 @@ var opentype = (() => {
+     return t;
+   }
+   function glyphToOps(glyph, version) {
++    if (version < 2 && glyph.type2CharString)
++      return [{ name: "charstring", type: "LITERAL", value: glyph.type2CharString }];
+     const ops = [];
+     const path = glyph.path;
+     if (version < 2) {
+@@ -7562,7 +7585,7 @@ var opentype = (() => {
+       attrs.paintType = topDictOptions.paintType;
+       attrs.strokeWidth = topDictOptions.strokeWidth || 0;
+     }
+-    const privateAttrs = {};
++    const privateAttrs = options.privateDict || {};
+     const glyphNames = [];
+     let glyph;
+     for (let i = 1; i < glyphs.length; i += 1) {
+@@ -7583,6 +7606,7 @@ var opentype = (() => {
+     attrs.charset = startOffset;
+     attrs.encoding = 0;
+     attrs.charStrings = attrs.charset + t.charsets.sizeOf();
++    attrs.private[0] = t.privateDict.sizeOf();
+     attrs.private[1] = attrs.charStrings + t.charStringsIndex.sizeOf();
+     topDict = makeTopDict(attrs, strings);
+     t.topDictIndex = makeTopDictIndex(topDict);
+@@ -9492,7 +9516,8 @@ var opentype = (() => {
+       postScriptName,
+       unitsPerEm: font.unitsPerEm,
+       fontBBox: [0, globals.yMin, globals.ascender, globals.advanceWidthMax],
+-      topDict: font.tables.cff && font.tables.cff.topDict || {}
++      topDict: font.tables.cff && font.tables.cff.topDict || {},
++      privateDict: font.tables.cff && font.tables.cff.privateDict || {}
+     });
+     const metaTable = font.metas && Object.keys(font.metas).length > 0 ? meta_default.make(font.metas) : void 0;
+     const tables = [headTable, hheaTable, maxpTable, os2Table, nameTable, cmapTable, postTable, cffTable, hmtxTable];
+diff --git a/dist/opentype.mjs b/dist/opentype.mjs
+index 53ed20eccb08a16519bbd40a866e0bdc3fa9f2d6..21d7d6db51b781057cc63638b6642a3e02d2d189 100644
+--- a/dist/opentype.mjs
++++ b/dist/opentype.mjs
+@@ -1299,6 +1299,13 @@ encode.OPERAND = function(v, type) {
+       for (let j = 0; j < enc1.length; j++) {
+         d.push(enc1[j]);
+       }
++    } else if (type === "delta") {
++      let previous = 0;
++      for (const value of v) {
++        const enc1 = encode.NUMBER(value - previous);
++        d.push(...enc1);
++        previous = value;
++      }
+     } else if (type === "real") {
+       const enc1 = encode.REAL(v);
+       for (let j = 0; j < enc1.length; j++) {
+@@ -6487,6 +6494,20 @@ var TOP_DICT_META_CFF2 = [
+   { name: "vstore", op: 24, type: "offset" }
+ ];
+ var PRIVATE_DICT_META = [
++  { name: "blueValues", op: 6, type: "delta" },
++  { name: "otherBlues", op: 7, type: "delta" },
++  { name: "familyBlues", op: 8, type: "delta" },
++  { name: "familyOtherBlues", op: 9, type: "delta" },
++  { name: "blueScale", op: 1209, type: "real", value: 0.039625 },
++  { name: "blueShift", op: 1210, type: "number", value: 7 },
++  { name: "blueFuzz", op: 1211, type: "number", value: 1 },
++  { name: "stdHW", op: 10, type: "number" },
++  { name: "stdVW", op: 11, type: "number" },
++  { name: "stemSnapH", op: 1212, type: "delta" },
++  { name: "stemSnapV", op: 1213, type: "delta" },
++  { name: "forceBold", op: 1214, type: "number", value: 0 },
++  { name: "languageGroup", op: 1217, type: "number", value: 0 },
++  { name: "expansionFactor", op: 1218, type: "real", value: 0.06 },
+   { name: "subrs", op: 19, type: "offset", value: 0 },
+   { name: "defaultWidthX", op: 20, type: "number", value: 0 },
+   { name: "nominalWidthX", op: 21, type: "number", value: 0 }
+@@ -7419,6 +7440,8 @@ function makeCharsets(glyphNames, strings) {
+   return t;
+ }
+ function glyphToOps(glyph, version) {
++  if (version < 2 && glyph.type2CharString)
++    return [{ name: "charstring", type: "LITERAL", value: glyph.type2CharString }];
+   const ops = [];
+   const path = glyph.path;
+   if (version < 2) {
+@@ -7530,7 +7553,7 @@ function makeCFFTable(glyphs, options) {
+     attrs.paintType = topDictOptions.paintType;
+     attrs.strokeWidth = topDictOptions.strokeWidth || 0;
+   }
+-  const privateAttrs = {};
++  const privateAttrs = options.privateDict || {};
+   const glyphNames = [];
+   let glyph;
+   for (let i = 1; i < glyphs.length; i += 1) {
+@@ -7551,6 +7574,7 @@ function makeCFFTable(glyphs, options) {
+   attrs.charset = startOffset;
+   attrs.encoding = 0;
+   attrs.charStrings = attrs.charset + t.charsets.sizeOf();
++  attrs.private[0] = t.privateDict.sizeOf();
+   attrs.private[1] = attrs.charStrings + t.charStringsIndex.sizeOf();
+   topDict = makeTopDict(attrs, strings);
+   t.topDictIndex = makeTopDictIndex(topDict);
+@@ -9460,7 +9484,8 @@ function fontToSfntTable(font) {
+     postScriptName,
+     unitsPerEm: font.unitsPerEm,
+     fontBBox: [0, globals.yMin, globals.ascender, globals.advanceWidthMax],
+-    topDict: font.tables.cff && font.tables.cff.topDict || {}
++    topDict: font.tables.cff && font.tables.cff.topDict || {},
++    privateDict: font.tables.cff && font.tables.cff.privateDict || {}
+   });
+   const metaTable = font.metas && Object.keys(font.metas).length > 0 ? meta_default.make(font.metas) : void 0;
+   const tables = [headTable, hheaTable, maxpTable, os2Table, nameTable, cmapTable, postTable, cffTable, hmtxTable];

@@ -1,7 +1,7 @@
 import type { PdfObjectReader } from "../syntax/document.js";
 import { isName, isStream, type PdfDict } from "../syntax/values.js";
 import type { EmbeddedFont } from "../types.js";
-import { convertType1Font } from "./type1-font.js";
+import { loadCidGlyphWidths } from "./cid.js";
 
 export async function extractTrueTypeFont(
   reader: PdfObjectReader,
@@ -45,12 +45,56 @@ export async function extractType1Font(
   const fontFile = await reader.resolve(fontFileValue);
   if (!isStream(fontFile)) return undefined;
   try {
+    const { convertType1Font } = await import("./type1-font-convert.js");
     return convertType1Font(
       await reader.decodeStream(fontFile),
       id,
       family,
       characters,
       glyphNames,
+    );
+  } catch (error) {
+    if (error instanceof Error && /exceeds configured/.test(error.message)) throw error;
+    return undefined;
+  }
+}
+
+export async function extractCffFont(
+  reader: PdfObjectReader,
+  font: PdfDict,
+  id: string,
+  family: string | undefined,
+  characters: string[],
+  glyphNames: Array<string | undefined>,
+  unicodeToCid: ReadonlyMap<number, number>,
+  widthsByName: ReadonlyMap<string | number, number>,
+): Promise<EmbeddedFont | undefined> {
+  const programFont = await descendantFont(reader, font);
+  if (!programFont) return undefined;
+  const descriptor = await reader.resolveDict(programFont.get("FontDescriptor"));
+  const fontFileValue = descriptor?.get("FontFile3");
+  if (fontFileValue === undefined) return undefined;
+  const fontFile = await reader.resolve(fontFileValue);
+  if (
+    !isStream(fontFile) ||
+    (!isName(fontFile.dict.get("Subtype"), "Type1C") &&
+      !isName(fontFile.dict.get("Subtype"), "CIDFontType0C"))
+  )
+    return undefined;
+  try {
+    const cidWidths = await loadCidGlyphWidths(reader, font);
+    const widths = new Map<string | number, number>(widthsByName);
+    for (const [cid, width] of cidWidths?.widths ?? []) widths.set(cid, width);
+    const { convertCffFont } = await import("./cff-font-convert.js");
+    return convertCffFont(
+      await reader.decodeStream(fontFile),
+      id,
+      family,
+      characters,
+      glyphNames,
+      unicodeToCid,
+      widths,
+      cidWidths?.defaultWidth ?? 1000,
     );
   } catch (error) {
     if (error instanceof Error && /exceeds configured/.test(error.message)) throw error;

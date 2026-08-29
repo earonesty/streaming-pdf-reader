@@ -3,6 +3,9 @@ interface Type1FontOptions {
   eexec?: "binary" | "hex";
   widthOperator?: "hsbw" | "sbw" | "subroutine" | "div";
   lenIV?: number;
+  dynamicHints?: boolean;
+  blueScale?: number;
+  expansionFactor?: number;
 }
 
 export function buildType1Font(width: number, options: Type1FontOptions = {}): Uint8Array {
@@ -13,33 +16,56 @@ export function buildType1Font(width: number, options: Type1FontOptions = {}): U
       : options.widthOperator === "div"
         ? [139, ...encodeNumber(width * 2), ...encodeNumber(2), 12, 12, 13]
         : options.widthOperator === "subroutine"
-          ? [139, 10]
+          ? [...encodeNumber(options.dynamicHints ? 4 : 0), 10]
           : [139, ...encodeNumber(width), 13];
+  const dynamicProgram = options.dynamicHints
+    ? [
+        ...encodeNumber(10),
+        ...encodeNumber(20),
+        1,
+        ...encodeNumber(0),
+        ...encodeNumber(1),
+        ...encodeNumber(3),
+        12,
+        16,
+        12,
+        17,
+        ...encodeNumber(options.widthOperator === "subroutine" ? 5 : 4),
+        10,
+        ...encodeNumber(30),
+        ...encodeNumber(40),
+        21,
+        14,
+      ]
+    : [];
   const charStringPlain = Uint8Array.of(
     ...Array.from({ length: Math.max(0, lenIV) }, () => 0),
     ...widthProgram,
+    ...dynamicProgram,
   );
   const charString = lenIV < 0 ? charStringPlain : encrypt(charStringPlain, 4_330);
-  const subroutinePlain = Uint8Array.of(
-    ...Array.from({ length: Math.max(0, lenIV) }, () => 0),
-    139,
-    ...encodeNumber(width),
-    13,
-    11,
-  );
-  const subroutine =
-    options.widthOperator === "subroutine"
-      ? lenIV < 0
-        ? subroutinePlain
-        : encrypt(subroutinePlain, 4_330)
-      : undefined;
+  const subroutinePrograms: number[][] = [];
+  if (options.dynamicHints) subroutinePrograms.push([11], [11], [11], [11]);
+  if (options.widthOperator === "subroutine")
+    subroutinePrograms.push([139, ...encodeNumber(width), 13, 11]);
+  if (options.dynamicHints)
+    subroutinePrograms.push([...encodeNumber(100), ...encodeNumber(20), 1, 11]);
+  const subroutines = subroutinePrograms.map((program) => {
+    const plain = Uint8Array.of(...Array.from({ length: Math.max(0, lenIV) }, () => 0), ...program);
+    return lenIV < 0 ? plain : encrypt(plain, 4_330);
+  });
   const privatePrefix = new TextEncoder().encode(
-    `/lenIV ${lenIV} def\n${subroutine ? `/Subrs 1 array dup 0 ${subroutine.length} RD ` : ""}`,
+    `/lenIV ${lenIV} def\n/BlueValues [-20 0 450 470] def\n/BlueScale ${options.blueScale ?? 0.039625} def\n/ExpansionFactor ${options.expansionFactor ?? 0.06} def\n/StemSnapH [30 38] def\n${subroutines.length > 0 ? `/Subrs ${subroutines.length} array ` : ""}`,
   );
+  const encodedSubroutines = subroutines.flatMap((subroutine, index) => [
+    new TextEncoder().encode(`dup ${index} ${subroutine.length} RD `),
+    subroutine,
+    new TextEncoder().encode(" NP\n"),
+  ]);
   const privateProgram = concatenate([
     Uint8Array.of(0, 0, 0, 0),
     privatePrefix,
-    ...(subroutine ? [subroutine, new TextEncoder().encode(" NP\n")] : []),
+    ...encodedSubroutines,
     new TextEncoder().encode(`/CharStrings 1 dict dup begin\n/A ${charString.length} RD `),
     charString,
     new TextEncoder().encode(" ND\nend\n"),

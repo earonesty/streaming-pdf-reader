@@ -161,7 +161,24 @@ async function writePositionedPage(
 ): Promise<void> {
   const imageOptions = resolveImageOptions("visual", options);
   const visualImages = await prepareVisualImages(page, imageOptions, options.onImage);
-  const visualSpans = coalesceVisualSpans(page.visualSpans ?? page.spans);
+  const visualCodeFonts = new Set(
+    (page.fonts ?? [])
+      .filter((font) => font.format === "opentype" && font.visualGlyphMapping)
+      .map((font) => font.id),
+  );
+  const visualLabels = new WeakMap<TextSpan, string>();
+  const visualSpans = coalesceVisualSpans(
+    (page.visualSpans ?? page.spans).map((span) => {
+      if (!span.fontAssetId || !visualCodeFonts.has(span.fontAssetId) || !span.glyphCodes)
+        return span;
+      const mapped = {
+        ...span,
+        text: span.glyphCodes.map((code) => String.fromCodePoint(0xf0000 + code)).join(""),
+      };
+      visualLabels.set(mapped, span.text);
+      return mapped;
+    }),
+  );
   const reflectedOverlay = usesReflectedVisualOverlay(page, visualSpans);
   const quarterTurn = page.rotate === 90 || page.rotate === 270;
   const displayWidth = quarterTurn ? page.height : page.width;
@@ -249,6 +266,7 @@ async function writePositionedPage(
               fontAliases,
               reflectedOverlay && page.rotate === 180,
               textClasses?.names,
+              visualLabels.get(span),
             ),
       );
     }
@@ -784,6 +802,7 @@ function visualText(
   fontAliases: Map<string, string>,
   counterRotateReflectedText = false,
   styleClasses?: Map<string, string>,
+  ariaLabel?: string,
 ): string {
   if (span.renderingMode === 3 || span.renderingMode === 7) return "";
   if (!span.fontAssetId && isAdobeCjkFont(span.fontFamily)) return "";
@@ -815,7 +834,8 @@ function visualText(
   const position = transformed
     ? ` x="0" y="0" transform="matrix(${transform?.map(number).join(" ")} ${number(anchorX)} ${number(anchorY)})"`
     : ` x="${number(anchorX)}" y="${number(anchorY)}"`;
-  return `<text${direction}${position}${fontSize}${textLength}${presentation}>${escapeHtml(span.text)}</text>`;
+  const accessibleName = ariaLabel ? ` aria-label="${escapeAttribute(ariaLabel)}"` : "";
+  return `<text${accessibleName}${direction}${position}${fontSize}${textLength}${presentation}>${escapeHtml(span.text)}</text>`;
 }
 
 function visualTextClassStyle(span: TextSpan, fontAliases: Map<string, string>): string {

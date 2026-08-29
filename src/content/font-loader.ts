@@ -4,7 +4,7 @@ import type { EmbeddedFont } from "../types.js";
 import { loadCidUnicodeGlyphMap } from "./cid-glyph-map.js";
 import { decodeUtf16Bytes, decodeWithMap, parseToUnicode } from "./cmap.js";
 import { type FontDecoder, loadFontEncoding } from "./encoding.js";
-import { extractTrueTypeFont, extractType1Font } from "./font-assets.js";
+import { extractCffFont, extractTrueTypeFont, extractType1Font } from "./font-assets.js";
 import { remapTrueTypeCmap, symbolicTrueTypeGlyphMap } from "./font-cmap.js";
 import { extractType3Font } from "./type3.js";
 
@@ -23,6 +23,14 @@ export async function loadFonts(
     const toUnicodeValue = font.get("ToUnicode");
     const encoding = await loadFontEncoding(reader, font, toUnicodeValue === undefined);
     const fontAssetId = `font-${fontAssets.length + 1}`;
+    const cidMappings = await loadCidUnicodeGlyphMap(reader, font, toUnicodeValue);
+    const cffWidths = new Map<string | number, number>();
+    if (encoding.advance && encoding.glyphTable) {
+      for (let code = 0; code < encoding.glyphTable.length; code += 1) {
+        const name = encoding.glyphTable[code];
+        if (name) cffWidths.set(name, Math.round(encoding.advance(Uint8Array.of(code)) * 1000));
+      }
+    }
     const asset =
       (await extractType3Font(reader, font, fontAssetId, encoding.fontFamily)) ??
       (await extractTrueTypeFont(reader, font, fontAssetId, encoding.fontFamily)) ??
@@ -35,10 +43,19 @@ export async function loadFonts(
             encoding.characterTable,
             encoding.glyphTable,
           )
-        : undefined);
+        : undefined) ??
+      (await extractCffFont(
+        reader,
+        font,
+        fontAssetId,
+        encoding.fontFamily,
+        encoding.characterTable ?? [],
+        encoding.glyphTable ?? [],
+        cidMappings,
+        cffWidths,
+      ));
     if (asset) {
       if (asset.format === "truetype") {
-        const cidMappings = await loadCidUnicodeGlyphMap(reader, font, toUnicodeValue);
         const symbolicMappings =
           cidMappings.size > 0
             ? new Map<number, number>()

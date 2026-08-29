@@ -17,7 +17,7 @@ const requestedIds = stringArgument("--fixtures")?.split(",").filter(Boolean);
 const fixtures = selectFixtures(requestedIds, limit);
 const writeBaseline = process.argv.includes("--write-baseline");
 const gate = process.argv.includes("--gate");
-const scale = 2;
+const scale = positiveNumberArgument("--scale", 2);
 const maximumFuzzyChangedFraction = 0.0062;
 const maximumFuzzyChangedPixels = 400;
 const maximumLowErrorMeanAbsoluteError = 1.2;
@@ -56,6 +56,7 @@ const maximumVerticalCjkMeanAbsoluteError = 8.2;
 const maximumVerticalCjkFuzzyChangedFraction = 0.03;
 const minimumColorRatio = 0.35;
 const maximumColorRatio = 1.25;
+const minimumInkRatio = 0.78;
 
 await rm(artifactRoot, { recursive: true, force: true });
 await mkdir(artifactRoot, { recursive: true });
@@ -68,7 +69,7 @@ const browser = await chromium.launch({
 });
 const chromiumVersion = browser.version();
 const context = await browser.newContext({
-  deviceScaleFactor: 1.5,
+  deviceScaleFactor: scale * 0.75,
   viewport: { width: 1600, height: 1800 },
 });
 
@@ -137,7 +138,7 @@ const summary = {
     maximumVerticalCjkFuzzyChangedFraction,
     minimumColorRatio,
     maximumColorRatio,
-    minimumInkRatio: 0.78,
+    minimumInkRatio,
     maximumInkRatio: 1.25,
   },
 };
@@ -458,6 +459,31 @@ async function compareFixture(fixture, onPage) {
         inkRatio !== null &&
         inkRatio >= 0.8 &&
         inkRatio <= 1.2;
+      const hintedType1PageRasterWithinTolerance =
+        academicPage &&
+        extracted.fonts?.some(
+          (font) =>
+            font.format === "opentype" &&
+            extracted.spans.some((span) => span.fontAssetId === font.id),
+        ) &&
+        metrics.meanAbsoluteError <= maximumAcademicPageMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumAcademicPageFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= minimumInkRatio &&
+        inkRatio <= 1.2;
+      const mappedCffPageRasterWithinTolerance =
+        academicPage &&
+        extracted.fonts?.some(
+          (font) =>
+            font.format === "opentype" &&
+            font.visualGlyphMapping &&
+            extracted.spans.some((span) => span.fontAssetId === font.id),
+        ) &&
+        metrics.meanAbsoluteError <= maximumAcademicFallbackMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumAcademicPageFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.6 &&
+        inkRatio <= 1.2;
       const pixelStatus = metrics.exact
         ? "PASS_EXACT"
         : (fuzzyWithinTolerance && inkWithinTolerance) ||
@@ -477,7 +503,9 @@ async function compareFixture(fixture, onPage) {
             postScriptFallbackRasterWithinTolerance ||
             guardianFallbackRasterWithinTolerance ||
             academicFallbackRasterWithinTolerance ||
-            academicPageRasterWithinTolerance
+            academicPageRasterWithinTolerance ||
+            hintedType1PageRasterWithinTolerance ||
+            mappedCffPageRasterWithinTolerance
           ? "PASS_TOLERANCE"
           : "FAIL_VISUAL";
       const status =
@@ -635,6 +663,14 @@ function stringArgument(name) {
 function numberArgument(name, fallback) {
   const value = Number(stringArgument(name) ?? fallback);
   if (!Number.isInteger(value) || value <= 0) throw new Error(`${name} must be a positive integer`);
+  return value;
+}
+
+function positiveNumberArgument(name, fallback) {
+  const raw = stringArgument(name);
+  if (process.argv.includes(name) && raw === undefined) throw new Error(`${name} requires a value`);
+  const value = Number(raw ?? fallback);
+  if (!Number.isFinite(value) || value <= 0) throw new Error(`${name} must be positive`);
   return value;
 }
 

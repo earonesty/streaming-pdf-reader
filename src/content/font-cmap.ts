@@ -38,6 +38,59 @@ export function remapTrueTypeCmap(
   return buildFont(font, records);
 }
 
+export function wrapCffAsOpenType(
+  cff: Uint8Array,
+  glyphCount: number,
+  mappings: ReadonlyMap<number, number>,
+  widths: ReadonlyMap<number, number> = new Map(),
+  defaultWidth = 1000,
+): Uint8Array | undefined {
+  if (glyphCount <= 0 || glyphCount > 65_535 || cff[0] !== 1) return undefined;
+  const head = new Uint8Array(54);
+  setU32(head, 0, 0x00010000);
+  setU32(head, 12, 0x5f0f3cf5);
+  setU16(head, 18, 1000);
+  setI16(head, 36, -1000);
+  setI16(head, 38, -1000);
+  setI16(head, 40, 2000);
+  setI16(head, 42, 2000);
+  setU16(head, 46, 8);
+  setI16(head, 48, 2);
+  const hhea = new Uint8Array(36);
+  setU32(hhea, 0, 0x00010000);
+  setI16(hhea, 4, 1000);
+  setI16(hhea, 6, -300);
+  const safeDefaultWidth = fontWidth(defaultWidth);
+  let maximumWidth = safeDefaultWidth;
+  for (const width of widths.values()) maximumWidth = Math.max(maximumWidth, fontWidth(width));
+  setU16(hhea, 10, maximumWidth);
+  setI16(hhea, 18, 1);
+  setU16(hhea, 34, glyphCount);
+  const maxp = new Uint8Array(6);
+  setU32(maxp, 0, 0x00005000);
+  setU16(maxp, 4, glyphCount);
+  const hmtx = new Uint8Array(glyphCount * 4);
+  for (let glyph = 0; glyph < glyphCount; glyph += 1)
+    setU16(hmtx, glyph * 4, fontWidth(widths.get(glyph) ?? safeDefaultWidth));
+  const records: TableRecord[] = [
+    { tag: "CFF ", data: cff },
+    { tag: "OS/2", data: minimalOs2([{ tag: "hhea", data: hhea }], mappings) },
+    { tag: "cmap", data: format12Cmap(mappings) },
+    { tag: "head", data: head },
+    { tag: "hhea", data: hhea },
+    { tag: "hmtx", data: hmtx },
+    { tag: "maxp", data: maxp },
+    { tag: "name", data: minimalName() },
+    { tag: "post", data: minimalPost() },
+  ];
+  records.sort((left, right) => (left.tag < right.tag ? -1 : left.tag > right.tag ? 1 : 0));
+  return buildFont(Uint8Array.of(0x4f, 0x54, 0x54, 0x4f), records);
+}
+
+function fontWidth(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.min(65_535, Math.round(value))) : 1000;
+}
+
 export async function symbolicTrueTypeGlyphMap(
   reader: PdfObjectReader,
   font: PdfDict,

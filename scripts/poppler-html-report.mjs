@@ -187,7 +187,7 @@ function summarizeWriter(html) {
       .flatMap((section) =>
         descendants(section).filter((node) => node.tagName === "span" || node.tagName === "text"),
       )
-      .map(textContent)
+      .map((node) => attribute(node, "aria-label") || textContent(node))
       .join(""),
   };
 }
