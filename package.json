@@ -95,7 +95,7 @@
     "test:coverage": "vitest run --coverage",
     "test:quick": "vitest run test/unit test/fixtures",
     "test:oracle": "vitest run test/oracle",
-    "test:memory": "pnpm run build && vitest run test/memory",
+    "test:memory": "pnpm run build && pnpm --dir packages/html-writer build && vitest run test/memory",
     "typecheck": "tsc --noEmit",
     "quality": "pnpm run corpus:check && pnpm run check && pnpm run test && pnpm run test:coverage && pnpm run parity:target && pnpm run poppler:gate && pnpm run build && pnpm run package:check && pnpm --dir packages/html-writer quality && pnpm run release:check",
     "prepublishOnly": "pnpm run quality"
