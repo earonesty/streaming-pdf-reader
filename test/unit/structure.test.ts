@@ -184,6 +184,28 @@ describe("structured extraction quality gate", () => {
     ]);
   });
 
+  it("distinguishes discretionary wraps from compound-name hyphens", () => {
+    const page: ExtractedPage = {
+      number: 1,
+      width: 300,
+      height: 200,
+      rotate: 0,
+      spans: [
+        span("ordinary wrap splits representa-", 20, 150, 150, 10),
+        span("tion across lines.", 20, 138, 80, 10),
+        span("Identifiers include 3d-", 20, 110, 90, 10),
+        span("raytrace and date-format-", 20, 98, 120, 10),
+        span("tofte in prose.", 20, 86, 60, 10),
+      ],
+    };
+
+    const paragraphs = structurePage(page)
+      .blocks.filter((block) => block.type === "paragraph")
+      .map((block) => block.text);
+    expect(paragraphs).toContain("ordinary wrap splits representation across lines.");
+    expect(paragraphs).toContain("Identifiers include 3d-raytrace and date-format-tofte in prose.");
+  });
+
   it("groups vertical spans into right-to-left columns and top-to-bottom text", () => {
     const vertical = (text: string, x: number, y: number): TextSpan => ({
       ...span(text, x, y, 10, 10, "F1"),

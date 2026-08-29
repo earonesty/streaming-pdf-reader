@@ -304,6 +304,7 @@ export async function writeSemanticDocument(
     const media = await prepareSemanticMedia(page, imageOptions, onImage);
     const structured = structurePage(withoutSemanticMediaSpans(page, media));
     buffer.push({ width: page.width, height: page.height, structured, media });
+    restoreObservedHyphens(buffer);
     stats.pagesProcessed += 1;
     stats.peakBufferedPages = Math.max(stats.peakBufferedPages, buffer.length);
     stats.peakBufferedLines = Math.max(
@@ -335,6 +336,71 @@ export async function writeSemanticDocument(
   }
   await output("</article>");
   return stats;
+}
+
+function restoreObservedHyphens(buffer: BufferedPage[]): void {
+  const terms = new Set(
+    buffer.flatMap((page) =>
+      page.structured.lines.flatMap(
+        (line) => line.text.match(/[\p{L}\p{N}]+(?:[-‐‑][\p{L}\p{N}]+)+/gu) ?? [],
+      ),
+    ),
+  );
+  for (const page of buffer) {
+    for (const block of page.structured.blocks) restoreBlockHyphens(block, terms);
+  }
+}
+
+function restoreBlockHyphens(block: SemanticBlock, terms: Set<string>): void {
+  const restore = (value: string) => restoreTextHyphens(value, terms);
+  if (block.type === "insetGroup") {
+    for (const nested of block.blocks) restoreBlockHyphens(nested, terms);
+  } else if (
+    block.type === "heading" ||
+    block.type === "paragraph" ||
+    block.type === "preformatted"
+  ) {
+    block.text = restore(block.text);
+  } else if (block.type === "list") {
+    for (const item of block.items) item.text = restore(item.text);
+  } else if (block.type === "definitionList") {
+    for (const entry of block.entries) {
+      entry.term = restore(entry.term);
+      entry.description = restore(entry.description);
+    }
+  } else if (block.type === "cardList") {
+    for (const item of block.items) {
+      item.title = restore(item.title);
+      item.details = item.details.map(restore);
+    }
+  } else if (block.type === "sectionGroup") {
+    for (const item of block.items) {
+      item.label = restore(item.label);
+      item.content = item.content.map(restore);
+    }
+  } else if (block.type === "employment") {
+    block.role = restore(block.role);
+    block.organization = restore(block.organization);
+    block.date = restore(block.date);
+  }
+}
+
+function restoreTextHyphens(value: string, terms: Set<string>): string {
+  let output = value;
+  for (const term of terms) {
+    const collapsed = term.replace(/[-‐‑]/gu, "");
+    if (collapsed === term || !output.includes(collapsed)) continue;
+    const pattern = new RegExp(
+      `(?<![\\p{L}\\p{N}])${escapeRegularExpression(collapsed)}(?![\\p{L}\\p{N}])`,
+      "gu",
+    );
+    output = output.replace(pattern, term);
+  }
+  return output;
+}
+
+function escapeRegularExpression(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function isContactBlock(block: Extract<SemanticBlock, { type: "paragraph" }>): boolean {
