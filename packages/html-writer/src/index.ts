@@ -59,7 +59,7 @@ export interface MarkdownWriterOptions {
   onImage?: (image: Readonly<HtmlImageAsset>) => void | Promise<void>;
 }
 
-const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--visual,.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom;unicode-bidi:isolate}.pdf-span[data-direction=ttb]{writing-mode:vertical-rl}.pdf-page--semantic,.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--semantic p,.pdf-page--flow p{white-space:pre-wrap;unicode-bidi:plaintext}.pdf-semantic-document h1,.pdf-page--semantic h1{font-size:1.7em}.pdf-semantic-document h2,.pdf-page--semantic h2{font-size:1.5em}.pdf-semantic-document h3,.pdf-page--semantic h3{font-size:1.35em}.pdf-semantic-document h4,.pdf-page--semantic h4{font-size:1.1em}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
+const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--visual,.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-accessible-text{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:pre}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom;unicode-bidi:isolate}.pdf-span[data-direction=ttb]{writing-mode:vertical-rl}.pdf-page--semantic,.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--semantic p,.pdf-page--flow p{white-space:pre-wrap;unicode-bidi:plaintext}.pdf-semantic-document h1,.pdf-page--semantic h1{font-size:1.7em}.pdf-semantic-document h2,.pdf-page--semantic h2{font-size:1.5em}.pdf-semantic-document h3,.pdf-page--semantic h3{font-size:1.35em}.pdf-semantic-document h4,.pdf-page--semantic h4{font-size:1.1em}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
 
 export async function writeHtmlDocument(
   pages: AsyncIterable<ExtractedPage> | Iterable<ExtractedPage>,
@@ -167,6 +167,9 @@ async function writePositionedPage(
       .map((font) => font.id),
   );
   const visualLabels = new WeakMap<TextSpan, string>();
+  const semanticText = page.spans.map((span) => span.text).join("");
+  const visualSourceText = (page.visualSpans ?? page.spans).map((span) => span.text).join("");
+  const needsAccessibleTextOrder = semanticText !== visualSourceText;
   const visualSpans = coalesceVisualSpans(
     (page.visualSpans ?? page.spans).map((span) => {
       if (!span.fontAssetId || !visualCodeFonts.has(span.fontAssetId) || !span.glyphCodes)
@@ -210,7 +213,7 @@ async function writePositionedPage(
     `<div class="pdf-page-content pdf-page-content--${page.rotate}" style="width:${number(page.width)}pt;height:${number(page.height)}pt${rotationTransform(page)}">`,
   );
   await write(
-    `<svg class="pdf-visual-text" xmlns="http://www.w3.org/2000/svg" width="${number(page.width)}pt" height="${number(page.height)}pt" viewBox="0 0 ${number(page.width)} ${number(page.height)}">`,
+    `<svg class="pdf-visual-text"${needsAccessibleTextOrder ? ' aria-hidden="true"' : ""} xmlns="http://www.w3.org/2000/svg" width="${number(page.width)}pt" height="${number(page.height)}pt" viewBox="0 0 ${number(page.width)} ${number(page.height)}">`,
   );
   const clipDefinitions =
     imageClipDefinitions(
@@ -272,6 +275,8 @@ async function writePositionedPage(
     }
   }
   await write("</svg>");
+  if (needsAccessibleTextOrder)
+    await write(`<span class="pdf-accessible-text">${escapeHtml(semanticText)}</span>`);
   for (const span of visualSpans) {
     if (usesPositionedSpan(span)) await write(positionedSpan(span, fontAliases));
   }
@@ -804,8 +809,8 @@ function visualText(
   styleClasses?: Map<string, string>,
   ariaLabel?: string,
 ): string {
-  if (span.renderingMode === 3 || span.renderingMode === 7) return "";
-  if (!span.fontAssetId && isAdobeCjkFont(span.fontFamily)) return "";
+  if (span.renderingMode === 3 || span.renderingMode === 7) return accessibleVisualLabel(span.text);
+  if (!span.fontAssetId && isAdobeCjkFont(span.fontFamily)) return accessibleVisualLabel(span.text);
   const direction = directionAttribute([span]);
   const style = visualTextStyle(span, fontAliases);
   const styleClass = styleClasses?.get(visualTextClassStyle(span, fontAliases));
@@ -880,11 +885,12 @@ function isAdobeCjkFont(fontFamily: string | undefined): boolean {
 }
 
 function visualType3Text(span: TextSpan, font: EmbeddedType3Font, pageHeight: number): string {
-  if (span.renderingMode === 3 || span.renderingMode === 7) return "";
+  if (span.renderingMode === 3 || span.renderingMode === 7) return accessibleVisualLabel(span.text);
   const glyphs = new Map(font.glyphs.map((glyph) => [glyph.code, glyph]));
   const sequence = (span.glyphCodes ?? []).map((code) => glyphs.get(code));
   const totalAdvance = sequence.reduce((total, glyph) => total + (glyph?.advance ?? 0), 0);
-  if (totalAdvance <= 0 || span.bounds.width <= 0 || span.fontSize <= 0) return "";
+  if (totalAdvance <= 0 || span.bounds.width <= 0 || span.fontSize <= 0)
+    return accessibleVisualLabel(span.text);
   const transform = span.transform ?? [1, 0, 0, 1];
   const outer = `matrix(${transform.map(number).join(" ")} ${number(span.bounds.x)} ${number(pageHeight - span.bounds.y)})`;
   const xScale = span.bounds.width / totalAdvance;
@@ -895,7 +901,11 @@ function visualType3Text(span: TextSpan, font: EmbeddedType3Font, pageHeight: nu
     content += `<g transform="translate(${number(offset)} 0)">${type3Glyph(glyph, span.color)}</g>`;
     offset += glyph.advance;
   }
-  return `<g transform="${outer}"><g transform="scale(${number(xScale)} ${number(-span.fontSize)})">${content}</g></g>`;
+  return `<g aria-label="${escapeAttribute(span.text)}" role="img" transform="${outer}"><g transform="scale(${number(xScale)} ${number(-span.fontSize)})">${content}</g></g>`;
+}
+
+function accessibleVisualLabel(text: string): string {
+  return text ? `<text aria-label="${escapeAttribute(text)}" role="img"></text>` : "";
 }
 
 function isHebrewPaintOrder(span: TextSpan): boolean {

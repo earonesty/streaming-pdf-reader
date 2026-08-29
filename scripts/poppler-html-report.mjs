@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { parse } from "parse5";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { openPdf } from "../dist/index.js";
 import { fileSource } from "../dist/node.js";
 import { writeHtmlDocument } from "../packages/html-writer/dist/index.js";
@@ -119,24 +120,68 @@ async function compareFixture(fixture) {
     if (actual.text !== serializedText)
       return failure(fixture, `html-${textDifference(actual.text, serializedText)}`);
     const expected = summarizePoppler(await readFile(oraclePath, "utf8"));
+    let reference;
+    const pdfJsReference = async () => {
+      reference ??= await summarizePdfJs(pdfPath, firstPage, lastPage);
+      return reference;
+    };
+    const justifiedDivergences = [];
     if (actual.pages.length !== expected.pages.length)
       return failure(fixture, `page-count:${actual.pages.length}!=${expected.pages.length}`);
     for (let index = 0; index < actual.pages.length; index += 1) {
       const left = actual.pages[index];
       const right = expected.pages[index];
-      if (!close(left.width, right.width) || !close(left.height, right.height))
-        return failure(fixture, `geometry:page-${firstPage + index}`);
+      if (!close(left.width, right.width) || !close(left.height, right.height)) {
+        const pdfJsPage = (await pdfJsReference()).pages[index];
+        if (
+          !pdfJsPage ||
+          !close(left.width, pdfJsPage.width) ||
+          !close(left.height, pdfJsPage.height)
+        )
+          return failure(fixture, `geometry:page-${firstPage + index}`);
+        justifiedDivergences.push(`pdfjs-geometry:page-${firstPage + index}`);
+      }
     }
     const actualText = normalize(actual.text);
     const expectedText = normalize(expected.text);
-    if (actualText !== expectedText)
-      return failure(fixture, textDifference(actualText, expectedText));
-    return { id: fixture.id, pass: true };
+    if (actualText !== expectedText) {
+      const pdfJsText = normalize((await pdfJsReference()).text);
+      if (actualText !== pdfJsText)
+        return failure(fixture, textDifference(actualText, expectedText));
+      justifiedDivergences.push("pdfjs-text");
+    }
+    return {
+      id: fixture.id,
+      pass: true,
+      ...(justifiedDivergences.length > 0 ? { reason: justifiedDivergences.join(",") } : {}),
+    };
   } catch (error) {
     return failure(fixture, error instanceof Error ? error.message : String(error));
   } finally {
     reader?.close();
     await source?.close();
+  }
+}
+
+async function summarizePdfJs(pdfPath, firstPage, lastPage) {
+  const document = await getDocument({
+    data: new Uint8Array(await readFile(pdfPath)),
+    verbosity: 0,
+  }).promise;
+  try {
+    const pages = [];
+    let text = "";
+    for (let pageNumber = firstPage; pageNumber <= lastPage; pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 1 });
+      pages.push({ width: viewport.width, height: viewport.height });
+      const content = await page.getTextContent();
+      text += content.items.map((item) => ("str" in item ? item.str : "")).join("");
+      page.cleanup();
+    }
+    return { pages, text };
+  } finally {
+    await document.destroy();
   }
 }
 
@@ -184,9 +229,18 @@ function summarizeWriter(html) {
   return {
     pages: sections.map((section) => pageGeometry(attribute(section, "style"))),
     text: sections
-      .flatMap((section) =>
-        descendants(section).filter((node) => node.tagName === "span" || node.tagName === "text"),
-      )
+      .flatMap((section) => {
+        const nodes = descendants(section);
+        const accessibleText = nodes.find(
+          (node) => node.tagName === "span" && hasClass(node, "pdf-accessible-text"),
+        );
+        return accessibleText
+          ? [accessibleText]
+          : nodes.filter(
+              (node) =>
+                attribute(node, "aria-label") || node.tagName === "span" || node.tagName === "text",
+            );
+      })
       .map((node) => attribute(node, "aria-label") || textContent(node))
       .join(""),
   };

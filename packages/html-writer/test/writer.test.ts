@@ -33,7 +33,8 @@ describe("HTML writer", () => {
 
     const visual = await pageToHtml(split, { profile: "visual" });
     expect(visual).toContain(">visual</text>");
-    expect(visual).not.toContain(">semantic</text>");
+    expect(visual).toContain('<span class="pdf-accessible-text">semantic</span>');
+    expect(visual).toContain('aria-hidden="true"');
 
     const semantic = await pageToHtml(split, { profile: "semantic" });
     expect(semantic).toContain("semantic");
@@ -693,7 +694,8 @@ describe("HTML writer", () => {
       ...page,
       spans: [{ ...span("Hidden", 20, 700), renderingMode: 3 }],
     });
-    expect(invisible).not.toContain("Hidden");
+    expect(invisible).toContain('aria-label="Hidden"');
+    expect(invisible).not.toContain(">Hidden</text>");
   });
 
   it("does not browser-substitute unembedded Adobe CJK fonts", async () => {
@@ -707,7 +709,8 @@ describe("HTML writer", () => {
       ],
     });
 
-    expect(html).not.toContain("目录");
+    expect(html).toContain('aria-label="目录"');
+    expect(html).not.toContain(">目录</text>");
   });
 
   it("inlines page-scoped embedded fonts for visual spans", async () => {
@@ -847,10 +850,11 @@ describe("HTML writer", () => {
         },
       ],
     });
-    expect(html).toContain('<g transform="matrix(1 0 0 1 20 92)">');
+    expect(html).toContain('transform="matrix(1 0 0 1 20 92)">');
     expect(html).toContain('transform="scale(12 -12)"');
     expect(html).toContain('<polygon points="0,0 0.75,0 0.75,0.75 0,0.75" fill="#000000"/>');
     expect(html).toContain('<g transform="translate(1 0)"><path d="M0 0L0.375 0.75L0.75 0Z"');
+    expect(html).toContain('aria-label="ab" role="img"');
     expect(html).not.toContain(">ab</text>");
 
     const hidden = await pageToHtml({
@@ -865,7 +869,8 @@ describe("HTML writer", () => {
         },
       ],
     });
-    expect(hidden).not.toContain("hidden");
+    expect(hidden).toContain('aria-label="hidden"');
+    expect(hidden).not.toContain(">hidden</text>");
   });
 
   it("paints dense Type3 bitmap masks with crisp SVG cells", async () => {
