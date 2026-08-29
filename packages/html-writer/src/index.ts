@@ -130,7 +130,7 @@ async function writePositionedPage(
 ): Promise<void> {
   const imageOptions = resolveImageOptions("visual", options);
   const visualImages = await prepareVisualImages(page, imageOptions, options.onImage);
-  const visualSpans = page.visualSpans ?? page.spans;
+  const visualSpans = coalesceVisualSpans(page.visualSpans ?? page.spans);
   const reflectedOverlay = usesReflectedVisualOverlay(page, visualSpans);
   const quarterTurn = page.rotate === 90 || page.rotate === 270;
   const displayWidth = quarterTurn ? page.height : page.width;
@@ -201,6 +201,66 @@ async function writePositionedPage(
     if (usesPositionedSpan(span)) await write(positionedSpan(span, fontAliases));
   }
   await write("</div></section>");
+}
+
+/**
+ * PDF producers commonly show every word with a separate text operator. Keeping
+ * those operators as separate SVG elements is needlessly expensive for browsers,
+ * so join only the spans whose combined geometry can still be represented by one
+ * SVG textLength. Anything unusual keeps the original lossless representation.
+ */
+function coalesceVisualSpans(spans: TextSpan[]): TextSpan[] {
+  const output: TextSpan[] = [];
+  for (const span of spans) {
+    const previous = output.at(-1);
+    if (!previous || !canCoalesceVisualSpans(previous, span)) {
+      output.push(span);
+      continue;
+    }
+    output[output.length - 1] = {
+      ...previous,
+      text: previous.text + (span.hasLeadingSpace ? " " : "") + span.text,
+      bounds: {
+        ...previous.bounds,
+        width: span.bounds.x + span.bounds.width - previous.bounds.x,
+        height: Math.max(previous.bounds.height, span.bounds.height),
+      },
+    };
+  }
+  return output;
+}
+
+function canCoalesceVisualSpans(left: TextSpan, right: TextSpan): boolean {
+  if (usesPositionedSpan(left) || usesPositionedSpan(right)) return false;
+  if (left.direction !== "ltr" || right.direction !== "ltr") return false;
+  if (left.glyphCodes || right.glyphCodes) return false;
+  if (!sameVisualTextState(left, right)) return false;
+  const tolerance = Math.max(0.02, left.fontSize * 0.015);
+  if (Math.abs(left.bounds.y - right.bounds.y) > tolerance) return false;
+  const gap = right.bounds.x - (left.bounds.x + left.bounds.width);
+  if (gap < -tolerance || gap > left.fontSize * 0.65) return false;
+  return Boolean(right.hasLeadingSpace) || gap <= tolerance;
+}
+
+function sameVisualTextState(left: TextSpan, right: TextSpan): boolean {
+  return (
+    Math.abs(left.fontSize - right.fontSize) <= 0.001 &&
+    left.fontName === right.fontName &&
+    left.fontFamily === right.fontFamily &&
+    left.fontAssetId === right.fontAssetId &&
+    left.color === right.color &&
+    left.fillOpacity === right.fillOpacity &&
+    left.strokeColor === right.strokeColor &&
+    left.strokeWidth === right.strokeWidth &&
+    left.strokeOpacity === right.strokeOpacity &&
+    left.renderingMode === right.renderingMode &&
+    sameTransform(left.transform, right.transform)
+  );
+}
+
+function sameTransform(left: TextSpan["transform"], right: TextSpan["transform"]): boolean {
+  if (!left || !right) return left === right;
+  return left.every((value, index) => Math.abs(value - (right[index] ?? 0)) <= 0.000_001);
 }
 
 function usesReflectedVisualOverlay(page: ExtractedPage, spans: TextSpan[]): boolean {

@@ -35,6 +35,55 @@ describe("HTML writer", () => {
     expect(semantic).not.toContain("visual");
   });
 
+  it("coalesces compatible visual words into one SVG text element", async () => {
+    const words = [
+      { ...span("paths", 20, 700), bounds: { x: 20, y: 700, width: 26, height: 12 } },
+      {
+        ...span("through", 49, 700),
+        hasLeadingSpace: true,
+        bounds: { x: 49, y: 700, width: 38, height: 12 },
+      },
+      {
+        ...span("PDF", 90, 700),
+        hasLeadingSpace: true,
+        bounds: { x: 90, y: 700, width: 20, height: 12 },
+      },
+    ];
+    const html = await pageToHtml({ ...page, spans: words });
+
+    expect(html.match(/<text/g)).toHaveLength(1);
+    expect(html).toContain('x="20" y="92"');
+    expect(html).toContain('textLength="90"');
+    expect(html).toContain(">paths through PDF</text>");
+  });
+
+  it("coalesces zero-gap fragments without inserting a space", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [
+        { ...span("T", 20, 700), bounds: { x: 20, y: 700, width: 6, height: 12 } },
+        { ...span("race", 26.1, 700), bounds: { x: 26.1, y: 700, width: 20, height: 12 } },
+      ],
+    });
+
+    expect(html.match(/<text/g)).toHaveLength(1);
+    expect(html).toContain(">Trace</text>");
+  });
+
+  it("keeps visual spans separate across style, baseline, and large-gap boundaries", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [
+        span("left", 20, 700),
+        { ...span("bold", 32, 700), fontFamily: "Times-Bold" },
+        { ...span("raised", 44, 702), fontFamily: "Times-Bold" },
+        { ...span("column", 200, 702), fontFamily: "Times-Bold" },
+      ],
+    });
+
+    expect(html.match(/<text/g)).toHaveLength(4);
+  });
+
   it("writes visual, escaped page HTML by default", async () => {
     const html = await pageToHtml(page);
     expect(html).toContain("pdf-page--visual");
