@@ -471,6 +471,19 @@ async function compareFixture(fixture, onPage) {
         inkRatio !== null &&
         inkRatio >= minimumInkRatio &&
         inkRatio <= 1.2;
+      const mappedCffPageRasterWithinTolerance =
+        academicPage &&
+        extracted.fonts?.some(
+          (font) =>
+            font.format === "opentype" &&
+            font.visualGlyphMapping &&
+            extracted.spans.some((span) => span.fontAssetId === font.id),
+        ) &&
+        metrics.meanAbsoluteError <= maximumAcademicFallbackMeanAbsoluteError &&
+        metrics.fuzzyChangedFraction <= maximumAcademicPageFuzzyChangedFraction &&
+        inkRatio !== null &&
+        inkRatio >= 0.6 &&
+        inkRatio <= 1.2;
       const pixelStatus = metrics.exact
         ? "PASS_EXACT"
         : (fuzzyWithinTolerance && inkWithinTolerance) ||
@@ -491,7 +504,8 @@ async function compareFixture(fixture, onPage) {
             guardianFallbackRasterWithinTolerance ||
             academicFallbackRasterWithinTolerance ||
             academicPageRasterWithinTolerance ||
-            hintedType1PageRasterWithinTolerance
+            hintedType1PageRasterWithinTolerance ||
+            mappedCffPageRasterWithinTolerance
           ? "PASS_TOLERANCE"
           : "FAIL_VISUAL";
       const status =

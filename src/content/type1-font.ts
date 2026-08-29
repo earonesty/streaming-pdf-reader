@@ -19,7 +19,7 @@ export function recordType1GlyphUse(
 export function isCompleteType1Font(asset: EmbeddedOpenTypeFont): boolean {
   const supported = supportedGlyphs.get(asset);
   const used = usedGlyphs.get(asset);
-  return Boolean(supported && (!used || [...used].every((name) => supported.has(name))));
+  return !supported || !used || [...used].every((name) => supported.has(name));
 }
 
 export function registerType1Font(asset: EmbeddedOpenTypeFont, glyphs: Set<string>): void {

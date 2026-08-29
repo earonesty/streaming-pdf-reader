@@ -161,7 +161,21 @@ async function writePositionedPage(
 ): Promise<void> {
   const imageOptions = resolveImageOptions("visual", options);
   const visualImages = await prepareVisualImages(page, imageOptions, options.onImage);
-  const visualSpans = coalesceVisualSpans(page.visualSpans ?? page.spans);
+  const visualCodeFonts = new Set(
+    (page.fonts ?? [])
+      .filter((font) => font.format === "opentype" && font.visualGlyphMapping)
+      .map((font) => font.id),
+  );
+  const visualSpans = coalesceVisualSpans(
+    (page.visualSpans ?? page.spans).map((span) =>
+      span.fontAssetId && visualCodeFonts.has(span.fontAssetId) && span.glyphCodes
+        ? {
+            ...span,
+            text: span.glyphCodes.map((code) => String.fromCodePoint(0xf0000 + code)).join(""),
+          }
+        : span,
+    ),
+  );
   const reflectedOverlay = usesReflectedVisualOverlay(page, visualSpans);
   const quarterTurn = page.rotate === 90 || page.rotate === 270;
   const displayWidth = quarterTurn ? page.height : page.width;

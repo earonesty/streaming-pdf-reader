@@ -61,6 +61,8 @@ export interface EmbeddedOpenTypeFont {
   format: "opentype";
   data: Uint8Array;
   visualCodeMapping?: true | undefined;
+  /** Separate from chart-code remapping so exact glyph rendering cannot consume semantic captions. */
+  visualGlyphMapping?: true | undefined;
 }
 
 export interface VectorFill {

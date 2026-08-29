@@ -8,6 +8,29 @@ export interface CidFontMetrics {
   verticalOrigin?: (bytes: Uint8Array) => { x: number; y: number };
 }
 
+export interface CidGlyphWidths {
+  widths: Map<number, number>;
+  defaultWidth: number;
+}
+
+export async function loadCidGlyphWidths(
+  reader: PdfObjectReader,
+  font: PdfDict,
+): Promise<CidGlyphWidths | undefined> {
+  if (!isName(font.get("Subtype"), "Type0")) return undefined;
+  const descendants = await reader.resolve(font.get("DescendantFonts") ?? null);
+  if (!Array.isArray(descendants) || descendants.length === 0) return undefined;
+  const descendant = await reader.resolveDict(descendants[0]);
+  if (!descendant) return undefined;
+  const defaultWidth =
+    typeof descendant.get("DW") === "number" ? (descendant.get("DW") as number) : 1000;
+  const widths = await readHorizontalWidths(reader, descendant);
+  return {
+    widths: new Map([...widths].map(([cid, width]) => [cid, Math.round(width * 1000)])),
+    defaultWidth,
+  };
+}
+
 export async function loadCidMetrics(
   reader: PdfObjectReader,
   font: PdfDict,

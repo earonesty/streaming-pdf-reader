@@ -766,6 +766,29 @@ describe("HTML writer", () => {
     expect(html).not.toContain("<tspan");
   });
 
+  it("addresses visually mapped glyphs without changing the semantic span text", async () => {
+    const source = {
+      ...span("ffi", 20, 700),
+      fontAssetId: "font-1",
+      glyphCodes: [2],
+    };
+    const html = await pageToHtml({
+      ...page,
+      fonts: [
+        {
+          id: "font-1",
+          format: "opentype",
+          data: Uint8Array.of(0),
+          visualGlyphMapping: true,
+        },
+      ],
+      spans: [source],
+    });
+    expect(source.text).toBe("ffi");
+    expect(html).toContain(String.fromCodePoint(0xf0002));
+    expect(html).not.toContain(">ffi</text>");
+  });
+
   it("embeds identical fonts only once across a visual document", async () => {
     const pages = [1, 2].map((number) => ({
       ...page,
