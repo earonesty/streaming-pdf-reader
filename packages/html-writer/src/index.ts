@@ -9,7 +9,13 @@ import { type SemanticBlock, structurePage, tableToHtml } from "@boxpdf/reader/s
 import { clearMediaCaptionAssociations } from "./semantic-caption.js";
 import { type SemanticDocumentStats, writeSemanticDocument } from "./semantic-document.js";
 import { dominantTextColor, semanticTextHtml } from "./semantic-inline.js";
-import { type SemanticMedia, semanticMedia, withoutSemanticMediaSpans } from "./semantic-media.js";
+import {
+  type HtmlImageAsset,
+  type HtmlImageOptions,
+  prepareSemanticMedia,
+  type SemanticMedia,
+  withoutSemanticMediaSpans,
+} from "./semantic-media.js";
 import {
   isSvgPath,
   vectorFillSvg,
@@ -19,6 +25,7 @@ import {
 import { base64, visualFontAliases, visualFontFace, visualFontStyles } from "./visual-font.js";
 
 export type { SemanticDocumentStats } from "./semantic-document.js";
+export type { HtmlImageAsset, HtmlImageOptions } from "./semantic-media.js";
 
 export type HtmlLayout = "positioned" | "flow";
 export type HtmlProfile = "visual" | "semantic";
@@ -37,6 +44,10 @@ export interface HtmlWriterOptions {
   semanticLookaheadPages?: number;
   /** Receives bounded-buffer and document-inference statistics after semantic output completes. */
   onSemanticStats?: (stats: Readonly<SemanticDocumentStats>) => void;
+  /** Semantic defaults to excluded; visual defaults to embedded. */
+  imageOptions?: HtmlImageOptions;
+  /** Receives each named asset when imageOptions is references. */
+  onImage?: (image: Readonly<HtmlImageAsset>) => void | Promise<void>;
 }
 
 const styles = `.pdf-document{margin:0 auto}.pdf-page{box-sizing:border-box;margin:1rem auto;background:#fff;color:#000}.pdf-page--visual,.pdf-page--positioned{position:relative;overflow:hidden}.pdf-page-content{position:absolute;transform-origin:0 0}.pdf-span{position:absolute;white-space:pre;transform-origin:left bottom;unicode-bidi:isolate}.pdf-span[data-direction=ttb]{writing-mode:vertical-rl}.pdf-page--semantic,.pdf-page--flow{max-width:60rem;padding:1rem}.pdf-page--semantic p,.pdf-page--flow p{white-space:pre-wrap;unicode-bidi:plaintext}.pdf-semantic-document h1,.pdf-page--semantic h1{font-size:1.7em}.pdf-semantic-document h2,.pdf-page--semantic h2{font-size:1.5em}.pdf-semantic-document h3,.pdf-page--semantic h3{font-size:1.35em}.pdf-semantic-document h4,.pdf-page--semantic h4{font-size:1.1em}.pdf-page table{border-collapse:collapse}.pdf-page td{padding:.15rem .4rem;vertical-align:top}`;
@@ -58,9 +69,18 @@ export async function writeHtmlDocument(
     await write("</head><body>");
   }
   await write('<main class="pdf-document">');
-  if (resolveProfile(options) === "semantic") {
+  const profile = resolveProfile(options);
+  const imageOptions = resolveImageOptions(profile, options);
+  validateImageOptions(imageOptions, options);
+  if (profile === "semantic") {
     const lookahead = semanticLookahead(options.semanticLookaheadPages);
-    const stats = await writeSemanticDocument(pages, write, lookahead);
+    const stats = await writeSemanticDocument(
+      pages,
+      write,
+      lookahead,
+      imageOptions,
+      options.onImage,
+    );
     options.onSemanticStats?.(stats);
   } else {
     for await (const page of pages) await writePage(page, write, options);
@@ -82,7 +102,9 @@ export async function writePage(
   write: HtmlWrite,
   options: HtmlWriterOptions = {},
 ): Promise<void> {
-  if (resolveProfile(options) === "semantic") await writeFlowPage(page, write);
+  const profile = resolveProfile(options);
+  validateImageOptions(resolveImageOptions(profile, options), options);
+  if (profile === "semantic") await writeFlowPage(page, write, options);
   else await writePositionedPage(page, write, options);
 }
 
@@ -106,6 +128,8 @@ async function writePositionedPage(
   write: HtmlWrite,
   options: HtmlWriterOptions,
 ): Promise<void> {
+  const imageOptions = resolveImageOptions("visual", options);
+  const visualImages = await prepareVisualImages(page, imageOptions, options.onImage);
   const visualSpans = page.visualSpans ?? page.spans;
   const reflectedOverlay = usesReflectedVisualOverlay(page, visualSpans);
   const quarterTurn = page.rotate === 90 || page.rotate === 270;
@@ -132,7 +156,11 @@ async function writePositionedPage(
     `<svg class="pdf-visual-text" xmlns="http://www.w3.org/2000/svg" width="${number(page.width)}pt" height="${number(page.height)}pt" viewBox="0 0 ${number(page.width)} ${number(page.height)}">`,
   );
   const clipDefinitions =
-    imageClipDefinitions(page.images ?? [], page.number, page.height) +
+    imageClipDefinitions(
+      imageOptions === "excluded" ? [] : (page.images ?? []),
+      page.number,
+      page.height,
+    ) +
     vectorPathClipDefinitions(
       (page.paths ?? []).map((path, index) => ({ path, index })),
       page.number,
@@ -140,7 +168,8 @@ async function writePositionedPage(
   if (clipDefinitions) await write(`<defs>${clipDefinitions}</defs>`);
   if (reflectedOverlay) {
     for (const [index, image] of (page.images ?? []).entries()) {
-      await write(visualImage(image, page.height, page.number, index));
+      const source = visualImages[index];
+      if (source) await write(visualImage(image, page.height, page.number, index, source));
     }
   }
   if (page.fills?.length || page.paths?.length) {
@@ -153,7 +182,8 @@ async function writePositionedPage(
   }
   if (!reflectedOverlay) {
     for (const [index, image] of (page.images ?? []).entries()) {
-      await write(visualImage(image, page.height, page.number, index));
+      const source = visualImages[index];
+      if (source) await write(visualImage(image, page.height, page.number, index, source));
     }
   }
   for (const span of visualSpans) {
@@ -194,17 +224,38 @@ function visualImage(
   pageHeight: number,
   pageNumber: number,
   imageIndex: number,
+  source: string,
 ): string {
   const [a, b, c, d, e, f] = image.transform;
   const transform = [a, -b, -c, d, c + e, pageHeight - d - f].map(number).join(" ");
   const opacity = isUnitInterval(image.opacity) ? ` opacity="${number(image.opacity)}"` : "";
-  const mime = image.format === "jpeg" ? "image/jpeg" : "image/bmp";
-  const data = image.format === "jpeg" ? image.data : rgbBmp(image);
-  let output = `<image width="1" height="1" preserveAspectRatio="none" transform="matrix(${transform})" href="data:${mime};base64,${base64(data)}"${opacity}/>`;
+  let output = `<image width="1" height="1" preserveAspectRatio="none" transform="matrix(${transform})" href="${source}"${opacity}/>`;
   for (let index = (image.clips?.length ?? 0) - 1; index >= 0; index -= 1) {
     output = `<g clip-path="url(#${imageClipId(pageNumber, imageIndex, index)})">${output}</g>`;
   }
   return output;
+}
+
+async function prepareVisualImages(
+  page: ExtractedPage,
+  imageOptions: HtmlImageOptions,
+  onImage: HtmlWriterOptions["onImage"],
+): Promise<string[]> {
+  if (imageOptions === "excluded") return [];
+  const sources: string[] = [];
+  for (const [index, image] of (page.images ?? []).entries()) {
+    const mimeType = image.format === "jpeg" ? "image/jpeg" : "image/bmp";
+    const data = image.format === "jpeg" ? image.data : rgbBmp(image);
+    if (imageOptions === "embedded") {
+      sources.push(`data:${mimeType};base64,${base64(data)}`);
+      continue;
+    }
+    const extension = image.format === "jpeg" ? "jpg" : "bmp";
+    const name = `page-${page.number}-image-${index + 1}.${extension}`;
+    await onImage?.({ name, mimeType, data });
+    sources.push(name);
+  }
+  return sources;
 }
 
 function imageClipDefinitions(
@@ -284,8 +335,13 @@ function positionedSpan(span: TextSpan, fontAliases: Map<string, string>): strin
   return `<span class="pdf-span"${direction} style="${style}">${escapeHtml(span.text)}</span>`;
 }
 
-async function writeFlowPage(page: ExtractedPage, write: HtmlWrite): Promise<void> {
-  const media = semanticMedia(page);
+async function writeFlowPage(
+  page: ExtractedPage,
+  write: HtmlWrite,
+  options: HtmlWriterOptions,
+): Promise<void> {
+  const imageOptions = resolveImageOptions("semantic", options);
+  const media = await prepareSemanticMedia(page, imageOptions, options.onImage);
   const structured = structurePage(withoutSemanticMediaSpans(page, media));
   const defaultColor = dominantTextColor(structured.lines);
   let mediaIndex = 0;
@@ -625,4 +681,14 @@ function resolveProfile(options: HtmlWriterOptions): HtmlProfile {
     );
   }
   return options.profile ?? legacyProfile;
+}
+
+function resolveImageOptions(profile: HtmlProfile, options: HtmlWriterOptions): HtmlImageOptions {
+  return options.imageOptions ?? (profile === "semantic" ? "excluded" : "embedded");
+}
+
+function validateImageOptions(imageOptions: HtmlImageOptions, options: HtmlWriterOptions): void {
+  if (imageOptions === "references" && !options.onImage) {
+    throw new Error('imageOptions "references" requires an onImage callback');
+  }
 }

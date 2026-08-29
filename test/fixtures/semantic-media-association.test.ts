@@ -54,7 +54,7 @@ async function semanticHtml(file: string): Promise<string> {
       (chunk) => {
         html += chunk;
       },
-      { profile: "semantic", includeDocument: false },
+      { profile: "semantic", includeDocument: false, imageOptions: "embedded" },
     );
   } finally {
     pdf.close();

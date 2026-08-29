@@ -50,10 +50,30 @@ The reported statistics also include processed pages, peak buffered lines, and
 suppressed furniture. Page-level `pageToHtml()` remains available when no
 cross-page inference is wanted.
 
+Semantic HTML excludes images by default, which keeps extraction output small
+for text and LLM workflows. Choose how raster and vector media are represented
+with `imageOptions`:
+
+```ts
+await writeHtmlDocument(pdf.pages(), write, {
+  profile: "semantic",
+  imageOptions: "references",
+  async onImage({ name, mimeType, data }) {
+    await saveAsset(name, mimeType, data);
+  },
+});
+```
+
+`"embedded"` writes raster data URIs and inline SVG into the HTML.
+`"references"` writes deterministic asset names into the HTML and passes each
+asset to the awaited `onImage` callback, so callers can store it without
+accumulating a document's images in memory. `"excluded"` omits media. Visual
+HTML defaults to `"embedded"`; semantic HTML defaults to `"excluded"`.
+Referenced semantic assets include both raster images and SVG vector media.
+
 The legacy `layout: "positioned" | "flow"` option remains as an alias for
-`profile: "visual" | "semantic"`. The current visual output surface excludes
-images, vector graphics, and exact font reproduction; the PDFium parity report
-tracks progress toward complete display presentation.
+`profile: "visual" | "semantic"`. The PDFium parity report tracks progress
+toward complete display presentation.
 
 The callback is awaited for every chunk, so a file stream, HTTP response, or
 Web `WritableStream` can apply backpressure. The caller owns and closes the PDF

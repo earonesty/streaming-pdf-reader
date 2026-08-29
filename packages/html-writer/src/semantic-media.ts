@@ -20,27 +20,64 @@ export interface SemanticMedia {
   html: string;
   consumedSpans?: TextSpan[];
   kind?: "raster" | "vector" | "composite";
+  assets?: HtmlImageAsset[];
 }
 
-export function semanticMedia(page: ExtractedPage): SemanticMedia[] {
-  const output = (page.images ?? []).map((image) => rasterMedia(image));
-  output.push(...vectorMedia(page));
+export interface HtmlImageAsset {
+  name: string;
+  mimeType: "image/bmp" | "image/jpeg" | "image/svg+xml";
+  data: Uint8Array;
+}
+
+export type HtmlImageOptions = "embedded" | "references" | "excluded";
+
+export function semanticMedia(
+  page: ExtractedPage,
+  imageOptions: HtmlImageOptions = "embedded",
+): SemanticMedia[] {
+  if (imageOptions === "excluded") return [];
+  const output = (page.images ?? []).map((image, index) =>
+    rasterMedia(image, page.number, index, imageOptions),
+  );
+  output.push(...vectorMedia(page, imageOptions));
   return mediaComponents(output, page).sort((left, right) => right.bounds.y - left.bounds.y);
 }
 
-function rasterMedia(image: RasterImage): SemanticMedia {
+export async function prepareSemanticMedia(
+  page: ExtractedPage,
+  imageOptions: HtmlImageOptions,
+  onImage?: (image: Readonly<HtmlImageAsset>) => void | Promise<void>,
+): Promise<SemanticMedia[]> {
+  const media = semanticMedia(page, imageOptions);
+  for (const item of media) {
+    for (const asset of item.assets ?? []) await onImage?.(asset);
+    delete item.assets;
+  }
+  return media;
+}
+
+function rasterMedia(
+  image: RasterImage,
+  pageNumber: number,
+  index: number,
+  imageOptions: HtmlImageOptions,
+): SemanticMedia {
   const bounds = transformedUnitBounds(image.transform);
   const mime = image.format === "jpeg" ? "image/jpeg" : "image/bmp";
   const data = image.format === "jpeg" ? image.data : rgbBmp(image);
+  const extension = image.format === "jpeg" ? "jpg" : "bmp";
+  const name = `page-${pageNumber}-image-${index + 1}.${extension}`;
+  const source = imageOptions === "references" ? name : `data:${mime};base64,${base64(data)}`;
   const opacity = unitInterval(image.opacity) ? `;opacity:${number(image.opacity)}` : "";
   return {
     bounds,
     kind: "raster",
-    html: `<img class="pdf-semantic-media" src="data:${mime};base64,${base64(data)}" width="${number(bounds.width)}" height="${number(bounds.height)}" alt="" style="max-width:100%;height:auto${opacity}">`,
+    html: `<img class="pdf-semantic-media" src="${source}" width="${number(bounds.width)}" height="${number(bounds.height)}" alt="" style="max-width:100%;height:auto${opacity}">`,
+    ...(imageOptions === "references" ? { assets: [{ name, mimeType: mime, data }] } : {}),
   };
 }
 
-function vectorMedia(page: ExtractedPage): SemanticMedia[] {
+function vectorMedia(page: ExtractedPage, imageOptions: HtmlImageOptions): SemanticMedia[] {
   const primitives: VectorPrimitive[] = [
     ...(page.paths ?? []).flatMap((path, index) => {
       const bounds = vectorPathBounds(path);
@@ -64,7 +101,7 @@ function vectorMedia(page: ExtractedPage): SemanticMedia[] {
       .filter((font) => font.format === "truetype" && font.visualCodeMapping)
       .map((font) => font.id),
   );
-  return components.map((component) => {
+  return components.map((component, componentIndex) => {
     const bounds = component.bounds;
     const paths = component.primitives.flatMap((primitive) =>
       primitive.type === "path" ? [{ path: primitive.value, index: primitive.index }] : [],
@@ -90,10 +127,22 @@ function vectorMedia(page: ExtractedPage): SemanticMedia[] {
       .filter((font) => fontIds.has(font.id))
       .map((font) => visualFontFace(font, aliases))
       .join("");
+    const svg = `<svg class="pdf-semantic-media" xmlns="http://www.w3.org/2000/svg" viewBox="${number(bounds.x)} ${number(page.height - bounds.y - bounds.height)} ${number(bounds.width)} ${number(bounds.height)}" style="display:block;max-width:100%;height:auto" aria-hidden="true">${fontFaces ? `<style>${fontFaces}</style>` : ""}${paths.length ? `<defs>${vectorPathClipDefinitions(paths, page.number)}</defs>` : ""}<g transform="translate(0 ${number(page.height)}) scale(1 -1)">${fills.map(vectorFillSvg).join("") + paths.map(({ path, index }) => vectorPathSvg(path, page.number, index)).join("")}</g>${overlay.map((span) => vectorText(span, page.height, aliases)).join("")}</svg>`;
+    const name = `page-${page.number}-vector-${componentIndex + 1}.svg`;
     return {
       bounds,
       kind: "vector" as const,
-      html: `<svg class="pdf-semantic-media" xmlns="http://www.w3.org/2000/svg" viewBox="${number(bounds.x)} ${number(page.height - bounds.y - bounds.height)} ${number(bounds.width)} ${number(bounds.height)}" style="display:block;max-width:100%;height:auto" aria-hidden="true">${fontFaces ? `<style>${fontFaces}</style>` : ""}${paths.length ? `<defs>${vectorPathClipDefinitions(paths, page.number)}</defs>` : ""}<g transform="translate(0 ${number(page.height)}) scale(1 -1)">${fills.map(vectorFillSvg).join("") + paths.map(({ path, index }) => vectorPathSvg(path, page.number, index)).join("")}</g>${overlay.map((span) => vectorText(span, page.height, aliases)).join("")}</svg>`,
+      html:
+        imageOptions === "references"
+          ? `<img class="pdf-semantic-media" src="${name}" width="${number(bounds.width)}" height="${number(bounds.height)}" alt="">`
+          : svg,
+      ...(imageOptions === "references"
+        ? {
+            assets: [
+              { name, mimeType: "image/svg+xml" as const, data: new TextEncoder().encode(svg) },
+            ],
+          }
+        : {}),
       ...(consumedSpans.length > 0 ? { consumedSpans } : {}),
     };
   });
@@ -143,6 +192,7 @@ function compositeMedia(items: SemanticMedia[]): SemanticMedia {
     kind: "composite",
     html: `<div class="pdf-semantic-media pdf-semantic-media-composite" style="position:relative;max-width:100%;width:${number(bounds.width)}px;aspect-ratio:${number(bounds.width)}/${number(bounds.height)}">${layers}</div>`,
     consumedSpans: items.flatMap((item) => item.consumedSpans ?? []),
+    assets: items.flatMap((item) => item.assets ?? []),
   };
 }
 

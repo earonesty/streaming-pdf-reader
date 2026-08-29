@@ -132,6 +132,40 @@ describe("HTML writer", () => {
     expect(html.indexOf("<image")).toBeLessThan(html.indexOf("<text"));
   });
 
+  it("references or excludes raster images in visual HTML on request", async () => {
+    const image = {
+      width: 1,
+      height: 1,
+      format: "jpeg" as const,
+      data: Uint8Array.of(0xff, 0xd8, 0xff, 0xd9),
+      transform: [30, 0, 0, 40, 10, 20] as [number, number, number, number, number, number],
+    };
+    const assets: Array<{ name: string; mimeType: string }> = [];
+    const rgbImage = {
+      ...image,
+      format: "rgb" as const,
+      data: Uint8Array.of(255, 0, 0),
+    };
+    const referenced = await pageToHtml(
+      { ...page, images: [image, rgbImage] },
+      {
+        imageOptions: "references",
+        onImage: (asset) => {
+          assets.push({ name: asset.name, mimeType: asset.mimeType });
+        },
+      },
+    );
+    const excluded = await pageToHtml({ ...page, images: [image] }, { imageOptions: "excluded" });
+
+    expect(assets).toEqual([
+      { name: "page-1-image-1.jpg", mimeType: "image/jpeg" },
+      { name: "page-1-image-2.bmp", mimeType: "image/bmp" },
+    ]);
+    expect(referenced).toContain('href="page-1-image-1.jpg"');
+    expect(referenced).not.toContain("data:image");
+    expect(excluded).not.toContain("<image");
+  });
+
   it("keeps unclassified raster and vector media in semantic flow", async () => {
     const html = await pageToHtml(
       {
@@ -144,10 +178,17 @@ describe("HTML writer", () => {
             data: Uint8Array.of(255, 0, 0),
             transform: [80, 0, 0, 40, 20, 620],
           },
+          {
+            width: 1,
+            height: 1,
+            format: "jpeg",
+            data: Uint8Array.of(0xff, 0xd8, 0xff, 0xd9),
+            transform: [20, 0, 0, 20, 400, 100],
+          },
         ],
         paths: [{ d: "M20 500L120 500L120 560Z", fill: "#112233" }],
       },
-      { profile: "semantic" },
+      { profile: "semantic", imageOptions: "embedded" },
     );
 
     expect(html).toContain('<img class="pdf-semantic-media"');
@@ -179,13 +220,98 @@ describe("HTML writer", () => {
         ],
         paths: [{ d: "M20 500L120 500L120 560L20 560Z", fill: "#112233" }],
       },
-      { profile: "semantic" },
+      { profile: "semantic", imageOptions: "embedded" },
     );
 
     expect(html).toContain("@font-face");
     expect(html).toContain(">!&quot;#</text>");
     expect(html).toContain("pdf-semantic-media");
     expect(html.replace(/<svg[\s\S]*<\/svg>/, "")).not.toContain("!&quot;#");
+  });
+
+  it("excludes raster and vector media from semantic HTML by default", async () => {
+    const html = await pageToHtml(
+      {
+        ...page,
+        images: [
+          {
+            width: 1,
+            height: 1,
+            format: "rgb",
+            data: Uint8Array.of(255, 0, 0),
+            transform: [80, 0, 0, 40, 20, 620],
+          },
+          {
+            width: 1,
+            height: 1,
+            format: "jpeg",
+            data: Uint8Array.of(0xff, 0xd8, 0xff, 0xd9),
+            transform: [20, 0, 0, 20, 400, 100],
+          },
+        ],
+        paths: [{ d: "M20 500L120 500L120 560Z", fill: "#112233" }],
+      },
+      { profile: "semantic" },
+    );
+
+    expect(html).not.toContain("pdf-semantic-media");
+    expect(html).not.toContain("data:image");
+    expect(html).toContain("Hello");
+  });
+
+  it("streams named raster and SVG references to the caller", async () => {
+    const assets: Array<{ name: string; mimeType: string; data: Uint8Array }> = [];
+    const html = await pageToHtml(
+      {
+        ...page,
+        images: [
+          {
+            width: 1,
+            height: 1,
+            format: "rgb",
+            data: Uint8Array.of(255, 0, 0),
+            transform: [80, 0, 0, 40, 20, 620],
+          },
+          {
+            width: 1,
+            height: 1,
+            format: "jpeg",
+            data: Uint8Array.of(0xff, 0xd8, 0xff, 0xd9),
+            transform: [20, 0, 0, 20, 400, 100],
+          },
+        ],
+        paths: [{ d: "M20 500L120 500L120 560Z", fill: "#112233" }],
+      },
+      {
+        profile: "semantic",
+        imageOptions: "references",
+        onImage: async (asset) => {
+          assets.push({ ...asset });
+        },
+      },
+    );
+
+    expect(
+      assets
+        .map(({ name, mimeType }) => ({ name, mimeType }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    ).toEqual([
+      { name: "page-1-image-1.bmp", mimeType: "image/bmp" },
+      { name: "page-1-image-2.jpg", mimeType: "image/jpeg" },
+      { name: "page-1-vector-1.svg", mimeType: "image/svg+xml" },
+    ]);
+    expect(new TextDecoder().decode(assets[1]?.data)).toContain("<svg");
+    expect(html).toContain('src="page-1-image-1.bmp"');
+    expect(html).toContain('src="page-1-image-2.jpg"');
+    expect(html).toContain('src="page-1-vector-1.svg"');
+    expect(html).not.toContain("data:image");
+    expect(html).not.toContain("<svg");
+  });
+
+  it("requires an image callback for references", async () => {
+    await expect(
+      pageToHtml(page, { profile: "semantic", imageOptions: "references" }),
+    ).rejects.toThrow('imageOptions "references" requires an onImage callback');
   });
 
   it("applies extracted clipping paths to images and vector paths", async () => {

@@ -8,7 +8,13 @@ import {
 } from "@boxpdf/reader/structure";
 import { clearMediaCaptionAssociations } from "./semantic-caption.js";
 import { dominantTextColor, semanticTextHtml } from "./semantic-inline.js";
-import { type SemanticMedia, semanticMedia, withoutSemanticMediaSpans } from "./semantic-media.js";
+import {
+  type HtmlImageAsset,
+  type HtmlImageOptions,
+  prepareSemanticMedia,
+  type SemanticMedia,
+  withoutSemanticMediaSpans,
+} from "./semantic-media.js";
 
 export interface SemanticDocumentStats {
   pagesProcessed: number;
@@ -34,6 +40,8 @@ export async function writeSemanticDocument(
   pages: AsyncIterable<ExtractedPage> | Iterable<ExtractedPage>,
   write: (chunk: string) => void | Promise<void>,
   lookaheadPages: number,
+  imageOptions: HtmlImageOptions,
+  onImage?: (image: Readonly<HtmlImageAsset>) => void | Promise<void>,
 ): Promise<SemanticDocumentStats> {
   const stats: SemanticDocumentStats = {
     pagesProcessed: 0,
@@ -247,7 +255,7 @@ export async function writeSemanticDocument(
   };
 
   for await (const page of pages) {
-    const media = semanticMedia(page);
+    const media = await prepareSemanticMedia(page, imageOptions, onImage);
     const structured = structurePage(withoutSemanticMediaSpans(page, media));
     buffer.push({ width: page.width, height: page.height, structured, media });
     stats.pagesProcessed += 1;

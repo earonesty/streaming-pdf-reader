@@ -156,7 +156,7 @@ describe("semantic flow fixture gate", () => {
         (chunk) => {
           html += chunk;
         },
-        { profile: "semantic" },
+        { profile: "semantic", imageOptions: "embedded" },
       );
     } finally {
       pdf.close();
