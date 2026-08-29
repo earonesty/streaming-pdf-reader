@@ -3,19 +3,24 @@ import type { EmbeddedFont } from "@boxpdf/reader";
 export function visualFontAliases(pageNumber: number, fonts: EmbeddedFont[]): Map<string, string> {
   return new Map(
     fonts
-      .filter((font) => font.format === "truetype" && !/(?:courier|^TTE)/i.test(font.family ?? ""))
+      .filter(
+        (font) =>
+          (font.format === "truetype" || font.format === "opentype") &&
+          !/(?:courier|^TTE)/i.test(font.family ?? ""),
+      )
       .map((font) => [font.id, `boxpdf-${pageNumber}-${font.id}`]),
   );
 }
 
 export function visualFontFace(font: EmbeddedFont, aliases: Map<string, string>): string {
-  if (font.format !== "truetype") return "";
+  if (font.format !== "truetype" && font.format !== "opentype") return "";
   const alias = aliases.get(font.id);
   if (!alias) return "";
   const styles = visualFontStyles(font.family, alias).filter(
     (style) => !style.startsWith("font-family:"),
   );
-  return `@font-face{font-family:${alias};src:url(data:font/ttf;base64,${base64(font.data)}) format("truetype");${styles.join(";")}}`;
+  const mime = font.format === "opentype" ? "font/otf" : "font/ttf";
+  return `@font-face{font-family:${alias};src:url(data:${mime};base64,${base64(font.data)}) format("${font.format}");${styles.join(";")}}`;
 }
 
 export function visualFontStyles(fontFamily: string | undefined, alias?: string): string[] {

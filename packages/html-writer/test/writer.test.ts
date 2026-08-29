@@ -721,12 +721,65 @@ describe("HTML writer", () => {
     expect(html).toContain("@font-face{font-family:boxpdf-1-font-1");
     expect(html).toContain("base64,AAEC");
     expect(html).toContain("font-family:boxpdf-1-font-1,Arial,Helvetica,sans-serif");
+    const openType = await pageToHtml({
+      ...page,
+      fonts: [{ id: "font-2", format: "opentype", data: Uint8Array.of(3, 4, 5) }],
+      spans: [{ ...span("OTF", 20, 700), fontAssetId: "font-2" }],
+    });
+    expect(openType).toContain('src:url(data:font/otf;base64,AwQF) format("opentype")');
     expect(
       await pageToHtml(
         { ...page, fonts: [{ id: "font-1", format: "truetype", data: Uint8Array.of(0) }] },
         { includeStyles: false },
       ),
     ).not.toContain("@font-face");
+  });
+
+  it("serializes exact-font PDF adjustments as a compact dx run", async () => {
+    const html = await pageToHtml({
+      ...page,
+      fonts: [{ id: "font-1", format: "opentype", data: Uint8Array.of(0) }],
+      spans: [
+        {
+          ...span("pa", 20, 700),
+          fontAssetId: "font-1",
+          naturalWidth: 10,
+          bounds: { x: 20, y: 700, width: 10, height: 12 },
+        },
+        {
+          ...span("ths", 29, 700),
+          fontAssetId: "font-1",
+          naturalWidth: 16,
+          textAdjustmentBefore: -1,
+          bounds: { x: 29, y: 700, width: 16, height: 12 },
+        },
+        {
+          ...span("through", 49, 700),
+          fontAssetId: "font-1",
+          textAdjustmentBefore: 4,
+          bounds: { x: 49, y: 700, width: 38, height: 12 },
+        },
+      ],
+    });
+
+    expect(html).toContain('dx="0 0 -1 0 0 4">pathsthrough</text>');
+    expect(html).not.toContain("<tspan");
+  });
+
+  it("embeds identical fonts only once across a visual document", async () => {
+    const pages = [1, 2].map((number) => ({
+      ...page,
+      number,
+      fonts: [{ id: "font-1", format: "opentype" as const, data: Uint8Array.of(3, 4, 5) }],
+      spans: [{ ...span(`page ${number}`, 20, 700), fontAssetId: "font-1" }],
+    }));
+    let html = "";
+    await writeHtmlDocument(pages, (chunk) => {
+      html += chunk;
+    });
+
+    expect(html.match(/@font-face/g)).toHaveLength(1);
+    expect(html.match(/font-family:boxpdf-document-font-1/g)?.length).toBeGreaterThan(1);
   });
 
   it("renders page-scoped Type3 vector glyph programs as SVG", async () => {

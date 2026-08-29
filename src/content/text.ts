@@ -11,18 +11,11 @@ import {
 } from "../syntax/values.js";
 import type { EmbeddedFont, TextSpan } from "../types.js";
 import { reorderBidiLines } from "./bidi.js";
-import { loadCidUnicodeGlyphMap } from "./cid-glyph-map.js";
-import {
-  decodeUtf16Bytes,
-  decodeWithMap,
-  normalizeTextCompatibility,
-  parseToUnicode,
-} from "./cmap.js";
+import { normalizeTextCompatibility } from "./cmap.js";
 import { textFillColor } from "./color.js";
 import { componentColor } from "./color-space.js";
 import { resolveExtendedGraphicsState } from "./extgstate.js";
-import { extractTrueTypeFont } from "./font-assets.js";
-import { remapTrueTypeCmap, symbolicTrueTypeGlyphMap } from "./font-cmap.js";
+import { loadFonts } from "./font-loader.js";
 import {
   collapseZeroPaddedSingleByteCodes,
   containsTextShowingOperator,
@@ -42,11 +35,11 @@ import {
   translate,
 } from "./text-matrix.js";
 import { cloneTextState, createTextState, restoreTextState, type TextState } from "./text-state.js";
-import { extractType3Font } from "./type3.js";
+import { isCompleteType1Font, recordType1GlyphUse } from "./type1-font.js";
 
 export { reorderBidiLines, reorderMixedRtlCitation } from "./bidi.js";
 
-import { type FontDecoder, loadFontEncoding } from "./encoding.js";
+import type { FontDecoder } from "./encoding.js";
 
 export async function extractPageText(
   reader: PdfObjectReader,
@@ -72,6 +65,20 @@ export async function extractPageText(
       0,
       new Set(),
     );
+  }
+  const invalidFontIds = new Set(
+    fontAssets
+      .filter((asset) => asset.format === "opentype" && !isCompleteType1Font(asset))
+      .map((asset) => asset.id),
+  );
+  if (invalidFontIds.size > 0) {
+    for (let index = fontAssets.length - 1; index >= 0; index -= 1) {
+      const asset = fontAssets[index];
+      if (asset && invalidFontIds.has(asset.id)) fontAssets.splice(index, 1);
+    }
+    for (const span of spans) {
+      if (span.fontAssetId && invalidFontIds.has(span.fontAssetId)) delete span.fontAssetId;
+    }
   }
   visualSpans?.push(...spans.map(asVisualSpan));
   return reorderBidiLines(spans);
@@ -377,6 +384,8 @@ function showString(
   textAdjustmentBefore = 0,
 ): void {
   const font = fonts.get(state.font ?? "");
+  if (font?.fontAsset?.format === "opentype" && font.glyphTable)
+    recordType1GlyphUse(font.fontAsset, value.bytes, font.glyphTable);
   const vertical = font?.writingMode === "vertical";
   let bytes =
     font?.codeUnitBytes === 1 ? collapseZeroPaddedSingleByteCodes(value.bytes) : value.bytes;
@@ -440,6 +449,27 @@ function showString(
       width: vertical ? ascentLength : advanceLength,
       height: vertical ? advanceLength : ascentLength,
     },
+    ...(visible.naturalWidth !== undefined && visible.width !== 0
+      ? {
+          naturalWidth: visible.naturalWidth * (advanceLength / Math.abs(visible.width)),
+          ...(state.charSpacing !== 0
+            ? {
+                characterSpacing:
+                  state.charSpacing *
+                  state.horizontalScale *
+                  (advanceLength / Math.abs(visible.width)),
+              }
+            : {}),
+          ...(state.wordSpacing !== 0
+            ? {
+                wordSpacing:
+                  state.wordSpacing *
+                  state.horizontalScale *
+                  (advanceLength / Math.abs(visible.width)),
+              }
+            : {}),
+        }
+      : {}),
     direction: vertical ? "ttb" : "ltr",
     fontName: state.font,
     ...(font?.fontFamily ? { fontFamily: font.fontFamily } : {}),
@@ -480,7 +510,7 @@ function visibleText(
   state: TextState,
   font: FontDecoder | undefined,
   page: ParsedPage,
-): { text: string; offset: number; width: number } | undefined {
+): { text: string; offset: number; width: number; naturalWidth?: number } | undefined {
   if (!font?.advance || bytes.length !== text.length)
     return { text, offset: 0, width: textAdvance(bytes, text, state, font) };
   const [boxX1, boxY1, boxX2, boxY2] = page.mediaBox;
@@ -492,8 +522,8 @@ function visibleText(
   let first = -1;
   let last = -1;
   let firstOffset = 0;
+  const vertical = font.writingMode === "vertical";
   for (let index = 0; index < bytes.length; index += 1) {
-    const vertical = font.writingMode === "vertical";
     const matrix = translate(state.textMatrix, vertical ? 0 : offset, vertical ? -offset : 0);
     const [x, y] = transformPoint(state.ctm, matrix[4], matrix[5] + state.rise);
     if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
@@ -513,87 +543,11 @@ function visibleText(
     text: visible,
     offset: firstOffset,
     width: textAdvance(visibleBytes, visible, state, font),
+    ...(!vertical
+      ? {
+          naturalWidth:
+            font.advance(visibleBytes) * Math.abs(state.fontSize) * state.horizontalScale,
+        }
+      : {}),
   };
-}
-
-async function loadFonts(
-  reader: PdfObjectReader,
-  resources?: PdfDict,
-  fontAssets: EmbeddedFont[] = [],
-): Promise<Map<string, FontDecoder>> {
-  const output = new Map<string, FontDecoder>();
-  if (!resources) return output;
-  const fonts = await reader.resolveDict(resources.get("Font"));
-  if (!fonts) return output;
-  for (const [name, value] of fonts) {
-    const font = await reader.resolveDict(value);
-    if (!font) continue;
-    const toUnicodeValue = font.get("ToUnicode");
-    const encoding = await loadFontEncoding(reader, font, toUnicodeValue === undefined);
-    const fontAssetId = `font-${fontAssets.length + 1}`;
-    const asset =
-      (await extractType3Font(reader, font, fontAssetId, encoding.fontFamily)) ??
-      (await extractTrueTypeFont(reader, font, fontAssetId, encoding.fontFamily));
-    if (asset) {
-      if (asset.format === "truetype") {
-        const cidMappings = await loadCidUnicodeGlyphMap(reader, font, toUnicodeValue);
-        const symbolicMappings =
-          cidMappings.size > 0
-            ? new Map<number, number>()
-            : await symbolicTrueTypeGlyphMap(reader, font, asset.data, encoding);
-        const mappings = cidMappings.size > 0 ? cidMappings : symbolicMappings;
-        asset.data = remapTrueTypeCmap(asset.data, mappings) ?? asset.data;
-        if (symbolicMappings.size > 0) asset.visualCodeMapping = true;
-      }
-      fontAssets.push(asset);
-      encoding.fontAssetId = fontAssetId;
-      encoding.fontFormat = asset.format;
-      if (asset.format === "type3") {
-        const advances = new Map(asset.glyphs.map((glyph) => [glyph.code, glyph.advance]));
-        encoding.advance = (bytes) =>
-          [...bytes].reduce((total, code) => total + (advances.get(code) ?? 0), 0);
-      }
-    }
-    if (toUnicodeValue) {
-      const toUnicode = await reader.resolve(toUnicodeValue);
-      if (isStream(toUnicode)) {
-        const unicodeMap = parseToUnicode(await reader.decodeStream(toUnicode));
-        const codeBytes = unicodeMap.codeBytes ?? (isName(font.get("Subtype"), "Type0") ? 2 : 1);
-        output.set(name, {
-          decode: (bytes) => decodeWithMap(bytes, unicodeMap, codeBytes, encoding),
-          codeUnitBytes: codeBytes === 2 ? 2 : 1,
-          ...(encoding.fontFamily ? { fontFamily: encoding.fontFamily } : {}),
-          ...(encoding.fontAssetId ? { fontAssetId: encoding.fontAssetId } : {}),
-          ...(encoding.fontFormat ? { fontFormat: encoding.fontFormat } : {}),
-          ...(encoding.advance ? { advance: encoding.advance } : {}),
-          ...(encoding.verticalAdvance ? { verticalAdvance: encoding.verticalAdvance } : {}),
-          ...(encoding.verticalOrigin ? { verticalOrigin: encoding.verticalOrigin } : {}),
-          ...(encoding.writingMode ? { writingMode: encoding.writingMode } : {}),
-        });
-        continue;
-      }
-    }
-    const namedEncoding = font.get("Encoding");
-    if (
-      isName(font.get("Subtype"), "Type0") &&
-      isName(namedEncoding) &&
-      /-UTF16-(?:H|V)$/.test(namedEncoding.value)
-    ) {
-      output.set(name, {
-        decode: decodeUtf16Bytes,
-        codeUnitBytes: 2,
-        ...(encoding.fontFamily ? { fontFamily: encoding.fontFamily } : {}),
-        ...(encoding.fontAssetId ? { fontAssetId: encoding.fontAssetId } : {}),
-        ...(encoding.fontFormat ? { fontFormat: encoding.fontFormat } : {}),
-        ...(encoding.advance ? { advance: encoding.advance } : {}),
-        ...(encoding.verticalAdvance ? { verticalAdvance: encoding.verticalAdvance } : {}),
-        ...(encoding.verticalOrigin ? { verticalOrigin: encoding.verticalOrigin } : {}),
-        ...(encoding.writingMode ? { writingMode: encoding.writingMode } : {}),
-      });
-      continue;
-    }
-    encoding.codeUnitBytes = isName(font.get("Subtype"), "Type0") ? 2 : 1;
-    output.set(name, encoding);
-  }
-  return output;
 }

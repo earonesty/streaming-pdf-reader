@@ -20,7 +20,8 @@ describe("PDF.js embedded and vertical font geometry oracle", () => {
     const reader = await openPdf(memorySource(bytes));
     const oracle = await getDocument({ data: bytes.slice() }).promise;
     try {
-      const actual = (await reader.getPage(0)).spans[0];
+      const extracted = await reader.getPage(0);
+      const actual = extracted.spans[0];
       const oraclePage = await oracle.getPage(1);
       const expected = (await oraclePage.getTextContent()).items.find((item) => "str" in item);
       if (!actual || !expected || !("str" in expected)) throw new Error("missing oracle text span");
@@ -29,6 +30,11 @@ describe("PDF.js embedded and vertical font geometry oracle", () => {
       expect(actual.bounds.y).toBeCloseTo(expected.transform[5] ?? 0, 4);
       expect(actual.bounds.width).toBeCloseTo(7.2, 4);
       expect(expected.width).toBeCloseTo(8.004, 4);
+      const asset = extracted.fonts?.[0];
+      expect(asset?.format).toBe("opentype");
+      if (asset?.format !== "opentype") throw new Error("missing OpenType font asset");
+      expect(new TextDecoder("latin1").decode(asset.data.subarray(0, 4))).toBe("OTTO");
+      expect(actual.fontAssetId).toBe(asset?.id);
     } finally {
       reader.close();
       await oracle.destroy();

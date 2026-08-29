@@ -1,6 +1,7 @@
 import { Encodings, Font, type IFontNames } from "@pdf-lib/standard-fonts";
 import type { PdfObjectReader } from "../syntax/document.js";
 import { isDict, isName, isStream, type PdfDict, type PdfValue } from "../syntax/values.js";
+import type { EmbeddedFont } from "../types.js";
 import { findBytes } from "./bytes.js";
 import { embeddedCidUnicodeDecoder, loadCidMetrics } from "./cid.js";
 import { parseTrueTypeMetrics } from "./truetype.js";
@@ -11,11 +12,14 @@ export interface FontDecoder {
   codeUnitBytes?: 1 | 2;
   fontFamily?: string;
   fontAssetId?: string;
-  fontFormat?: "truetype" | "type3";
+  fontFormat?: "truetype" | "opentype" | "type3";
   advance?(bytes: Uint8Array): number;
   verticalAdvance?(bytes: Uint8Array): number;
   verticalOrigin?(bytes: Uint8Array): { x: number; y: number };
   writingMode?: "vertical";
+  characterTable?: string[];
+  glyphTable?: Array<string | undefined>;
+  fontAsset?: EmbeddedFont;
 }
 
 const glyphNames: Record<string, string> = {
@@ -126,6 +130,8 @@ export async function loadFontEncoding(
   const widths = cidMetrics?.advance ?? (await loadFontWidths(reader, font, table, glyphTable));
   return {
     decode: cidUnicode ?? ((bytes) => [...bytes].map((byte) => table[byte] as string).join("")),
+    characterTable: table,
+    glyphTable,
     ...(fontFamily ? { fontFamily } : {}),
     ...(widths ? { advance: (bytes: Uint8Array) => widths(bytes) } : {}),
     ...(cidMetrics?.verticalAdvance

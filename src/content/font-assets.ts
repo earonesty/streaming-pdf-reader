@@ -1,6 +1,7 @@
 import type { PdfObjectReader } from "../syntax/document.js";
 import { isName, isStream, type PdfDict } from "../syntax/values.js";
 import type { EmbeddedFont } from "../types.js";
+import { convertType1Font } from "./type1-font.js";
 
 export async function extractTrueTypeFont(
   reader: PdfObjectReader,
@@ -22,6 +23,35 @@ export async function extractTrueTypeFont(
       format: "truetype",
       data: await reader.decodeStream(fontFile),
     };
+  } catch (error) {
+    if (error instanceof Error && /exceeds configured/.test(error.message)) throw error;
+    return undefined;
+  }
+}
+
+export async function extractType1Font(
+  reader: PdfObjectReader,
+  font: PdfDict,
+  id: string,
+  family: string | undefined,
+  characters: string[],
+  glyphNames: Array<string | undefined>,
+): Promise<EmbeddedFont | undefined> {
+  const programFont = await descendantFont(reader, font);
+  if (!programFont || !isName(programFont.get("Subtype"), "Type1")) return undefined;
+  const descriptor = await reader.resolveDict(programFont.get("FontDescriptor"));
+  const fontFileValue = descriptor?.get("FontFile");
+  if (fontFileValue === undefined) return undefined;
+  const fontFile = await reader.resolve(fontFileValue);
+  if (!isStream(fontFile)) return undefined;
+  try {
+    return convertType1Font(
+      await reader.decodeStream(fontFile),
+      id,
+      family,
+      characters,
+      glyphNames,
+    );
   } catch (error) {
     if (error instanceof Error && /exceeds configured/.test(error.message)) throw error;
     return undefined;

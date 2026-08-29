@@ -1,4 +1,5 @@
 import type {
+  EmbeddedFont,
   EmbeddedType3Font,
   ExtractedPage,
   RasterImage,
@@ -91,7 +92,8 @@ export async function writeHtmlDocument(
     );
     options.onSemanticStats?.(stats);
   } else {
-    for await (const page of pages) await writePage(page, write, options);
+    const documentFonts: VisualDocumentFonts = { entries: [] };
+    for await (const page of pages) await writePositionedPage(page, write, options, documentFonts);
   }
   await write("</main>");
   if (includeDocument) await write("</body></html>");
@@ -155,6 +157,7 @@ async function writePositionedPage(
   page: ExtractedPage,
   write: HtmlWrite,
   options: HtmlWriterOptions,
+  documentFonts?: VisualDocumentFonts,
 ): Promise<void> {
   const imageOptions = resolveImageOptions("visual", options);
   const visualImages = await prepareVisualImages(page, imageOptions, options.onImage);
@@ -166,7 +169,11 @@ async function writePositionedPage(
   await write(
     `<section class="pdf-page pdf-page--visual pdf-page--positioned" data-page="${page.number}" data-rotate="${page.rotate}" style="width:${number(displayWidth)}pt;height:${number(displayHeight)}pt">`,
   );
-  const fontAliases = visualFontAliases(page.number, page.fonts ?? []);
+  const { aliases: fontAliases, fontsToEmit } = visualPageFonts(
+    page.number,
+    page.fonts ?? [],
+    documentFonts,
+  );
   const type3Fonts = new Map(
     (page.fonts ?? [])
       .filter((font): font is EmbeddedType3Font => font.format === "type3")
@@ -176,9 +183,9 @@ async function writePositionedPage(
     (options.includeStyles ?? true)
       ? visualTextClasses(page.number, visualSpans, fontAliases)
       : undefined;
-  if ((options.includeStyles ?? true) && page.fonts?.length) {
+  if ((options.includeStyles ?? true) && fontsToEmit.length) {
     await write(
-      `<style>${page.fonts.map((font) => visualFontFace(font, fontAliases)).join("")}</style>`,
+      `<style>${fontsToEmit.map((font) => visualFontFace(font, fontAliases)).join("")}</style>`,
     );
   }
   if (textClasses?.css) await write(`<style>${textClasses.css}</style>`);
@@ -253,6 +260,46 @@ async function writePositionedPage(
   await write("</div></section>");
 }
 
+interface VisualDocumentFont {
+  alias: string;
+  data: Uint8Array;
+  format: EmbeddedFont["format"];
+}
+
+interface VisualDocumentFonts {
+  entries: VisualDocumentFont[];
+}
+
+function visualPageFonts(
+  pageNumber: number,
+  fonts: EmbeddedFont[],
+  documentFonts: VisualDocumentFonts | undefined,
+): { aliases: Map<string, string>; fontsToEmit: EmbeddedFont[] } {
+  const aliases = visualFontAliases(pageNumber, fonts);
+  if (!documentFonts) return { aliases, fontsToEmit: fonts };
+  const fontsToEmit: EmbeddedFont[] = [];
+  for (const font of fonts) {
+    if (!aliases.has(font.id) || font.format === "type3") continue;
+    const existing = documentFonts.entries.find(
+      (entry) => entry.format === font.format && equalBytes(entry.data, font.data),
+    );
+    if (existing) {
+      aliases.set(font.id, existing.alias);
+      continue;
+    }
+    const alias = `boxpdf-document-font-${documentFonts.entries.length + 1}`;
+    aliases.set(font.id, alias);
+    documentFonts.entries.push({ alias, data: font.data, format: font.format });
+    fontsToEmit.push(font);
+  }
+  return { aliases, fontsToEmit };
+}
+
+function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((value, index) => value === right[index]);
+}
+
 /**
  * PDF producers commonly show every word with a separate text operator. Keeping
  * those operators as separate SVG elements is needlessly expensive for browsers,
@@ -286,6 +333,7 @@ function canCoalesceVisualSpans(left: TextSpan, right: TextSpan): boolean {
   // Guardian fallback text sits just outside the safe whole-span width model.
   if (/guardian/i.test(left.fontFamily ?? "")) return false;
   if (left.glyphCodes || right.glyphCodes) return false;
+  if (left.fontAssetId || right.fontAssetId) return false;
   if (!sameVisualTextState(left, right)) return false;
   const tolerance = Math.max(0.02, left.fontSize * 0.015);
   if (Math.abs(left.bounds.y - right.bounds.y) > tolerance) return false;
@@ -368,6 +416,13 @@ function visualTextLine(
   if (endIndex === startIndex) return undefined;
   const baseline = pageHeight - first.bounds.y;
   const lineSpans = spans.slice(startIndex, endIndex + 1);
+  const dxRun = visualDxTextRun(lineSpans, fontAliases);
+  if (dxRun) {
+    return {
+      html: `<text class="${className}" x="${number(first.bounds.x)}" y="${number(baseline)}" dx="${dxRun.offsets.map(number).join(" ")}">${escapeHtml(dxRun.text)}</text>`,
+      endIndex,
+    };
+  }
   const content = lineSpans
     .map((span, index) =>
       visualTextTspan(span, index > 0 ? textSpanGap(lineSpans[index - 1], span) : undefined),
@@ -377,6 +432,42 @@ function visualTextLine(
     html: `<text class="${className}" x="${number(first.bounds.x)}" y="${number(baseline)}">${content}</text>`,
     endIndex,
   };
+}
+
+function visualDxTextRun(
+  spans: TextSpan[],
+  fontAliases: Map<string, string>,
+): { text: string; offsets: number[] } | undefined {
+  const first = spans[0];
+  if (!first?.fontAssetId || !fontAliases.has(first.fontAssetId) || spans.length < 2)
+    return undefined;
+  let text = first.text;
+  const offsets = characterOffsets(first, 0);
+  for (let index = 1; index < spans.length; index += 1) {
+    const previous = spans[index - 1];
+    const current = spans[index];
+    if (!previous || !current || current.fontAssetId !== first.fontAssetId) return undefined;
+    const characters = [...current.text];
+    if (characters.length === 0 || previous.naturalWidth === undefined) return undefined;
+    const gap = current.bounds.x - (previous.bounds.x + previous.bounds.width);
+    const trailingSpacing =
+      (previous.characterSpacing ?? 0) +
+      (previous.text.endsWith(" ") ? (previous.wordSpacing ?? 0) : 0);
+    offsets.push(...characterOffsets(current, gap + trailingSpacing));
+    text += current.text;
+  }
+  while (offsets.at(-1) === 0) offsets.pop();
+  return offsets.length > 0 ? { text, offsets } : undefined;
+}
+
+function characterOffsets(span: TextSpan, first: number): number[] {
+  const characters = [...span.text];
+  return characters.map((_, index) =>
+    index === 0
+      ? first
+      : (span.characterSpacing ?? 0) +
+        (characters[index - 1] === " " ? (span.wordSpacing ?? 0) : 0),
+  );
 }
 
 function visualTextTspan(span: TextSpan, dx: number | undefined): string {

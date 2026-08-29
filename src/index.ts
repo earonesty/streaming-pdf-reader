@@ -4,6 +4,7 @@ export { type OpenPdfOptions, openPdf, type ReaderStats, StreamingPdfReader } fr
 export { blobSource, memorySource, type PdfSource } from "./source.js";
 export type {
   EmbeddedFont,
+  EmbeddedOpenTypeFont,
   EmbeddedTrueTypeFont,
   EmbeddedType3Font,
   ExtractedPage,

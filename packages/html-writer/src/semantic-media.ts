@@ -100,7 +100,10 @@ function vectorMedia(page: ExtractedPage, imageOptions: HtmlImageOptions): Seman
   const aliases = visualFontAliases(page.number, page.fonts ?? []);
   const visualCodeFonts = new Set(
     (page.fonts ?? [])
-      .filter((font) => font.format === "truetype" && font.visualCodeMapping)
+      .filter(
+        (font) =>
+          (font.format === "truetype" || font.format === "opentype") && font.visualCodeMapping,
+      )
       .map((font) => font.id),
   );
   return components.map((component, componentIndex) => {

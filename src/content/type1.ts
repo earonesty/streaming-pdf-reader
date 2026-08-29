@@ -2,10 +2,49 @@ export interface Type1Metrics {
   widthOfGlyph(glyph: string): number | undefined;
 }
 
+export interface Type1GlyphPath {
+  name: string;
+  width: number;
+  commands: Array<
+    | { type: "M" | "L"; x: number; y: number }
+    | { type: "C"; x1: number; y1: number; x2: number; y2: number; x: number; y: number }
+    | { type: "Z" }
+  >;
+}
+
+export function parseType1GlyphPaths(bytes: Uint8Array): Type1GlyphPath[] | undefined {
+  const parsed = type1Program(bytes);
+  if (!parsed) return undefined;
+  const output: Type1GlyphPath[] = [];
+  for (const [name, charString] of parsed.charStrings) {
+    const glyph = interpretGlyph(charString, parsed.subroutines, parsed.scale);
+    if (glyph) output.push({ name, ...glyph });
+  }
+  return output.length > 0 ? output : undefined;
+}
+
 const encoder = new TextEncoder();
 const eexecMarker = encoder.encode("currentfile eexec");
 
 export function parseType1Metrics(bytes: Uint8Array): Type1Metrics | undefined {
+  const parsed = type1Program(bytes);
+  if (!parsed) return undefined;
+  const widths = new Map<string, number>();
+  for (const [glyph, charString] of parsed.charStrings) {
+    const width = readCharStringWidth(charString, parsed.subroutines);
+    if (width !== undefined) widths.set(glyph, width * parsed.scale);
+  }
+  if (widths.size === 0) return undefined;
+  return { widthOfGlyph: (glyph) => widths.get(glyph) };
+}
+
+function type1Program(bytes: Uint8Array):
+  | {
+      scale: number;
+      subroutines: Map<number, Uint8Array>;
+      charStrings: Map<string, Uint8Array>;
+    }
+  | undefined {
   const program = unwrapType1Program(bytes);
   const marker = findBytes(program, eexecMarker);
   if (marker < 0) return undefined;
@@ -25,19 +64,17 @@ export function parseType1Metrics(bytes: Uint8Array): Type1Metrics | undefined {
     /dup\s+(\d+)\s+(\d+)\s+(?:RD|-\|)\s/g,
     lenIV,
   );
-  const widths = readCharStrings(privateProgram, privateText, lenIV, scale, subroutines);
-  if (widths.size === 0) return undefined;
-  return { widthOfGlyph: (glyph) => widths.get(glyph) };
+  const charStrings = readCharStringEntries(privateProgram, privateText, lenIV);
+  if (charStrings.size === 0) return undefined;
+  return { scale, subroutines, charStrings };
 }
 
-function readCharStrings(
+function readCharStringEntries(
   bytes: Uint8Array,
   text: string,
   lenIV: number,
-  scale: number,
-  subroutines: Map<number, Uint8Array>,
-): Map<string, number> {
-  const widths = new Map<string, number>();
+): Map<string, Uint8Array> {
+  const output = new Map<string, Uint8Array>();
   const pattern = /\/([^\s/]+)\s+(\d+)\s+(?:RD|-\|)\s/g;
   for (const match of text.matchAll(pattern)) {
     const glyph = match[1];
@@ -47,10 +84,9 @@ function readCharStrings(
       continue;
     const encoded = bytes.subarray(start, start + length);
     const charString = lenIV < 0 ? encoded : decrypt(encoded, 4_330, lenIV);
-    const width = readCharStringWidth(charString, subroutines);
-    if (width !== undefined) widths.set(glyph, width * scale);
+    output.set(glyph, charString);
   }
-  return widths;
+  return output;
 }
 
 function readBinaryEntries(
@@ -124,6 +160,220 @@ function interpretCharString(
     stack.length = 0;
   }
   return undefined;
+}
+
+function interpretGlyph(
+  bytes: Uint8Array,
+  subroutines: Map<number, Uint8Array>,
+  scale: number,
+): Omit<Type1GlyphPath, "name"> | undefined {
+  const commands: Type1GlyphPath["commands"] = [];
+  const stack: number[] = [];
+  let x = 0;
+  let y = 0;
+  let width: number | undefined;
+  let operations = 0;
+  let inFlex = false;
+  const move = (dx: number, dy: number) => {
+    x += dx;
+    y += dy;
+    commands.push({ type: "M", x: x * scale, y: y * scale });
+  };
+  const line = (dx: number, dy: number) => {
+    x += dx;
+    y += dy;
+    commands.push({ type: "L", x: x * scale, y: y * scale });
+  };
+  const curve = (values: number[], offset: number) => {
+    const x1 = x + (values[offset] ?? 0);
+    const y1 = y + (values[offset + 1] ?? 0);
+    const x2 = x1 + (values[offset + 2] ?? 0);
+    const y2 = y1 + (values[offset + 3] ?? 0);
+    x = x2 + (values[offset + 4] ?? 0);
+    y = y2 + (values[offset + 5] ?? 0);
+    commands.push({
+      type: "C",
+      x1: x1 * scale,
+      y1: y1 * scale,
+      x2: x2 * scale,
+      y2: y2 * scale,
+      x: x * scale,
+      y: y * scale,
+    });
+  };
+  const run = (program: Uint8Array, depth: number): boolean => {
+    if (depth > 16) return false;
+    for (let index = 0; index < program.length; ) {
+      operations += 1;
+      if (operations > 100_000) return false;
+      const operator = program[index] as number;
+      index += 1;
+      if (operator >= 32) {
+        const decoded = decodeNumber(program, operator, index);
+        if (!decoded) return false;
+        stack.push(decoded.value);
+        if (stack.length > 64) return false;
+        index = decoded.next;
+        continue;
+      }
+      if (operator === 10) {
+        const subroutine = subroutines.get(Math.trunc(stack.pop() ?? -1));
+        if (!subroutine || !run(subroutine, depth + 1)) return false;
+        continue;
+      }
+      if (operator === 11) return true;
+      if (operator === 12) {
+        const escaped = program[index] as number;
+        index += 1;
+        if (escaped === 0 || escaped === 1 || escaped === 2) {
+          stack.length = 0;
+          continue;
+        }
+        if (escaped === 7) {
+          if (stack.length < 4) return false;
+          const [sbx = 0, sby = 0, advance = 0] = stack;
+          x = sbx;
+          y = sby;
+          width = advance;
+          stack.length = 0;
+          continue;
+        }
+        if (escaped === 12 && stack.length >= 2) {
+          const divisor = stack.pop() as number;
+          const dividend = stack.pop() as number;
+          if (divisor === 0) return false;
+          stack.push(dividend / divisor);
+          continue;
+        }
+        if (escaped === 16 && stack.length >= 2) {
+          const subroutine = Math.trunc(stack.pop() ?? -1);
+          const argumentCount = Math.max(0, Math.trunc(stack.pop() ?? 0));
+          if (subroutine === 1 && argumentCount === 0) {
+            inFlex = true;
+          } else if (subroutine === 0 && argumentCount === 3 && inFlex) {
+            const values = stack.splice(-17, 17);
+            if (values.length !== 17) return false;
+            curve(
+              [
+                (values[2] ?? 0) + (values[0] ?? 0),
+                (values[3] ?? 0) + (values[1] ?? 0),
+                values[4] ?? 0,
+                values[5] ?? 0,
+                values[6] ?? 0,
+                values[7] ?? 0,
+              ],
+              0,
+            );
+            curve(values.slice(8, 14), 0);
+            inFlex = false;
+            stack.push(values[15] ?? 0, values[16] ?? 0);
+          } else if (subroutine === 2 && argumentCount !== 0) {
+            return false;
+          }
+          continue;
+        }
+        if (escaped === 17) {
+          continue;
+        }
+        if (escaped === 33) {
+          stack.length = 0;
+          continue;
+        }
+        return false;
+      }
+      const values = stack.splice(0);
+      switch (operator) {
+        case 1:
+        case 3:
+          break;
+        case 4:
+          if (inFlex) {
+            stack.push(0, values.at(-1) ?? 0);
+            break;
+          }
+          move(0, values.at(-1) ?? 0);
+          break;
+        case 5:
+          for (let offset = 0; offset + 1 < values.length; offset += 2)
+            line(values[offset] ?? 0, values[offset + 1] ?? 0);
+          break;
+        case 6:
+          for (const value of values) line(value, 0);
+          break;
+        case 7:
+          for (const value of values) line(0, value);
+          break;
+        case 8:
+          for (let offset = 0; offset + 5 < values.length; offset += 6) curve(values, offset);
+          break;
+        case 9:
+          commands.push({ type: "Z" });
+          break;
+        case 13:
+          if (values.length < 2) return false;
+          x = values[0] ?? 0;
+          y = 0;
+          width = values[1];
+          break;
+        case 14:
+          return width !== undefined;
+        case 21:
+          if (inFlex) {
+            stack.push(...values);
+            break;
+          }
+          if (values.length < 2) return false;
+          move(values.at(-2) ?? 0, values.at(-1) ?? 0);
+          break;
+        case 22:
+          if (inFlex) {
+            stack.push(values.at(-1) ?? 0, 0);
+            break;
+          }
+          move(values.at(-1) ?? 0, 0);
+          break;
+        case 30:
+        case 31: {
+          let offset = 0;
+          let verticalFirst = operator === 30;
+          while (offset + 3 < values.length) {
+            if (verticalFirst) {
+              curve(
+                [
+                  0,
+                  values[offset] ?? 0,
+                  values[offset + 1] ?? 0,
+                  values[offset + 2] ?? 0,
+                  values[offset + 3] ?? 0,
+                  offset + 4 === values.length - 1 ? (values[offset + 4] ?? 0) : 0,
+                ],
+                0,
+              );
+            } else {
+              curve(
+                [
+                  values[offset] ?? 0,
+                  0,
+                  values[offset + 1] ?? 0,
+                  values[offset + 2] ?? 0,
+                  offset + 4 === values.length - 1 ? (values[offset + 4] ?? 0) : 0,
+                  values[offset + 3] ?? 0,
+                ],
+                0,
+              );
+            }
+            offset += offset + 4 === values.length - 1 ? 5 : 4;
+            verticalFirst = !verticalFirst;
+          }
+          break;
+        }
+        default:
+          return false;
+      }
+    }
+    return true;
+  };
+  return run(bytes, 0) && width !== undefined ? { width: width * scale, commands } : undefined;
 }
 
 function decodeNumber(

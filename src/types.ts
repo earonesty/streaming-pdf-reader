@@ -16,6 +16,10 @@ export interface TextSpan {
   hasLeadingSpace?: boolean | undefined;
   /** Signed PDF text-space displacement immediately before this span; positive advances. */
   textAdjustmentBefore?: number | undefined;
+  /** Browser-font glyph advance in page units, before PDF character and word spacing. */
+  naturalWidth?: number | undefined;
+  characterSpacing?: number | undefined;
+  wordSpacing?: number | undefined;
   bounds: Rect;
   direction: "ltr" | "rtl" | "ttb";
   /** PDF page-resource font identifier, such as `F1`. */
@@ -48,6 +52,14 @@ export interface EmbeddedTrueTypeFont {
   format: "truetype";
   data: Uint8Array;
   /** Browser cmap rebuilt from PDF character codes because usable Unicode was absent. */
+  visualCodeMapping?: true | undefined;
+}
+
+export interface EmbeddedOpenTypeFont {
+  id: string;
+  family?: string | undefined;
+  format: "opentype";
+  data: Uint8Array;
   visualCodeMapping?: true | undefined;
 }
 
@@ -105,7 +117,7 @@ export interface EmbeddedType3Font {
   glyphs: Type3Glyph[];
 }
 
-export type EmbeddedFont = EmbeddedTrueTypeFont | EmbeddedType3Font;
+export type EmbeddedFont = EmbeddedTrueTypeFont | EmbeddedOpenTypeFont | EmbeddedType3Font;
 
 export interface ExtractedPage {
   number: number;
