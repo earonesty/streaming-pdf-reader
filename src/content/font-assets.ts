@@ -1,7 +1,6 @@
 import type { PdfObjectReader } from "../syntax/document.js";
 import { isName, isStream, type PdfDict } from "../syntax/values.js";
 import type { EmbeddedFont } from "../types.js";
-import { convertType1Font } from "./type1-font.js";
 
 export async function extractTrueTypeFont(
   reader: PdfObjectReader,
@@ -45,6 +44,7 @@ export async function extractType1Font(
   const fontFile = await reader.resolve(fontFileValue);
   if (!isStream(fontFile)) return undefined;
   try {
+    const { convertType1Font } = await import("./type1-font-convert.js");
     return convertType1Font(
       await reader.decodeStream(fontFile),
       id,

@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  opentype.js@2.0.0:
+    hash: f9da4334f567984befd6fb360d2c6b2d5c4da67370002260231d7d54948255b4
+    path: patches/opentype.js@2.0.0.patch
+
 importers:
 
   .:
@@ -13,7 +18,7 @@ importers:
         version: 1.0.0
       opentype.js:
         specifier: ^2.0.0
-        version: 2.0.0
+        version: 2.0.0(patch_hash=f9da4334f567984befd6fb360d2c6b2d5c4da67370002260231d7d54948255b4)
       pako:
         specifier: ^2.1.0
         version: 2.2.0
@@ -2225,7 +2230,7 @@ snapshots:
 
   obug@2.1.4: {}
 
-  opentype.js@2.0.0: {}
+  opentype.js@2.0.0(patch_hash=f9da4334f567984befd6fb360d2c6b2d5c4da67370002260231d7d54948255b4): {}
 
   package-manager-detector@1.8.0: {}
 

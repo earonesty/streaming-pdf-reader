@@ -1,3 +1,4 @@
+import opentype from "opentype.js";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { describe, expect, it } from "vitest";
 import { memorySource, openPdf } from "../../src/index.js";
@@ -34,6 +35,8 @@ describe("PDF.js embedded and vertical font geometry oracle", () => {
       expect(asset?.format).toBe("opentype");
       if (asset?.format !== "opentype") throw new Error("missing OpenType font asset");
       expect(new TextDecoder("latin1").decode(asset.data.subarray(0, 4))).toBe("OTTO");
+      const converted = opentype.parse(asset.data.slice().buffer as ArrayBuffer);
+      expect(converted.tables.cff?.topDict.private[0]).toBeGreaterThan(0);
       expect(actual.fontAssetId).toBe(asset?.id);
     } finally {
       reader.close();

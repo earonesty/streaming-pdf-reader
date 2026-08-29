@@ -3,6 +3,7 @@ interface Type1FontOptions {
   eexec?: "binary" | "hex";
   widthOperator?: "hsbw" | "sbw" | "subroutine" | "div";
   lenIV?: number;
+  dynamicHints?: boolean;
 }
 
 export function buildType1Font(width: number, options: Type1FontOptions = {}): Uint8Array {
@@ -15,26 +16,46 @@ export function buildType1Font(width: number, options: Type1FontOptions = {}): U
         : options.widthOperator === "subroutine"
           ? [139, 10]
           : [139, ...encodeNumber(width), 13];
+  const dynamicProgram = options.dynamicHints
+    ? [
+        ...encodeNumber(10),
+        ...encodeNumber(20),
+        1,
+        ...encodeNumber(0),
+        ...encodeNumber(1),
+        ...encodeNumber(3),
+        12,
+        16,
+        12,
+        17,
+        10,
+        ...encodeNumber(30),
+        ...encodeNumber(40),
+        21,
+        14,
+      ]
+    : [];
   const charStringPlain = Uint8Array.of(
     ...Array.from({ length: Math.max(0, lenIV) }, () => 0),
     ...widthProgram,
+    ...dynamicProgram,
   );
   const charString = lenIV < 0 ? charStringPlain : encrypt(charStringPlain, 4_330);
   const subroutinePlain = Uint8Array.of(
     ...Array.from({ length: Math.max(0, lenIV) }, () => 0),
-    139,
-    ...encodeNumber(width),
-    13,
+    ...(options.dynamicHints
+      ? [...encodeNumber(100), ...encodeNumber(20), 1]
+      : [139, ...encodeNumber(width), 13]),
     11,
   );
   const subroutine =
-    options.widthOperator === "subroutine"
+    options.widthOperator === "subroutine" || options.dynamicHints
       ? lenIV < 0
         ? subroutinePlain
         : encrypt(subroutinePlain, 4_330)
       : undefined;
   const privatePrefix = new TextEncoder().encode(
-    `/lenIV ${lenIV} def\n${subroutine ? `/Subrs 1 array dup 0 ${subroutine.length} RD ` : ""}`,
+    `/lenIV ${lenIV} def\n/BlueValues [-20 0 450 470] def\n/StemSnapH [30 38] def\n${subroutine ? `/Subrs 1 array dup 0 ${subroutine.length} RD ` : ""}`,
   );
   const privateProgram = concatenate([
     Uint8Array.of(0, 0, 0, 0),

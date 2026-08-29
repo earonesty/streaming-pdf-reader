@@ -1,18 +1,8 @@
-export interface Type1Metrics {
-  widthOfGlyph(glyph: string): number | undefined;
-}
+import type { Type1GlyphPath, Type1GlyphProgram, Type1Metrics } from "./type1-types.js";
 
-export interface Type1GlyphPath {
-  name: string;
-  width: number;
-  commands: Array<
-    | { type: "M" | "L"; x: number; y: number }
-    | { type: "C"; x1: number; y1: number; x2: number; y2: number; x: number; y: number }
-    | { type: "Z" }
-  >;
-}
+export type { Type1Metrics } from "./type1-types.js";
 
-export function parseType1GlyphPaths(bytes: Uint8Array): Type1GlyphPath[] | undefined {
+export function parseType1GlyphPaths(bytes: Uint8Array): Type1GlyphProgram | undefined {
   const parsed = type1Program(bytes);
   if (!parsed) return undefined;
   const output: Type1GlyphPath[] = [];
@@ -20,7 +10,9 @@ export function parseType1GlyphPaths(bytes: Uint8Array): Type1GlyphPath[] | unde
     const glyph = interpretGlyph(charString, parsed.subroutines, parsed.scale);
     if (glyph) output.push({ name, ...glyph });
   }
-  return output.length > 0 ? output : undefined;
+  return output.length > 0
+    ? { glyphs: output, privateDict: type1PrivateDict(parsed.privateText, parsed.scale) }
+    : undefined;
 }
 
 const encoder = new TextEncoder();
@@ -43,6 +35,7 @@ function type1Program(bytes: Uint8Array):
       scale: number;
       subroutines: Map<number, Uint8Array>;
       charStrings: Map<string, Uint8Array>;
+      privateText: string;
     }
   | undefined {
   const program = unwrapType1Program(bytes);
@@ -66,7 +59,49 @@ function type1Program(bytes: Uint8Array):
   );
   const charStrings = readCharStringEntries(privateProgram, privateText, lenIV);
   if (charStrings.size === 0) return undefined;
-  return { scale, subroutines, charStrings };
+  return { scale, subroutines, charStrings, privateText };
+}
+
+function type1PrivateDict(text: string, scale: number): Record<string, number | number[]> {
+  const factor = scale * 1000;
+  const output: Record<string, number | number[]> = {};
+  const arrays = [
+    "BlueValues",
+    "OtherBlues",
+    "FamilyBlues",
+    "FamilyOtherBlues",
+    "StemSnapH",
+    "StemSnapV",
+  ];
+  for (const name of arrays) {
+    const match = new RegExp(`/${name}\\s*\\[([^\\]]*)\\]`).exec(text);
+    if (!match?.[1]) continue;
+    const values = match[1].match(/[+-]?(?:\d+(?:\.\d*)?|\.\d+)/g)?.map(Number);
+    if (values?.length)
+      output[name[0]?.toLowerCase() + name.slice(1)] = values.map((value) => value * factor);
+  }
+  const numbers = [
+    "BlueScale",
+    "BlueShift",
+    "BlueFuzz",
+    "StdHW",
+    "StdVW",
+    "LanguageGroup",
+    "ExpansionFactor",
+  ];
+  for (const name of numbers) {
+    const match = new RegExp(`/${name}\\s+(?:\\[\\s*)?([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))`).exec(
+      text,
+    );
+    if (!match?.[1]) continue;
+    const value = Number(match[1]);
+    const scaled = /^(?:BlueScale|LanguageGroup|ExpansionFactor)$/.test(name)
+      ? value
+      : value * factor;
+    output[name[0]?.toLowerCase() + name.slice(1)] = scaled;
+  }
+  if (/\/ForceBold\s+true\b/.test(text)) output.forceBold = 1;
+  return output;
 }
 
 function readCharStringEntries(
@@ -174,6 +209,24 @@ function interpretGlyph(
   let width: number | undefined;
   let operations = 0;
   let inFlex = false;
+  const type2Events: Type2Event[] = [];
+  let activeStems = new Set<Type1Stem>();
+  let initialStems: Set<Type1Stem> | undefined;
+  let replacementPending = false;
+  const type1Stems: Type1Stem[] = [];
+  const addStems = (orientation: Type1Stem["orientation"], values: number[]) => {
+    for (let index = 0; index + 1 < values.length; index += 2) {
+      const stem: Type1Stem = {
+        orientation,
+        position: values[index] ?? 0,
+        width: values[index + 1] ?? 0,
+      };
+      type1Stems.push(stem);
+      activeStems.add(stem);
+    }
+  };
+  const emit = (operator: number | [number, number], values: number[]) =>
+    type2Events.push({ operator, values: [...values] });
   const move = (dx: number, dy: number) => {
     x += dx;
     y += dy;
@@ -218,7 +271,12 @@ function interpretGlyph(
       }
       if (operator === 10) {
         const subroutine = subroutines.get(Math.trunc(stack.pop() ?? -1));
+        const activatesReplacement = replacementPending;
+        if (activatesReplacement) replacementPending = false;
         if (!subroutine || !run(subroutine, depth + 1)) return false;
+        if (activatesReplacement) {
+          type2Events.push({ activeStems: new Set(activeStems) });
+        }
         continue;
       }
       if (operator === 11) return true;
@@ -226,6 +284,8 @@ function interpretGlyph(
         const escaped = program[index] as number;
         index += 1;
         if (escaped === 0 || escaped === 1 || escaped === 2) {
+          if (escaped === 1) addStems("vertical", stack);
+          if (escaped === 2) addStems("horizontal", stack);
           stack.length = 0;
           continue;
         }
@@ -235,8 +295,16 @@ function interpretGlyph(
           x = sbx;
           y = sby;
           width = advance;
+          emit(21, [sbx, sby]);
           stack.length = 0;
           continue;
+        }
+        if (escaped === 6) {
+          if (stack.length < 5) return false;
+          const [asb = 0, adx = 0, ady = 0, bchar = 0, achar = 0] = stack;
+          emit(14, [adx + x - asb, ady, bchar, achar]);
+          stack.length = 0;
+          return width !== undefined;
         }
         if (escaped === 12 && stack.length >= 2) {
           const divisor = stack.pop() as number;
@@ -265,10 +333,22 @@ function interpretGlyph(
               0,
             );
             curve(values.slice(8, 14), 0);
+            emit(
+              [12, 35],
+              [
+                (values[2] ?? 0) + (values[0] ?? 0),
+                (values[3] ?? 0) + (values[1] ?? 0),
+                ...values.slice(4, 15),
+              ],
+            );
             inFlex = false;
             stack.push(values[15] ?? 0, values[16] ?? 0);
           } else if (subroutine === 2 && argumentCount !== 0) {
             return false;
+          } else if (subroutine === 3 && argumentCount === 1) {
+            initialStems ??= new Set(activeStems);
+            activeStems = new Set();
+            replacementPending = true;
           }
           continue;
         }
@@ -284,7 +364,10 @@ function interpretGlyph(
       const values = stack.splice(0);
       switch (operator) {
         case 1:
+          addStems("horizontal", values);
+          break;
         case 3:
+          addStems("vertical", values);
           break;
         case 4:
           if (inFlex) {
@@ -292,19 +375,24 @@ function interpretGlyph(
             break;
           }
           move(0, values.at(-1) ?? 0);
+          emit(4, [values.at(-1) ?? 0]);
           break;
         case 5:
           for (let offset = 0; offset + 1 < values.length; offset += 2)
             line(values[offset] ?? 0, values[offset + 1] ?? 0);
+          emit(5, values);
           break;
         case 6:
           for (const value of values) line(value, 0);
+          emit(6, values);
           break;
         case 7:
           for (const value of values) line(0, value);
+          emit(7, values);
           break;
         case 8:
           for (let offset = 0; offset + 5 < values.length; offset += 6) curve(values, offset);
+          emit(8, values);
           break;
         case 9:
           commands.push({ type: "Z" });
@@ -314,6 +402,7 @@ function interpretGlyph(
           x = values[0] ?? 0;
           y = 0;
           width = values[1];
+          emit(22, [values[0] ?? 0]);
           break;
         case 14:
           return width !== undefined;
@@ -324,6 +413,7 @@ function interpretGlyph(
           }
           if (values.length < 2) return false;
           move(values.at(-2) ?? 0, values.at(-1) ?? 0);
+          emit(21, [values.at(-2) ?? 0, values.at(-1) ?? 0]);
           break;
         case 22:
           if (inFlex) {
@@ -331,6 +421,7 @@ function interpretGlyph(
             break;
           }
           move(values.at(-1) ?? 0, 0);
+          emit(22, [values.at(-1) ?? 0]);
           break;
         case 30:
         case 31: {
@@ -365,6 +456,7 @@ function interpretGlyph(
             offset += offset + 4 === values.length - 1 ? 5 : 4;
             verticalFirst = !verticalFirst;
           }
+          emit(operator, values);
           break;
         }
         default:
@@ -373,7 +465,18 @@ function interpretGlyph(
     }
     return true;
   };
-  return run(bytes, 0) && width !== undefined ? { width: width * scale, commands } : undefined;
+  if (!run(bytes, 0) || width === undefined || type1Stems.length > 96) return undefined;
+  return {
+    width: width * scale,
+    commands,
+    type2CharString: encodeType2CharString(
+      width,
+      type1Stems,
+      initialStems ?? new Set(type1Stems),
+      type2Events,
+      scale,
+    ),
+  };
 }
 
 function decodeNumber(
@@ -466,3 +569,4 @@ function hexValue(byte: number): number {
 }
 
 import { findBytes } from "./bytes.js";
+import { encodeType2CharString, type Type1Stem, type Type2Event } from "./type2-charstring.js";
