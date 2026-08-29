@@ -785,6 +785,7 @@ describe("HTML writer", () => {
       spans: [source],
     });
     expect(source.text).toBe("ffi");
+    expect(html).toContain('aria-label="ffi"');
     expect(html).toContain(String.fromCodePoint(0xf0002));
     expect(html).not.toContain(">ffi</text>");
   });
