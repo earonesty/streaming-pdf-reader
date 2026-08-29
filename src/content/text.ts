@@ -59,7 +59,6 @@ export async function extractPageText(
   const spans: TextSpan[] = [];
   const state = createTextState();
   state.ctm = pageOriginMatrix(page.mediaBox);
-
   for (const bytes of streams) {
     await interpret(
       reader,
@@ -77,7 +76,6 @@ export async function extractPageText(
   visualSpans?.push(...spans.map(asVisualSpan));
   return reorderBidiLines(spans);
 }
-
 function asVisualSpan(span: TextSpan): TextSpan {
   const arabic = /[\u0600-\u08ff\ufb50-\ufdff\ufe70-\ufeff]/u.test(span.text);
   return {
@@ -86,7 +84,6 @@ function asVisualSpan(span: TextSpan): TextSpan {
     bounds: { ...span.bounds },
   };
 }
-
 async function interpret(
   reader: PdfObjectReader,
   bytes: Uint8Array,
@@ -287,15 +284,21 @@ async function applyOperator(
     case "TJ": {
       const array = args.at(-1);
       if (Array.isArray(array)) {
+        let adjustmentBefore = 0;
         for (const item of array) {
-          if (isPdfString(item)) showString(item, state, fonts, spans, page);
-          else if (typeof item === "number") {
+          if (isPdfString(item)) {
+            showString(item, state, fonts, spans, page, adjustmentBefore);
+            adjustmentBefore = 0;
+          } else if (typeof item === "number") {
             const vertical = fonts.get(state.font ?? "")?.writingMode === "vertical";
+            const adjustment =
+              (-item / 1000) * state.fontSize * (vertical ? 1 : state.horizontalScale);
             state.textMatrix = translate(
               state.textMatrix,
-              vertical ? 0 : (-item / 1000) * state.fontSize * state.horizontalScale,
-              vertical ? (-item / 1000) * state.fontSize : 0,
+              vertical ? 0 : adjustment,
+              vertical ? adjustment : 0,
             );
+            adjustmentBefore += adjustment;
           }
         }
       }
@@ -371,6 +374,7 @@ function showString(
   fonts: Map<string, FontDecoder>,
   spans: TextSpan[],
   page: ParsedPage,
+  textAdjustmentBefore = 0,
 ): void {
   const font = fonts.get(state.font ?? "");
   const vertical = font?.writingMode === "vertical";
@@ -429,6 +433,7 @@ function showString(
   spans.push({
     text: visible.text,
     ...(hasLeadingSpace ? { hasLeadingSpace: true } : {}),
+    ...(textAdjustmentBefore !== 0 ? { textAdjustmentBefore } : {}),
     bounds: {
       x,
       y,

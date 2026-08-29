@@ -39,7 +39,7 @@ describe("Poppler positioned HTML oracle", () => {
           (chunk) => {
             chunks.push(chunk);
           },
-          { includeDocument: false },
+          { includeDocument: false, includeStyles: false },
         );
       } finally {
         reader.close();

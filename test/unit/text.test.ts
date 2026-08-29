@@ -262,6 +262,11 @@ trailer
     expect(pages[0]?.spans[0]?.bounds.height).toBeCloseTo(20, 5);
     expect(pages[0]?.spans[0]?.fontSize).toBeCloseTo(20, 5);
     expect(pages[0]?.spans[0]?.transform).toEqual([0, -1, 1, 0]);
+    expect(pages[0]?.spans[2]).toMatchObject({
+      text: "C",
+      hasLeadingSpace: true,
+      textAdjustmentBefore: -0.8,
+    });
     expect(pages[0]?.spans.map((span) => span.color)).toEqual([
       "#336699",
       "#808080",

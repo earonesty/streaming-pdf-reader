@@ -14,6 +14,8 @@ export interface SourceRef {
 export interface TextSpan {
   text: string;
   hasLeadingSpace?: boolean | undefined;
+  /** Signed PDF text-space displacement immediately before this span; positive advances. */
+  textAdjustmentBefore?: number | undefined;
   bounds: Rect;
   direction: "ltr" | "rtl" | "ttb";
   /** PDF page-resource font identifier, such as `F1`. */
