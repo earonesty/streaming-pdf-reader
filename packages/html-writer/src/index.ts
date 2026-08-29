@@ -375,7 +375,7 @@ function visualTextLine(
 
 function visualTextTspan(span: TextSpan, dx: number | undefined): string {
   const extent = span.bounds.width;
-  const offset = dx === undefined ? "" : ` dx="${number(dx)}"`;
+  const offset = dx === undefined || number(dx) === "0" ? "" : ` dx="${number(dx)}"`;
   const length =
     extent > 0
       ? ` textLength="${number(extent)}" lengthAdjust="${usesSpacingAdjustment(span) ? "spacing" : "spacingAndGlyphs"}"`

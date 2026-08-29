@@ -73,6 +73,24 @@ describe("HTML writer", () => {
     expect(html).toContain(">Trace</text>");
   });
 
+  it("omits zero tspan offsets while retaining exact span extents", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [
+        { ...span("paths", 20, 700), bounds: { x: 20, y: 700, width: 26, height: 12 } },
+        {
+          ...span("through", 46, 700),
+          hasLeadingSpace: true,
+          bounds: { x: 46, y: 700, width: 38, height: 12 },
+        },
+      ],
+    });
+
+    expect(html.match(/<tspan/g)).toHaveLength(2);
+    expect(html).not.toContain('dx="0"');
+    expect(html).toContain('<tspan textLength="38"');
+  });
+
   it("keeps visual spans separate across style and baseline boundaries", async () => {
     const html = await pageToHtml({
       ...page,
