@@ -8,7 +8,7 @@ import { buildType1Font } from "../support/type1-font.js";
 
 describe("PDF.js embedded and vertical font geometry oracle", () => {
   it("uses an embedded Type 1 width when PDF.js substitutes a fallback", async () => {
-    const fontFile = buildType1Font(600);
+    const fontFile = buildType1Font(600, { blueScale: 0.0415, expansionFactor: 0.075 });
     const bytes = buildPdfObjects([
       "<< /Type /Catalog /Pages 2 0 R >>",
       "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
@@ -37,6 +37,8 @@ describe("PDF.js embedded and vertical font geometry oracle", () => {
       expect(new TextDecoder("latin1").decode(asset.data.subarray(0, 4))).toBe("OTTO");
       const converted = opentype.parse(asset.data.slice().buffer as ArrayBuffer);
       expect(converted.tables.cff?.topDict.private[1]).toBeGreaterThan(0);
+      expect(converted.tables.cff?.topDict._privateDict.blueScale).toBe(0.0415);
+      expect(converted.tables.cff?.topDict._privateDict.expansionFactor).toBe(0.075);
       expect(actual.fontAssetId).toBe(asset?.id);
     } finally {
       reader.close();

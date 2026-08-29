@@ -4,6 +4,8 @@ interface Type1FontOptions {
   widthOperator?: "hsbw" | "sbw" | "subroutine" | "div";
   lenIV?: number;
   dynamicHints?: boolean;
+  blueScale?: number;
+  expansionFactor?: number;
 }
 
 export function buildType1Font(width: number, options: Type1FontOptions = {}): Uint8Array {
@@ -14,7 +16,7 @@ export function buildType1Font(width: number, options: Type1FontOptions = {}): U
       : options.widthOperator === "div"
         ? [139, ...encodeNumber(width * 2), ...encodeNumber(2), 12, 12, 13]
         : options.widthOperator === "subroutine"
-          ? [139, 10]
+          ? [...encodeNumber(options.dynamicHints ? 4 : 0), 10]
           : [139, ...encodeNumber(width), 13];
   const dynamicProgram = options.dynamicHints
     ? [
@@ -28,7 +30,7 @@ export function buildType1Font(width: number, options: Type1FontOptions = {}): U
         16,
         12,
         17,
-        ...encodeNumber(options.widthOperator === "subroutine" ? 1 : 0),
+        ...encodeNumber(options.widthOperator === "subroutine" ? 5 : 4),
         10,
         ...encodeNumber(30),
         ...encodeNumber(40),
@@ -43,6 +45,7 @@ export function buildType1Font(width: number, options: Type1FontOptions = {}): U
   );
   const charString = lenIV < 0 ? charStringPlain : encrypt(charStringPlain, 4_330);
   const subroutinePrograms: number[][] = [];
+  if (options.dynamicHints) subroutinePrograms.push([11], [11], [11], [11]);
   if (options.widthOperator === "subroutine")
     subroutinePrograms.push([139, ...encodeNumber(width), 13, 11]);
   if (options.dynamicHints)
@@ -52,7 +55,7 @@ export function buildType1Font(width: number, options: Type1FontOptions = {}): U
     return lenIV < 0 ? plain : encrypt(plain, 4_330);
   });
   const privatePrefix = new TextEncoder().encode(
-    `/lenIV ${lenIV} def\n/BlueValues [-20 0 450 470] def\n/StemSnapH [30 38] def\n${subroutines.length > 0 ? `/Subrs ${subroutines.length} array ` : ""}`,
+    `/lenIV ${lenIV} def\n/BlueValues [-20 0 450 470] def\n/BlueScale ${options.blueScale ?? 0.039625} def\n/ExpansionFactor ${options.expansionFactor ?? 0.06} def\n/StemSnapH [30 38] def\n${subroutines.length > 0 ? `/Subrs ${subroutines.length} array ` : ""}`,
   );
   const encodedSubroutines = subroutines.flatMap((subroutine, index) => [
     new TextEncoder().encode(`dup ${index} ${subroutine.length} RD `),
