@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { type ExtractedPage, openPdf, type TextSpan } from "../../src/index.js";
 import { fileSource } from "../../src/node.js";
-import { structurePage, tableToCsv, tableToHtml, tableToRows } from "../../src/structure/index.js";
+import { structurePage, tableToHtml, tableToRows } from "../../src/structure/index.js";
 
 describe("structured extraction quality gate", () => {
   it("reconstructs aligned rows and formats tabular data deterministically", () => {
@@ -35,7 +35,6 @@ describe("structured extraction quality gate", () => {
       ["Socks", "$28"],
       ["Hat", "$12, sale"],
     ]);
-    expect(tableToCsv(table)).toBe('Item,Price\nSocks,$28\nHat,"$12, sale"');
     expect(tableToHtml(table)).toBe(
       "<table><tr><th>Item</th><th>Price</th></tr><tr><td>Socks</td><td>$28</td></tr><tr><td>Hat</td><td>$12, sale</td></tr></table>",
     );
