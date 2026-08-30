@@ -1,6 +1,13 @@
 import UTIF from "utif2";
+import { PdfError } from "../errors.js";
+
+const MAX_MASK_PIXELS = 8 * 1024 * 1024;
 
 export function decodeGroup4Mask(data: Uint8Array, width: number, height: number): Uint8Array {
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0)
+    throw new RangeError("CCITT mask dimensions must be positive safe integers");
+  if (width > Math.floor(MAX_MASK_PIXELS / height))
+    throw new PdfError("RESOURCE_LIMIT", "CCITT mask exceeds the decoded pixel limit");
   const tiff = group4Tiff(data, width, height);
   const buffer = tiff.slice().buffer as ArrayBuffer;
   const ifd = UTIF.decode(buffer)[0];

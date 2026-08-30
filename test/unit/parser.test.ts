@@ -44,4 +44,13 @@ describe("ValueParser", () => {
     if (message) expect(action).toThrow(message);
     else expect(action()).toBe("nope");
   });
+
+  it("rejects values beyond the configured nesting depth", () => {
+    expect(() => new ValueParser(encode("[[[0]]]"), 0, 2).parseValue()).toThrow(
+      "maximum nesting depth",
+    );
+    expect(() =>
+      new ValueParser(encode("<< /A << /B << /C 0 >> >> >>"), 0, 2).parseValue(),
+    ).toThrow("maximum nesting depth");
+  });
 });

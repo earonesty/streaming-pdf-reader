@@ -1,3 +1,4 @@
+import { PdfError } from "../errors.js";
 import { ValueParser } from "../syntax/parser.js";
 import type { PdfValue } from "../syntax/values.js";
 import type { VectorFill } from "../types.js";
@@ -5,6 +6,7 @@ import { decodeGroup4Mask } from "./ccitt.js";
 import { type Matrix, multiply, transformPoint } from "./text-matrix.js";
 
 const latin1 = new TextDecoder("latin1");
+const MAX_MASK_FILLS = 100_000;
 
 export function extractInlineImageMaskFills(bytes: Uint8Array, initialCtm: Matrix): VectorFill[] {
   const parser = new ValueParser(bytes);
@@ -36,7 +38,16 @@ export function extractInlineImageMaskFills(bytes: Uint8Array, initialCtm: Matri
     } else if (value === "BI") {
       const image = readInlineMask(bytes, parser.offset, decodeCcitt);
       if (!image) break;
-      fills.push(...maskFills(image.data, image.width, image.height, image.paintZero, ctm));
+      fills.push(
+        ...maskFills(
+          image.data,
+          image.width,
+          image.height,
+          image.paintZero,
+          ctm,
+          MAX_MASK_FILLS - fills.length,
+        ),
+      );
       parser.offset = image.end;
     }
     operands.length = 0;
@@ -94,6 +105,7 @@ function maskFills(
   height: number,
   paintZero: boolean,
   ctm: Matrix,
+  maxFills: number,
 ): VectorFill[] {
   const stride = Math.ceil(width / 8);
   const fills: VectorFill[] = [];
@@ -105,6 +117,8 @@ function maskFills(
       const painted = paintZero ? bit === 0 : bit === 1;
       if (painted && start < 0) start = column;
       if (!painted && start >= 0) {
+        if (fills.length >= maxFills)
+          throw new PdfError("RESOURCE_LIMIT", "Type3 mask exceeds the vector fill limit");
         const top = 1 - row / height;
         const bottom = 1 - (row + 1) / height;
         fills.push({

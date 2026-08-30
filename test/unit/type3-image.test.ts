@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { decodeGroup4Mask } from "../../src/content/ccitt.js";
 import { extractInlineImageMaskFills } from "../../src/content/type3-image.js";
 
 describe("Type3 inline image masks", () => {
@@ -54,4 +55,32 @@ describe("Type3 inline image masks", () => {
     const fills = extractInlineImageMaskFills(bytes, [1, 0, 0, 1, 0, 0]);
     expect(fills.length).toBeGreaterThan(100);
   });
+
+  it("rejects Group 4 masks whose decoded bitmap exceeds the pixel limit", () => {
+    expect(() => decodeGroup4Mask(Uint8Array.of(0), 100_000, 100_000)).toThrow(
+      "decoded pixel limit",
+    );
+  });
+
+  it("enforces the vector fill limit across multiple inline masks", () => {
+    const first = inlineMask(200_000, new Uint8Array(25_000).fill(0x55));
+    const second = inlineMask(8, Uint8Array.of(0x40));
+    const bytes = new Uint8Array(first.length + second.length);
+    bytes.set(first);
+    bytes.set(second, first.length);
+
+    expect(() => extractInlineImageMaskFills(bytes, [1, 0, 0, 1, 0, 0])).toThrow(
+      "vector fill limit",
+    );
+  });
 });
+
+function inlineMask(width: number, data: Uint8Array): Uint8Array {
+  const prefix = new TextEncoder().encode(`BI /W ${width} /H 1 /BPC 1 /IM true /D [1 0] ID\n`);
+  const suffix = new TextEncoder().encode("\nEI ");
+  const bytes = new Uint8Array(prefix.length + data.length + suffix.length);
+  bytes.set(prefix);
+  bytes.set(data, prefix.length);
+  bytes.set(suffix, prefix.length + data.length);
+  return bytes;
+}

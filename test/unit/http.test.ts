@@ -10,7 +10,7 @@ describe("httpSource", () => {
       requests.push(init ?? {});
       return requests.length === 1
         ? response([1], 206, { "content-range": "bytes 0-0/4", etag: '"v1"' })
-        : response([20, 30], 206);
+        : response([20, 30], 206, { "content-range": "bytes 1-2/4", etag: '"v1"' });
     });
     const source = await httpSource("https://example.test/file.pdf", {
       fetch: fetcher,
@@ -125,6 +125,52 @@ describe("httpSource", () => {
       });
       await expect(source.read(0, 2)).rejects.toThrow(/range request returned/);
     }
+  });
+
+  it("rejects a partial response for a different byte range or entity", async () => {
+    for (const result of [
+      response([20, 30], 206, { "content-range": "bytes 0-1/4", etag: '"v1"' }),
+      response([20, 30], 206, { "content-range": "bytes 1-2/4", etag: '"v2"' }),
+    ]) {
+      let calls = 0;
+      const source = await httpSource("https://example.test/file.pdf", {
+        fetch: vi.fn(async () => {
+          calls += 1;
+          return calls === 1
+            ? response([0], 206, { "content-range": "bytes 0-0/4", etag: '"v1"' })
+            : result;
+        }),
+      });
+      await expect(source.read(1, 2)).rejects.toThrow(/Content-Range|source changed/);
+    }
+  });
+
+  it("rejects a full response after an If-Range probe", async () => {
+    let calls = 0;
+    const source = await httpSource("https://example.test/file.pdf", {
+      fetch: vi.fn(async () => {
+        calls += 1;
+        return calls === 1
+          ? response([0], 206, { "content-range": "bytes 0-0/4", etag: '"v1"' })
+          : response([10, 20, 30, 40], 200);
+      }),
+    });
+
+    await expect(source.read(1, 2)).rejects.toThrow("HTTP source changed");
+  });
+
+  it("does not send a weak ETag in If-Range", async () => {
+    const requests: RequestInit[] = [];
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(init ?? {});
+      return requests.length === 1
+        ? response([0], 206, { "content-range": "bytes 0-0/4", etag: 'W/"v1"' })
+        : response([10, 20, 30, 40], 200);
+    });
+    const source = await httpSource("https://example.test/file.pdf", { fetch: fetcher });
+
+    await expect(source.read(1, 2)).resolves.toEqual(Uint8Array.of(20, 30));
+    expect(new Headers(requests[1]?.headers).get("if-range")).toBeNull();
   });
 });
 

@@ -90,15 +90,6 @@ const pdf = await openPdf(await httpSource("https://example.com/large.pdf"));
 const firstPage = await pdf.getPage(0);
 ```
 
-Infer reading-order lines and aligned tables, then format a table:
-
-```ts
-import { structurePage, tableToCsv } from "@boxpdf/reader/structure";
-
-const structured = structurePage(firstPage);
-const csv = structured.tables[0] ? tableToCsv(structured.tables[0]) : undefined;
-```
-
 ## v1 support
 
 The v1 parser supports:
@@ -115,7 +106,7 @@ The v1 parser supports:
   top-to-bottom structure grouping
 - bounded sparse byte caching with source-read and resident-byte telemetry
 - a configurable packed-xref byte ceiling with resident-byte telemetry
-- deterministic line grouping, aligned-table inference, and rows, CSV, and HTML formatting
+- semantic HTML with heuristic reading-order and table inference based on repeated text alignment
 
 Encrypted PDFs, damaged-file repair, inline images in content streams, uncommon
 stream filters, Type1C/CFF width recovery, named CMap collections without a
@@ -140,7 +131,7 @@ intentionally unsupported. This score covers page count,
 dimensions, rotation, normalized decoded characters, and the first text origin
 on unrotated pages. Focused geometry tests additionally compare span width,
 height, font size, and transformed positions. Structure goldens cover reading
-order, inferred word boundaries, rows, CSV, and HTML. The scoring limits and the
+order, inferred word boundaries, table rows, and semantic HTML. The scoring limits and the
 layout gap found after v0.1.1 are recorded in `docs/PARITY_PLAN.md`.
 
 Memory tests extract from 10 MB and 1 GB virtual random-access PDFs with the

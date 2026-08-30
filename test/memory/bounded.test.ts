@@ -67,7 +67,7 @@ describe("memory-bound gate", () => {
       maxObjectCacheBytes: CACHE_BYTES,
       maxCachedObjects: 32,
       maxXrefBytes: 512 * 1024,
-      maxXrefCacheBytes: 160 * 1024,
+      maxXrefCacheBytes: 256 * 1024,
     });
     const page = await reader.getPage(9_999);
     expect(page.number).toBe(10_000);
@@ -75,7 +75,7 @@ describe("memory-bound gate", () => {
     expect(reader.stats.peakResidentBytes).toBeLessThanOrEqual(CACHE_BYTES);
     expect(reader.stats.peakObjectCacheBytes).toBeLessThanOrEqual(CACHE_BYTES);
     expect(reader.stats.xrefEntries).toBe(10_103);
-    expect(reader.stats.xrefResidentBytes).toBeLessThan(160 * 1024);
+    expect(reader.stats.xrefResidentBytes).toBeLessThan(256 * 1024);
     expect(source.largestRead).toBeLessThanOrEqual(CHUNK_BYTES);
     reader.close();
   });

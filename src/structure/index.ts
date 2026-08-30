@@ -72,12 +72,6 @@ export function tableToRows(table: Table): string[][] {
   return rows;
 }
 
-export function tableToCsv(table: Table): string {
-  return tableToRows(table)
-    .map((row) => row.map(csvCell).join(","))
-    .join("\n");
-}
-
 export function tableToHtml(table: Table): string {
   const rows = tableToRows(table);
   const header = tableHasHeader(table);
@@ -413,10 +407,6 @@ function union(rectangles: Rect[]): Rect {
   const right = Math.max(...rectangles.map((rect) => rect.x + rect.width));
   const top = Math.max(...rectangles.map((rect) => rect.y + rect.height));
   return { x: left, y: bottom, width: right - left, height: top - bottom };
-}
-
-function csvCell(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
 function escapeHtml(value: string): string {

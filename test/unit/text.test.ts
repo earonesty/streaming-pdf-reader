@@ -13,6 +13,20 @@ import { fileSource } from "../../src/node.js";
 import type { TextSpan } from "../../src/types.js";
 
 describe("text flow normalization", () => {
+  it("releases page caches when page iteration stops early", async () => {
+    const source = await fileSource(
+      resolve(import.meta.dirname, "../../fixtures/pdfjs/basicapi.pdf"),
+    );
+    const reader = await openPdf(source);
+    try {
+      for await (const _page of reader.pages()) break;
+      expect(reader.stats.objectCacheBytes).toBe(0);
+    } finally {
+      reader.close();
+      await source.close();
+    }
+  });
+
   it("keeps embedded TrueType programs page-scoped and binds their spans", async () => {
     const source = await fileSource(
       resolve(import.meta.dirname, "../../fixtures/pdfjs/basicapi.pdf"),

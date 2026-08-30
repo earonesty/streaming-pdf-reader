@@ -1,24 +1,30 @@
 import type { PdfArray, PdfDict, PdfName, PdfRef, PdfString, PdfValue } from "./values.js";
 
 const decoder = new TextDecoder("latin1");
+const DEFAULT_MAX_NESTING_DEPTH = 128;
 
 export class ValueParser {
   readonly bytes: Uint8Array;
+  readonly maxNestingDepth: number;
   offset: number;
 
-  constructor(bytes: Uint8Array, offset = 0) {
+  constructor(bytes: Uint8Array, offset = 0, maxNestingDepth = DEFAULT_MAX_NESTING_DEPTH) {
     this.bytes = bytes;
     this.offset = offset;
+    this.maxNestingDepth = maxNestingDepth;
+    if (!Number.isSafeInteger(maxNestingDepth) || maxNestingDepth <= 0)
+      throw new RangeError("maxNestingDepth must be a positive safe integer");
   }
 
-  parseValue(): PdfValue {
+  parseValue(depth = 0): PdfValue {
+    if (depth > this.maxNestingDepth) throw new Error("PDF value exceeds maximum nesting depth");
     this.skipSpace();
     const byte = this.bytes[this.offset];
     if (byte === 0x2f) return this.parseName();
     if (byte === 0x28) return this.parseLiteralString();
-    if (byte === 0x3c && this.bytes[this.offset + 1] === 0x3c) return this.parseDict();
+    if (byte === 0x3c && this.bytes[this.offset + 1] === 0x3c) return this.parseDict(depth);
     if (byte === 0x3c) return this.parseHexString();
-    if (byte === 0x5b) return this.parseArray();
+    if (byte === 0x5b) return this.parseArray(depth);
     if (isNumberStart(byte)) return this.parseNumberOrRef();
 
     const word = this.readWord();
@@ -154,7 +160,7 @@ export class ValueParser {
     };
   }
 
-  private parseArray(): PdfArray {
+  private parseArray(depth: number): PdfArray {
     this.offset += 1;
     const values: PdfArray = [];
     while (true) {
@@ -163,11 +169,11 @@ export class ValueParser {
         this.offset += 1;
         return values;
       }
-      values.push(this.parseValue());
+      values.push(this.parseValue(depth + 1));
     }
   }
 
-  private parseDict(): PdfDict {
+  private parseDict(depth: number): PdfDict {
     this.offset += 2;
     const dict: PdfDict = new Map();
     while (true) {
@@ -177,7 +183,7 @@ export class ValueParser {
         return dict;
       }
       const key = this.parseName();
-      dict.set(key.value, this.parseValue());
+      dict.set(key.value, this.parseValue(depth + 1));
     }
   }
 }
