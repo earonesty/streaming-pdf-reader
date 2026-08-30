@@ -73,7 +73,7 @@ describe("HTML writer", () => {
     expect(html).toContain(">Trace</text>");
   });
 
-  it("coalesces tightened PDF fragments without coalescing separated words", async () => {
+  it("coalesces tightened PDF fragments without losing separated-word whitespace", async () => {
     const tightened = await pageToHtml({
       ...page,
       spans: [
@@ -100,7 +100,8 @@ describe("HTML writer", () => {
     expect(tightened).toContain('textLength="63"');
     expect(tightened).toContain(">pathsthrough</text>");
     expect(tightened).not.toContain("<tspan");
-    expect(separated.match(/<tspan/g)).toHaveLength(2);
+    expect(separated).toContain(">paths through</text>");
+    expect(separated).not.toContain("<tspan");
   });
 
   it("omits zero tspan offsets while retaining exact span extents", async () => {
@@ -134,6 +135,28 @@ describe("HTML writer", () => {
 
     expect(html.match(/<text/g)).toHaveLength(3);
     expect(html.match(/<tspan/g)).toHaveLength(2);
+  });
+
+  it("serializes positively spaced PDF words as one text run", async () => {
+    const html = await pageToHtml({
+      ...page,
+      spans: [
+        {
+          ...span("paths", 20, 700),
+          fontAssetId: "font-1",
+          bounds: { x: 20, y: 700, width: 26, height: 12 },
+        },
+        {
+          ...span("through", 50, 700),
+          fontAssetId: "font-1",
+          textAdjustmentBefore: 4,
+          bounds: { x: 50, y: 700, width: 38, height: 12 },
+        },
+      ],
+    });
+
+    expect(html).toContain('textLength="68" lengthAdjust="spacing">paths through</text>');
+    expect(html).not.toContain("<tspan");
   });
 
   it("deduplicates repeated visual text styles into page-scoped CSS classes", async () => {

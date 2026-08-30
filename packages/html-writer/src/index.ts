@@ -368,6 +368,13 @@ function visualTextLine(
   if (endIndex === startIndex) return undefined;
   const baseline = pageHeight - first.bounds.y;
   const lineSpans = spans.slice(startIndex, endIndex + 1);
+  const wholeRun = visualWholeTextRun(lineSpans);
+  if (wholeRun) {
+    return {
+      html: `<text class="${className}" x="${number(first.bounds.x)}" y="${number(baseline)}" textLength="${number(wholeRun.extent)}" lengthAdjust="spacing">${escapeHtml(wholeRun.text)}</text>`,
+      endIndex,
+    };
+  }
   const content = lineSpans
     .map((span, index) =>
       visualTextTspan(span, index > 0 ? textSpanGap(lineSpans[index - 1], span) : undefined),
@@ -376,6 +383,25 @@ function visualTextLine(
   return {
     html: `<text class="${className}" x="${number(first.bounds.x)}" y="${number(baseline)}">${content}</text>`,
     endIndex,
+  };
+}
+
+function visualWholeTextRun(spans: TextSpan[]): { text: string; extent: number } | undefined {
+  const first = spans[0];
+  const last = spans.at(-1);
+  if (!first || !last || spans.length < 2) return undefined;
+  for (let index = 1; index < spans.length; index += 1) {
+    const previous = spans[index - 1];
+    const current = spans[index];
+    if (!previous || !current || current.textAdjustmentBefore === undefined) return undefined;
+    const gap = current.bounds.x - (previous.bounds.x + previous.bounds.width);
+    if (current.textAdjustmentBefore <= 0 || Math.abs(current.textAdjustmentBefore - gap) > 0.001) {
+      return undefined;
+    }
+  }
+  return {
+    text: spans.map((span) => span.text).join(" "),
+    extent: last.bounds.x + last.bounds.width - first.bounds.x,
   };
 }
 
