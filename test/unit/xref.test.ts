@@ -40,6 +40,12 @@ describe("packed xref index", () => {
     expect(index.residentBytes).toBe(1024 * 13 + 8);
   });
 
+  it("requires enough cache space for one direct entry", () => {
+    expect(() => new XrefIndex(1024 * 13)).toThrow("must be at least 13320");
+    const index = new XrefIndex(1024 * 13 + 8);
+    expect(() => index.set(1, { kind: "direct", offset: 10, generation: 0 })).not.toThrow();
+  });
+
   it("keeps direct offsets sorted after entries change", () => {
     const index = new XrefIndex();
     index.set(1, { kind: "direct", offset: 30, generation: 0 });

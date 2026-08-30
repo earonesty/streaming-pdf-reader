@@ -61,4 +61,26 @@ describe("Type3 inline image masks", () => {
       "decoded pixel limit",
     );
   });
+
+  it("enforces the vector fill limit across multiple inline masks", () => {
+    const first = inlineMask(200_000, new Uint8Array(25_000).fill(0x55));
+    const second = inlineMask(8, Uint8Array.of(0x40));
+    const bytes = new Uint8Array(first.length + second.length);
+    bytes.set(first);
+    bytes.set(second, first.length);
+
+    expect(() => extractInlineImageMaskFills(bytes, [1, 0, 0, 1, 0, 0])).toThrow(
+      "vector fill limit",
+    );
+  });
 });
+
+function inlineMask(width: number, data: Uint8Array): Uint8Array {
+  const prefix = new TextEncoder().encode(`BI /W ${width} /H 1 /BPC 1 /IM true /D [1 0] ID\n`);
+  const suffix = new TextEncoder().encode("\nEI ");
+  const bytes = new Uint8Array(prefix.length + data.length + suffix.length);
+  bytes.set(prefix);
+  bytes.set(data, prefix.length);
+  bytes.set(suffix, prefix.length + data.length);
+  return bytes;
+}

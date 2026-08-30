@@ -37,7 +37,8 @@ export async function httpSource(
     throw new Error("HTTP source must support byte ranges and return a valid Content-Range");
   }
   const size = Number(match[1]);
-  const etag = probe.headers.get("etag");
+  const probeEtag = probe.headers.get("etag");
+  const etag = probeEtag && !/^W\//i.test(probeEtag) ? probeEtag : null;
   await probe.arrayBuffer();
 
   return {

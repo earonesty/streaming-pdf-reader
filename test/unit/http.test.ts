@@ -158,6 +158,20 @@ describe("httpSource", () => {
 
     await expect(source.read(1, 2)).rejects.toThrow("HTTP source changed");
   });
+
+  it("does not send a weak ETag in If-Range", async () => {
+    const requests: RequestInit[] = [];
+    const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(init ?? {});
+      return requests.length === 1
+        ? response([0], 206, { "content-range": "bytes 0-0/4", etag: 'W/"v1"' })
+        : response([10, 20, 30, 40], 200);
+    });
+    const source = await httpSource("https://example.test/file.pdf", { fetch: fetcher });
+
+    await expect(source.read(1, 2)).resolves.toEqual(Uint8Array.of(20, 30));
+    expect(new Headers(requests[1]?.headers).get("if-range")).toBeNull();
+  });
 });
 
 function response(bytes: number[], status: number, headers?: HeadersInit): Response {

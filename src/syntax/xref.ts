@@ -16,6 +16,7 @@ export type XrefEntry = DirectXrefEntry | CompressedXrefEntry;
 
 const CHUNK_SIZE = 1024;
 const BYTES_PER_CHUNK = CHUNK_SIZE * (1 + 8 + 4);
+const MIN_CACHE_BYTES = BYTES_PER_CHUNK + Float64Array.BYTES_PER_ELEMENT;
 
 interface XrefChunk {
   types: Uint8Array;
@@ -32,8 +33,8 @@ export class XrefIndex {
   #sortedDirectOffsets: Float64Array | undefined;
 
   constructor(maxBytes = 16 * 1024 * 1024) {
-    if (!Number.isSafeInteger(maxBytes) || maxBytes < BYTES_PER_CHUNK) {
-      throw new RangeError(`maxXrefCacheBytes must be at least ${BYTES_PER_CHUNK}`);
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < MIN_CACHE_BYTES) {
+      throw new RangeError(`maxXrefCacheBytes must be at least ${MIN_CACHE_BYTES}`);
     }
     this.#maxBytes = maxBytes;
   }
