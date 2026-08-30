@@ -83,7 +83,7 @@ void pageToHtml(page);
       "utf8",
     ),
   );
-  if (writerManifest.peerDependencies?.["@boxpdf/reader"] !== "^0.1.0") {
+  if (writerManifest.peerDependencies?.["@boxpdf/reader"] !== "^0.2.0") {
     throw new Error("writer archive has an unexpected reader peer range");
   }
   console.log("packed ESM, CJS, types, examples, license, and peer dependency are valid");

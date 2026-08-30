@@ -1,6 +1,6 @@
 {
   "name": "@boxpdf/html-writer",
-  "version": "0.1.27",
+  "version": "0.2.0",
   "description": "Stream PDF pages from @boxpdf/reader to visual or semantic HTML.",
   "keywords": [
     "pdf",
@@ -51,7 +51,7 @@
     "prepublishOnly": "pnpm quality"
   },
   "peerDependencies": {
-    "@boxpdf/reader": "^0.1.0"
+    "@boxpdf/reader": "^0.2.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",
