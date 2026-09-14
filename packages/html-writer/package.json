@@ -40,10 +40,11 @@
   "files": [
     "dist",
     "examples",
-    "README.md"
+    "README.md",
+    "THIRD_PARTY_LICENSES.txt"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean",
+    "build": "tsup",
     "check": "biome check --error-on-warnings . && tsc --noEmit",
     "test": "vitest run --coverage",
     "package:check": "publint && pnpm pack --dry-run",
@@ -57,16 +58,21 @@
     "@biomejs/biome": "^2.5.10",
     "@boxpdf/reader": "workspace:*",
     "@types/node": "^24.3.0",
+    "@types/pako": "2.0.4",
     "@vitest/coverage-v8": "4.1.11",
     "publint": "^0.3.24",
     "tsup": "^8.5.0",
     "typescript": "^5.9.2",
-    "vitest": "^4.0.0"
+    "vitest": "^4.0.0",
+    "jpeg-js": "0.4.4"
   },
   "publishConfig": {
     "access": "public"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "pako": "2.2.0"
   }
 }

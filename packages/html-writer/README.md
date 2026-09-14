@@ -123,3 +123,35 @@ strings are expected to differ.
 182.77 × 32.539 point CropBox. PDF.js, `pdfinfo`, and the reader expose the
 CropBox as page size; Poppler 22.02 `pdftohtml` emits the MediaBox. The writer
 keeps the PDF.js-compatible CropBox dimensions.
+
+## Image encoding and output size
+
+Raster images use compressed web formats. The default `imageEncoding: "lossless"`
+preserves existing JPEG bytes and encodes decoded RGB pixels as lossless PNG.
+BMP output has been removed, including from referenced assets; those asset names
+now end in `.png`, and their MIME type is `image/png`.
+
+For smaller output where some pixel changes are acceptable:
+
+```ts
+await writeHtmlDocument(pdf.pages(), write, {
+  profile: "visual",
+  imageEncoding: "compact",
+  imageQuality: 80,
+});
+```
+
+`"compact"` encodes decoded RGB images as PNG and JPEG, then keeps whichever is
+smaller. `imageQuality` controls newly encoded JPEGs on a scale of 1 to 100
+(default 80). Existing JPEG images pass through unchanged in both modes; this
+option does not recompress them or resize images. PDF placement and clipping
+remain unchanged. Images too large for JPEG's 16-bit dimensions remain PNG.
+
+These options work with visual HTML, semantic HTML, and Markdown, for both
+embedded images and references. Semantic output still requires an explicit
+`imageOptions: "embedded"` or `"references"` to include media. Referenced asset
+extensions and MIME types reflect the format actually selected.
+
+Compact encoding takes additional CPU time and allocates a temporary RGBA image
+for the JPEG encoder. Lossless PNG compression processes scanlines incrementally.
+The built-in compact codec is JPEG; WebP and AVIF are not currently implemented.

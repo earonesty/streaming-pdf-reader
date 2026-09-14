@@ -3,4 +3,5 @@ packages:
   - packages/*
 
 patchedDependencies:
+  jpeg-js@0.4.4: patches/jpeg-js@0.4.4.patch
   opentype.js@2.0.0: patches/opentype.js@2.0.0.patch

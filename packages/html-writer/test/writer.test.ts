@@ -250,7 +250,7 @@ describe("HTML writer", () => {
     });
 
     expect(html).toContain('transform="matrix(30 0 0 40 10 732)"');
-    expect(html).toContain('href="data:image/bmp;base64,');
+    expect(html).toContain('href="data:image/png;base64,');
     expect(html).toContain('href="data:image/jpeg;base64,/9j/2Q=="');
     expect(html.indexOf("<image")).toBeLessThan(html.indexOf("<text"));
   });
@@ -282,7 +282,7 @@ describe("HTML writer", () => {
 
     expect(assets).toEqual([
       { name: "page-1-image-1.jpg", mimeType: "image/jpeg" },
-      { name: "page-1-image-2.bmp", mimeType: "image/bmp" },
+      { name: "page-1-image-2.png", mimeType: "image/png" },
     ]);
     expect(referenced).toContain('href="page-1-image-1.jpg"');
     expect(referenced).not.toContain("data:image");
@@ -419,12 +419,12 @@ describe("HTML writer", () => {
         .map(({ name, mimeType }) => ({ name, mimeType }))
         .sort((a, b) => a.name.localeCompare(b.name)),
     ).toEqual([
-      { name: "page-1-image-1.bmp", mimeType: "image/bmp" },
+      { name: "page-1-image-1.png", mimeType: "image/png" },
       { name: "page-1-image-2.jpg", mimeType: "image/jpeg" },
       { name: "page-1-vector-1.svg", mimeType: "image/svg+xml" },
     ]);
     expect(new TextDecoder().decode(assets[1]?.data)).toContain("<svg");
-    expect(html).toContain('src="page-1-image-1.bmp"');
+    expect(html).toContain('src="page-1-image-1.png"');
     expect(html).toContain('src="page-1-image-2.jpg"');
     expect(html).toContain('src="page-1-vector-1.svg"');
     expect(html).not.toContain("data:image");
@@ -467,8 +467,8 @@ describe("HTML writer", () => {
       },
     );
 
-    expect(assets.sort()).toEqual(["page-1-image-1.bmp", "page-1-vector-1.svg"]);
-    expect(markdown).toContain("![](page-1-image-1.bmp)");
+    expect(assets.sort()).toEqual(["page-1-image-1.png", "page-1-vector-1.svg"]);
+    expect(markdown).toContain("![](page-1-image-1.png)");
     expect(markdown).toContain("![](page-1-vector-1.svg)");
     expect(markdown).not.toContain("<article");
   });

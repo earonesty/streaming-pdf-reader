@@ -1,0 +1,13 @@
+diff --git a/lib/encoder.js b/lib/encoder.js
+index fdbc1843e41c4882bd26777cf3a4e8a21bf01416..0111a6a7e3bf4233345a4c4dcbfda83eab33a2a7 100644
+--- a/lib/encoder.js
++++ b/lib/encoder.js
+@@ -728,7 +728,7 @@ function JPEGEncoder(quality) {
+ 	
+ 			writeWord(0xFFD9); //EOI
+ 
+-			if (typeof module === 'undefined') return new Uint8Array(byteout);
++			if (typeof Buffer === 'undefined') return new Uint8Array(byteout);
+       return Buffer.from(byteout);
+ 
+ 			var jpegDataUri = 'data:image/jpeg;base64,' + btoa(byteout.join(''));

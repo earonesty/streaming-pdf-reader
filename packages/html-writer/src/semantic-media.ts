@@ -6,6 +6,7 @@ import type {
   VectorFill,
   VectorPath,
 } from "@boxpdf/reader";
+import { encodeRaster, type ImageEncodingOptions } from "./raster-encoding.js";
 import {
   vectorFillBounds,
   vectorFillSvg,
@@ -26,7 +27,7 @@ export interface SemanticMedia {
 
 export interface HtmlImageAsset {
   name: string;
-  mimeType: "image/bmp" | "image/jpeg" | "image/svg+xml";
+  mimeType: "image/png" | "image/jpeg" | "image/svg+xml";
   data: Uint8Array;
 }
 
@@ -35,10 +36,11 @@ export type HtmlImageOptions = "embedded" | "references" | "excluded";
 export function semanticMedia(
   page: ExtractedPage,
   imageOptions: HtmlImageOptions = "embedded",
+  options: ImageEncodingOptions = {},
 ): SemanticMedia[] {
   if (imageOptions === "excluded") return [];
   const output = (page.images ?? []).map((image, index) =>
-    rasterMedia(image, page.number, index, imageOptions),
+    rasterMedia(image, page.number, index, imageOptions, options),
   );
   output.push(...vectorMedia(page, imageOptions));
   return mediaComponents(output, page).sort((left, right) => right.bounds.y - left.bounds.y);
@@ -48,8 +50,9 @@ export async function prepareSemanticMedia(
   page: ExtractedPage,
   imageOptions: HtmlImageOptions,
   onImage?: (image: Readonly<HtmlImageAsset>) => void | Promise<void>,
+  options: ImageEncodingOptions = {},
 ): Promise<SemanticMedia[]> {
-  const media = semanticMedia(page, imageOptions);
+  const media = semanticMedia(page, imageOptions, options);
   for (const item of media) {
     for (const asset of item.assets ?? []) await onImage?.(asset);
     delete item.assets;
@@ -62,11 +65,10 @@ function rasterMedia(
   pageNumber: number,
   index: number,
   imageOptions: HtmlImageOptions,
+  options: ImageEncodingOptions,
 ): SemanticMedia {
   const bounds = transformedUnitBounds(image.transform);
-  const mime = image.format === "jpeg" ? "image/jpeg" : "image/bmp";
-  const data = image.format === "jpeg" ? image.data : rgbBmp(image);
-  const extension = image.format === "jpeg" ? "jpg" : "bmp";
+  const { mimeType: mime, data, extension } = encodeRaster(image, options);
   const name = `page-${pageNumber}-image-${index + 1}.${extension}`;
   const source = imageOptions === "references" ? name : `data:${mime};base64,${base64(data)}`;
   const opacity = unitInterval(image.opacity) ? `;opacity:${number(image.opacity)}` : "";
@@ -337,30 +339,6 @@ function unionBounds(bounds: Array<Rect | undefined>): Rect | undefined {
   const right = Math.max(...values.map((value) => value.x + value.width));
   const top = Math.max(...values.map((value) => value.y + value.height));
   return { x, y, width: right - x, height: top - y };
-}
-
-function rgbBmp(image: RasterImage): Uint8Array {
-  const stride = Math.ceil((image.width * 3) / 4) * 4;
-  const output = new Uint8Array(54 + stride * image.height);
-  const view = new DataView(output.buffer);
-  output.set([0x42, 0x4d]);
-  view.setUint32(2, output.length, true);
-  view.setUint32(10, 54, true);
-  view.setUint32(14, 40, true);
-  view.setInt32(18, image.width, true);
-  view.setInt32(22, -image.height, true);
-  view.setUint16(26, 1, true);
-  view.setUint16(28, 24, true);
-  for (let row = 0; row < image.height; row += 1) {
-    for (let column = 0; column < image.width; column += 1) {
-      const source = (row * image.width + column) * 3;
-      const target = 54 + row * stride + column * 3;
-      output[target] = image.data[source + 2] ?? 0;
-      output[target + 1] = image.data[source + 1] ?? 0;
-      output[target + 2] = image.data[source] ?? 0;
-    }
-  }
-  return output;
 }
 
 function cssColor(value: string | undefined): value is string {

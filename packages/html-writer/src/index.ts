@@ -1,3 +1,11 @@
+import {
+  encodeRaster,
+  type ImageEncodingOptions,
+  validateImageEncoding,
+} from "./raster-encoding.js";
+
+export type { ImageEncodingOptions } from "./raster-encoding.js";
+
 import type {
   EmbeddedFont,
   EmbeddedType3Font,
@@ -32,7 +40,7 @@ export type HtmlLayout = "positioned" | "flow";
 export type HtmlProfile = "visual" | "semantic";
 export type HtmlWrite = (chunk: string) => void | Promise<void>;
 
-export interface HtmlWriterOptions {
+export interface HtmlWriterOptions extends ImageEncodingOptions {
   /** Output intent. Visual preserves page presentation; semantic prioritizes reading order. */
   profile?: HtmlProfile;
   /** @deprecated Use `profile: "visual"` or `profile: "semantic"`. */
@@ -51,7 +59,7 @@ export interface HtmlWriterOptions {
   onImage?: (image: Readonly<HtmlImageAsset>) => void | Promise<void>;
 }
 
-export interface MarkdownWriterOptions {
+export interface MarkdownWriterOptions extends ImageEncodingOptions {
   semanticLookaheadPages?: number;
   onSemanticStats?: (stats: Readonly<SemanticDocumentStats>) => void;
   /** Defaults to excluded. */
@@ -89,6 +97,8 @@ export async function writeHtmlDocument(
       lookahead,
       imageOptions,
       options.onImage,
+      "html",
+      options,
     );
     options.onSemanticStats?.(stats);
   } else {
@@ -115,6 +125,7 @@ export async function writeMarkdownDocument(
     imageOptions,
     options.onImage,
     "markdown",
+    options,
   );
   options.onSemanticStats?.(stats);
 }
@@ -160,7 +171,7 @@ async function writePositionedPage(
   documentFonts?: VisualDocumentFonts,
 ): Promise<void> {
   const imageOptions = resolveImageOptions("visual", options);
-  const visualImages = await prepareVisualImages(page, imageOptions, options.onImage);
+  const visualImages = await prepareVisualImages(page, imageOptions, options.onImage, options);
   const visualCodeFonts = new Set(
     (page.fonts ?? [])
       .filter((font) => font.format === "opentype" && font.visualGlyphMapping)
@@ -560,17 +571,16 @@ async function prepareVisualImages(
   page: ExtractedPage,
   imageOptions: HtmlImageOptions,
   onImage: HtmlWriterOptions["onImage"],
+  options: ImageEncodingOptions,
 ): Promise<string[]> {
   if (imageOptions === "excluded") return [];
   const sources: string[] = [];
   for (const [index, image] of (page.images ?? []).entries()) {
-    const mimeType = image.format === "jpeg" ? "image/jpeg" : "image/bmp";
-    const data = image.format === "jpeg" ? image.data : rgbBmp(image);
+    const { mimeType, data, extension } = encodeRaster(image, options);
     if (imageOptions === "embedded") {
       sources.push(`data:${mimeType};base64,${base64(data)}`);
       continue;
     }
-    const extension = image.format === "jpeg" ? "jpg" : "bmp";
     const name = `page-${page.number}-image-${index + 1}.${extension}`;
     await onImage?.({ name, mimeType, data });
     sources.push(name);
@@ -596,32 +606,6 @@ function imageClipDefinitions(
 
 function imageClipId(pageNumber: number, imageIndex: number, clipIndex: number): string {
   return `boxpdf-clip-${pageNumber}-${imageIndex}-${clipIndex}`;
-}
-
-function rgbBmp(image: RasterImage): Uint8Array {
-  const stride = Math.ceil((image.width * 3) / 4) * 4;
-  const output = new Uint8Array(54 + stride * image.height);
-  const view = new DataView(output.buffer);
-  output[0] = 0x42;
-  output[1] = 0x4d;
-  view.setUint32(2, output.length, true);
-  view.setUint32(10, 54, true);
-  view.setUint32(14, 40, true);
-  view.setInt32(18, image.width, true);
-  view.setInt32(22, -image.height, true);
-  view.setUint16(26, 1, true);
-  view.setUint16(28, 24, true);
-  view.setUint32(34, stride * image.height, true);
-  for (let row = 0; row < image.height; row += 1) {
-    for (let column = 0; column < image.width; column += 1) {
-      const source = (row * image.width + column) * 3;
-      const target = 54 + row * stride + column * 3;
-      output[target] = image.data[source + 2] ?? 0;
-      output[target + 1] = image.data[source + 1] ?? 0;
-      output[target + 2] = image.data[source] ?? 0;
-    }
-  }
-  return output;
 }
 
 function rotationTransform(page: ExtractedPage): string {
@@ -661,7 +645,7 @@ async function writeFlowPage(
   options: HtmlWriterOptions,
 ): Promise<void> {
   const imageOptions = resolveImageOptions("semantic", options);
-  const media = await prepareSemanticMedia(page, imageOptions, options.onImage);
+  const media = await prepareSemanticMedia(page, imageOptions, options.onImage, options);
   const structured = structurePage(withoutSemanticMediaSpans(page, media));
   const defaultColor = dominantTextColor(structured.lines);
   let mediaIndex = 0;
@@ -1032,8 +1016,9 @@ function resolveImageOptions(profile: HtmlProfile, options: HtmlWriterOptions): 
 
 function validateImageOptions(
   imageOptions: HtmlImageOptions,
-  options: Pick<HtmlWriterOptions, "onImage">,
+  options: Pick<HtmlWriterOptions, "onImage"> & ImageEncodingOptions,
 ): void {
+  validateImageEncoding(options);
   if (imageOptions === "references" && !options.onImage) {
     throw new Error('imageOptions "references" requires an onImage callback');
   }
