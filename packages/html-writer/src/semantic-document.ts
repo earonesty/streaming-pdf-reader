@@ -6,6 +6,7 @@ import {
   type Table,
   tableToRows,
 } from "@boxpdf/reader/structure";
+import type { ImageEncodingOptions } from "./raster-encoding.js";
 import { clearMediaCaptionAssociations } from "./semantic-caption.js";
 import { dominantTextColor, semanticTextHtml, semanticTextMarkdown } from "./semantic-inline.js";
 import {
@@ -45,6 +46,7 @@ export async function writeSemanticDocument(
   imageOptions: HtmlImageOptions,
   onImage?: (image: Readonly<HtmlImageAsset>) => void | Promise<void>,
   format: SemanticDocumentFormat = "html",
+  options: ImageEncodingOptions = {},
 ): Promise<SemanticDocumentStats> {
   const stats: SemanticDocumentStats = {
     pagesProcessed: 0,
@@ -301,7 +303,7 @@ export async function writeSemanticDocument(
   };
 
   for await (const page of pages) {
-    const media = await prepareSemanticMedia(page, imageOptions, onImage);
+    const media = await prepareSemanticMedia(page, imageOptions, onImage, options);
     const structured = structurePage(withoutSemanticMediaSpans(page, media));
     buffer.push({ width: page.width, height: page.height, structured, media });
     restoreObservedHyphens(buffer);

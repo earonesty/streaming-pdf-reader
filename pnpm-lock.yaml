@@ -5,6 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
+  jpeg-js@0.4.4:
+    hash: 3ac3874ea8af56f4fd2dfd38336e48a8bfe774385e83fbed590e9776df76a7b0
+    path: patches/jpeg-js@0.4.4.patch
   opentype.js@2.0.0:
     hash: c08d6c8775941c81371e093ce4b5e8123dd1340db8e401e42050df3ae5720f3a
     path: patches/opentype.js@2.0.0.patch
@@ -76,6 +79,10 @@ importers:
         version: 4.1.11(@types/node@24.13.3)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@24.13.3)(esbuild@0.27.7))
 
   packages/html-writer:
+    dependencies:
+      pako:
+        specifier: 2.2.0
+        version: 2.2.0
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.5.10
@@ -86,9 +93,15 @@ importers:
       '@types/node':
         specifier: ^24.3.0
         version: 24.13.3
+      '@types/pako':
+        specifier: 2.0.4
+        version: 2.0.4
       '@vitest/coverage-v8':
         specifier: 4.1.11
         version: 4.1.11(vitest@4.1.11)
+      jpeg-js:
+        specifier: 0.4.4
+        version: 0.4.4(patch_hash=3ac3874ea8af56f4fd2dfd38336e48a8bfe774385e83fbed590e9776df76a7b0)
       publint:
         specifier: ^0.3.24
         version: 0.3.24
@@ -1025,6 +1038,9 @@ packages:
   joycon@3.1.1:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
     engines: {node: '>=10'}
+
+  jpeg-js@0.4.4:
+    resolution: {integrity: sha512-WZzeDOEtTOBK4Mdsar0IqEU5sMr3vSV2RqkAIzUEV2BHnUfKGyswWFPFwK5EeDo93K3FohSHbLAjj0s1Wzd+dg==}
 
   js-tokens@10.0.0:
     resolution: {integrity: sha512-lM/UBzQmfJRo9ABXbPWemivdCW8V2G8FHaHdypQaIy523snUjog0W71ayWXTjiR+ixeMyVHN2XcpnTd/liPg/Q==}
@@ -2108,6 +2124,8 @@ snapshots:
       istanbul-lib-report: 3.0.1
 
   joycon@3.1.1: {}
+
+  jpeg-js@0.4.4(patch_hash=3ac3874ea8af56f4fd2dfd38336e48a8bfe774385e83fbed590e9776df76a7b0): {}
 
   js-tokens@10.0.0: {}
 
