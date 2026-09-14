@@ -59,6 +59,8 @@ describe.skipIf(process.env.SYNTHETIC_IMAGE_ORACLE !== "1")("synthetic image vis
       });
       try {
         const rendered = await referencePage.render({ scale: 2, colorSpace: "BGRA" });
+        // The wrapper sets REVERSE_BYTE_ORDER: rendered bytes are already RGBA,
+        // despite the BGRA bitmap name. See pdfium-color-order.test.ts; do not swap R/B.
         const reference = Buffer.from(rendered.data);
         await sharp(reference, {
           raw: { width: rendered.width, height: rendered.height, channels: 4 },
