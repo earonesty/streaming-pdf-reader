@@ -4,12 +4,16 @@ import { describe, expect, it } from "vitest";
 import { pageToHtml, writeHtmlDocument, writeMarkdownDocument } from "../src/index.js";
 import { encodeRaster } from "../src/raster-encoding.js";
 
-function rgb(width: number, height: number): RasterImage {
+function rgb(width: number, height: number, fill?: number): RasterImage {
   const data = new Uint8Array(width * height * 3);
-  let seed = 12345;
-  for (let i = 0; i < data.length; i++) {
-    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-    data[i] = seed >>> 24;
+  if (fill !== undefined) {
+    data.fill(fill);
+  } else {
+    let seed = 12345;
+    for (let i = 0; i < data.length; i++) {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      data[i] = seed >>> 24;
+    }
   }
   return { width, height, data, format: "rgb", transform: [200, 0, 0, 160, 0, 0] };
 }
@@ -36,12 +40,12 @@ describe("compressed raster output", () => {
     expect(new Uint8Array(decoded.data)).toEqual(image.data);
   });
 
+  // Compression correctness, not a five-second performance budget on coverage-instrumented CI.
   it("compresses a scan-sized flat image without BMP expansion", () => {
-    const image = rgb(2400, 3200);
-    image.data.fill(220);
+    const image = rgb(2400, 3200, 220);
     const result = encodeRaster(image);
     expect(result.data.length).toBeLessThan(100_000);
-  });
+  }, 30_000);
 
   it("selects a smaller decodable JPEG for noisy RGB in compact mode and honors quality", async () => {
     const image = rgb(128, 128);
@@ -56,8 +60,7 @@ describe("compressed raster output", () => {
   });
 
   it("keeps PNG when lossy encoding would make the asset larger", () => {
-    const image = rgb(128, 128);
-    image.data.fill(255);
+    const image = rgb(128, 128, 255);
     const result = encodeRaster(image, { imageEncoding: "compact" });
     expect(result.mimeType).toBe("image/png");
   });
