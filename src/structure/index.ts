@@ -1,4 +1,5 @@
 import type { ExtractedPage, Rect, TextSpan } from "../types.js";
+import { orderReadingColumns } from "./columns.js";
 import { inferSemanticBlocks, type SemanticBlock } from "./semantic.js";
 
 export type { SemanticBlock } from "./semantic.js";
@@ -51,135 +52,18 @@ export function structurePage(page: ExtractedPage, options: StructureOptions = {
   const lineTolerance = options.lineTolerance ?? 2;
   const groupedLines = groupLines(page.spans, lineTolerance);
   const tables = inferTables(page.number, groupedLines, options);
-  const lines = orderReadingColumns(page, groupedLines, tables);
+  const lines = orderReadingColumns(
+    page,
+    groupedLines,
+    tables,
+    (spans) => textLines([spans])[0] as TextLine,
+  );
   return {
     page: page.number,
     lines,
     tables,
     blocks: inferSemanticBlocks(lines, tables),
   };
-}
-
-const MAX_READING_COLUMNS = 4;
-
-function orderReadingColumns(page: ExtractedPage, lines: TextLine[], tables: Table[]): TextLine[] {
-  const tableSpans = new Set(tables.flatMap((table) => table.cells.flatMap((cell) => cell.spans)));
-  const candidates = lines.filter((line) => !line.spans.some((span) => tableSpans.has(span)));
-  const starts = sustainedColumnStarts(candidates, page.width);
-  // Two-region pages remain deliberately conservative because label/value
-  // sections and borderless two-column tables are geometrically ambiguous.
-  // Three or four sustained regions are rare and provide much stronger
-  // presentation-column evidence once known tables have been excluded.
-  if (starts.length < 3 || starts.length > MAX_READING_COLUMNS) return lines;
-
-  const gutters = starts.slice(1).map((start, index) => {
-    const previous = starts[index] ?? 0;
-    const rightEdges = candidates
-      .filter((line) => nearestColumn(line.bounds.x, starts) === index)
-      .map((line) => Math.min(start, line.bounds.x + line.bounds.width));
-    const right = Math.max(previous, ...rightEdges.filter((edge) => edge < start));
-    return (right + start) / 2;
-  });
-
-  const output: TextLine[] = [];
-  let region: TextLine[] = [];
-  const flush = () => {
-    if (region.length === 0) return;
-    const columns = starts.map(() => [] as TextLine[]);
-    for (const line of region) {
-      for (const segment of splitLineAtColumns(line, starts)) {
-        columns[nearestColumn(segment.bounds.x, starts)]?.push(segment);
-      }
-    }
-    for (const column of columns) {
-      column.sort(
-        (left, right) => right.bounds.y - left.bounds.y || left.bounds.x - right.bounds.x,
-      );
-      output.push(...column);
-    }
-    region = [];
-  };
-
-  for (const line of lines) {
-    if (line.spans.some((span) => gutters.some((gutter) => crossesX(span.bounds, gutter)))) {
-      flush();
-      output.push(line);
-    } else {
-      region.push(line);
-    }
-  }
-  flush();
-  return output;
-}
-
-function sustainedColumnStarts(lines: TextLine[], pageWidth: number): number[] {
-  const tolerance = Math.max(4, pageWidth * 0.015);
-  const minimumGap = pageWidth * 0.12;
-  const minimumSupport = Math.max(4, Math.ceil(lines.length * 0.12));
-  const clusters: Array<{ x: number; lines: TextLine[] }> = [];
-  for (const line of lines) {
-    const match = clusters.find((cluster) => Math.abs(cluster.x - line.bounds.x) <= tolerance);
-    if (match) {
-      match.lines.push(line);
-      match.x = median(match.lines.map((item) => item.bounds.x));
-    } else clusters.push({ x: line.bounds.x, lines: [line] });
-  }
-  const supported = clusters
-    .filter((cluster) => cluster.lines.length >= minimumSupport)
-    .sort((left, right) => left.x - right.x);
-  const separated: typeof supported = [];
-  for (const cluster of supported) {
-    const previous = separated.at(-1);
-    if (!previous || cluster.x - previous.x >= minimumGap) separated.push(cluster);
-    else if (cluster.lines.length > previous.lines.length)
-      separated[separated.length - 1] = cluster;
-  }
-  if (separated.length < 2 || separated.length > MAX_READING_COLUMNS) return [];
-  const overlapBottom = Math.max(
-    ...separated.map((cluster) => Math.min(...cluster.lines.map((line) => line.bounds.y))),
-  );
-  const overlapTop = Math.min(
-    ...separated.map((cluster) =>
-      Math.max(...cluster.lines.map((line) => line.bounds.y + line.bounds.height)),
-    ),
-  );
-  const lineHeight = median(
-    separated.flatMap((cluster) => cluster.lines.map((line) => line.bounds.height)),
-  );
-  if (overlapTop - overlapBottom < lineHeight * 3) return [];
-  const minimumGutter = Math.max(8, pageWidth * 0.015);
-  for (let index = 1; index < separated.length; index += 1) {
-    const left = separated[index - 1];
-    const right = separated[index];
-    if (!left || !right) return [];
-    const rightEdges = left.lines
-      .map((line) => line.bounds.x + line.bounds.width)
-      .filter((edge) => edge < right.x)
-      .sort((a, b) => a - b);
-    const sustainedRightEdge = rightEdges[Math.floor(rightEdges.length * 0.8)];
-    if (sustainedRightEdge === undefined || right.x - sustainedRightEdge < minimumGutter) return [];
-  }
-  return separated.map((cluster) => cluster.x);
-}
-
-function splitLineAtColumns(line: TextLine, starts: number[]): TextLine[] {
-  const groups = starts.map(() => [] as TextSpan[]);
-  for (const span of line.spans) groups[nearestColumn(span.bounds.x, starts)]?.push(span);
-  return groups
-    .filter((spans) => spans.length > 0)
-    .map((spans) => textLines([spans])[0] as TextLine);
-}
-
-function nearestColumn(x: number, starts: number[]): number {
-  let nearest = 0;
-  for (let index = 1; index < starts.length; index += 1) {
-    if (Math.abs(x - (starts[index] ?? 0)) < Math.abs(x - (starts[nearest] ?? 0))) nearest = index;
-  }
-  return nearest;
-}
-
-function crossesX(bounds: Rect, x: number): boolean {
-  return bounds.x < x && bounds.x + bounds.width > x;
 }
 
 export function tableToRows(table: Table): string[][] {

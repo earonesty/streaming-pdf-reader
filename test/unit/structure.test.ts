@@ -40,6 +40,51 @@ describe("structured extraction quality gate", () => {
     );
   });
 
+  it("orders row-wide span runs as sustained reading columns", () => {
+    const page = columnPage(true);
+
+    expect(structurePage(page, { minimumTableRows: 99 }).lines.map((line) => line.text)).toEqual(
+      columnMajorText(),
+    );
+  });
+
+  it("keeps inferred table rows intact inside a reading-column band", () => {
+    const page = columnPage(false);
+    page.spans.push(
+      span("Item", 20, 110, 45),
+      span("Qty", 130, 110, 35),
+      span("Price", 240, 110, 45),
+      span("Widget", 20, 95, 55),
+      span("2", 130, 95, 10),
+      span("$10", 240, 95, 30),
+      span("Gadget", 20, 80, 55),
+      span("3", 130, 80, 10),
+      span("$12", 240, 80, 30),
+    );
+
+    const structured = structurePage(page);
+    expect(structured.lines.slice(-3).map((line) => line.text)).toEqual([
+      "Item Qty Price",
+      "Widget 2 $10",
+      "Gadget 3 $12",
+    ]);
+    expect(tableToRows(structured.tables[0] as never)).toEqual([
+      ["Item", "Qty", "Price"],
+      ["Widget", "2", "$10"],
+      ["Gadget", "3", "$12"],
+    ]);
+  });
+
+  it("leaves a narrow footer after the bounded reading-column region", () => {
+    const page = columnPage(false);
+    page.spans.push(span("Page 1 of 3 - confidential", 20, 20, 125));
+
+    expect(structurePage(page, { minimumTableRows: 99 }).lines.map((line) => line.text)).toEqual([
+      ...columnMajorText(),
+      "Page 1 of 3 - confidential",
+    ]);
+  });
+
   it("recovers word spaces from embedded font metrics", () => {
     const page: ExtractedPage = {
       number: 1,
@@ -269,4 +314,30 @@ function span(
     fontSize,
     source: { page: 1 },
   };
+}
+
+function columnPage(rowMajor: boolean): ExtractedPage {
+  const columns = [
+    { x: 20, label: "ALPHA" },
+    { x: 130, label: "BRAVO" },
+    { x: 240, label: "CHARLIE" },
+  ];
+  const rows = Array.from({ length: 6 }, (_, index) => ({
+    number: index + 1,
+    y: 160 - index * 20,
+  }));
+  const spans = rowMajor
+    ? rows.flatMap((row) =>
+        columns.map((column) => span(`${column.label} ${row.number}`, column.x, row.y, 60)),
+      )
+    : columns.flatMap((column) =>
+        rows.map((row) => span(`${column.label} ${row.number}`, column.x, row.y, 60)),
+      );
+  return { number: 1, width: 330, height: 220, rotate: 0, spans };
+}
+
+function columnMajorText(): string[] {
+  return ["ALPHA", "BRAVO", "CHARLIE"].flatMap((label) =>
+    Array.from({ length: 6 }, (_, index) => `${label} ${index + 1}`),
+  );
 }

@@ -513,7 +513,7 @@
     {
       "id": "three-column-flow",
       "file": "three-column-flow.pdf",
-      "sha256": "d432afcb1e23f4eb349c09f7b388a5d3863a4d933ad5897d31cbb46cc70622f2",
+      "sha256": "8b97a68d7be19b4e7e109a2d4b666324c94c345aaf5fb27c423e985701b72d58",
       "source": "scripts/generate-three-column-fixture.mjs / @boxpdf/writer",
       "pages": [1],
       "challenge": "Three sustained reading columns painted in row-major content-stream order",
@@ -526,11 +526,22 @@
             "BRAVO ONE starts only after Alpha ends",
             "BRAVO SIX closes the second column",
             "CHARLIE ONE begins the final narrative",
-            "CHARLIE SIX closes the third column"
+            "CHARLIE SIX closes the third column",
+            "Item",
+            "Gadget",
+            "Review",
+            "Page 1 of 1 - confidential"
           ]
         ],
-        "elements": { "article": { "min": 1 }, "table": { "max": 0 } },
-        "notes": "Two sustained vertical whitespace gutters establish three bounded reading regions. Semantic traversal is column-major even though the writer paints each horizontal band row-major."
+        "elements": { "article": { "min": 1 }, "table": { "min": 1 } },
+        "tables": [
+          {
+            "headers": ["Item", "Qty", "Disposition"],
+            "rowsAtLeast": 3,
+            "rows": [["Gadget", "3", "Review"]]
+          }
+        ],
+        "notes": "Two sustained vertical whitespace gutters establish three bounded reading regions. Semantic traversal is column-major even though the writer paints each horizontal band row-major. The bordered table remains row-major and the narrow footer remains after both regions."
       }
     }
   ]

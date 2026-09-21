@@ -1,5 +1,5 @@
 import { writeFile } from "node:fs/promises";
-import { cleanTheme, flowToPdf, hstack, standardFonts, text, vstack } from "@boxpdf/writer";
+import { cleanTheme, flowToPdf, hstack, standardFonts, table, text, vstack } from "@boxpdf/writer";
 
 const pageWidth = 515;
 const gap = 18;
@@ -53,6 +53,31 @@ const bytes = await flowToPdf(
             ),
           ),
         ),
+        table({
+          width: pageWidth,
+          columns: [{ width: "1fr" }, { width: 72, align: "right" }, { width: 90 }],
+          header: [
+            text("Item", theme.type.label),
+            text("Qty", { ...theme.type.label, align: "right" }),
+            text("Disposition", theme.type.label),
+          ],
+          rows: [
+            [
+              text("Widget", theme.type.bodySmall),
+              text("2", { ...theme.type.bodySmall, align: "right" }),
+              text("Keep", theme.type.bodySmall),
+            ],
+            [
+              text("Gadget", theme.type.bodySmall),
+              text("3", { ...theme.type.bodySmall, align: "right" }),
+              text("Review", theme.type.bodySmall),
+            ],
+          ],
+          border: { color: theme.colors.border, width: 0.8 },
+          rowDivider: theme.hr,
+          headerDivider: { color: theme.colors.ink, thickness: 0.8 },
+        }),
+        text("Page 1 of 1 - confidential", theme.type.caption),
       ),
     ];
   },

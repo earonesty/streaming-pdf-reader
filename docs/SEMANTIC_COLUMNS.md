@@ -13,7 +13,12 @@ to separate rows or that side-by-side text should be interleaved.
 4. Sparse shared baselines with three or more cells are record-row evidence.
 5. Content-stream order is retained when geometry remains ambiguous.
 
-Table detection runs before presentation-column traversal so confirmed table rows remain associated.
+Table detection runs before presentation-column traversal. Confirmed table rows form hard traversal
+boundaries and remain unchanged. The sustained starts also establish a shared vertical band;
+headers, footers, and other furniture outside that band retain their original position. Detection
+uses separated span runs as candidates so a PDF that represents one visual row as one `TextLine`
+still exposes each column start. Ordinary word gaps stay inside a run.
+
 The reader currently applies automatic column-major traversal only when three or four sustained
 regions remain after known table spans are excluded. Two-region pages are deliberately conservative:
 label/value sections, borderless tables, cards, and prose columns can share the same geometry. More
@@ -23,7 +28,8 @@ rather than inventing an order.
 The three-column adversarial fixture is generated with `@boxpdf/writer` by
 `scripts/generate-three-column-fixture.mjs`. The writer paints each horizontal band from left to
 right, producing row-major content-stream order. Semantic output must instead traverse the two
-sustained gutters as three top-to-bottom reading regions.
+sustained gutters as three top-to-bottom reading regions, then preserve the bordered table and
+narrow footer that follow them.
 
 Border-aware scoring can strengthen table classification without changing this ordering contract.
 When borders exist, path geometry should increase table confidence; their absence must never be
