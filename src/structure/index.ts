@@ -146,20 +146,25 @@ function groupHorizontalLines(spans: TextSpan[], tolerance: number): TextLine[] 
 
   const baselineGroups = groupRowsByBaseline(rows, tolerance);
   const splitBaselines = baselineGroups.filter((group) => group.length > 1);
+  const denseSplitBaselines = splitBaselines.filter((group) => group.length >= 4);
   const formsSparseRows =
     splitBaselines.length > 0 &&
     splitBaselines.length < 3 &&
     splitBaselines.every((group) => group.length >= 3);
-  if (!formsSparseRows) {
+  const formsColumnMajorTable =
+    denseSplitBaselines.length >= 3 &&
+    denseSplitBaselines.length >= Math.ceil(splitBaselines.length * 0.6);
+  if (!formsSparseRows && !formsColumnMajorTable) {
     // Sustained parallel baselines indicate independent layout regions, such
     // as newspaper columns or side-by-side cards. Two-cell label/value regions
     // are also kept separate so they can become coherent semantic sections.
     return textLines(rows);
   }
 
-  // Sparse baselines split into three or more fragments indicate tabular rows
-  // painted in separate content-stream passes. Reconstruct those rows from
-  // geometry so case, owner/address, and inspector cells remain together.
+  // Sparse isolated baselines, or sustained baselines split into four or more
+  // regions, indicate tabular rows painted in separate content-stream passes.
+  // Reconstruct those rows from geometry. Three sustained regions remain the
+  // practical upper bound for readable flowed prose columns.
   const mergedRows: TextSpan[][] = [];
   for (const group of baselineGroups) {
     mergedRows.push(group.flatMap((index) => rows[index] ?? []));
@@ -169,7 +174,10 @@ function groupHorizontalLines(spans: TextSpan[], tolerance: number): TextLine[] 
       (right[0]?.bounds.y ?? 0) - (left[0]?.bounds.y ?? 0) ||
       (left[0]?.bounds.x ?? 0) - (right[0]?.bounds.x ?? 0),
   );
-  return textLines(mergedRows);
+  return textLines(
+    mergedRows,
+    formsColumnMajorTable ? ["shared-baseline", "column-major-table-row"] : ["shared-baseline"],
+  );
 }
 
 function groupRowsByBaseline(rows: TextSpan[][], tolerance: number): number[][] {
@@ -187,7 +195,7 @@ function groupRowsByBaseline(rows: TextSpan[][], tolerance: number): number[][] 
   return groups;
 }
 
-function textLines(rows: TextSpan[][]): TextLine[] {
+function textLines(rows: TextSpan[][], reasons = ["shared-baseline"]): TextLine[] {
   return rows.map((row) => {
     row.sort((left, right) => left.bounds.x - right.bounds.x);
     return {
@@ -196,7 +204,7 @@ function textLines(rows: TextSpan[][]): TextLine[] {
       text: joinSpans(row),
       spans: row,
       confidence: 1,
-      reasons: ["shared-baseline"],
+      reasons,
     };
   });
 }
@@ -278,12 +286,24 @@ function inferTables(page: number, lines: TextLine[], options: StructureOptions)
   const minimumRows = options.minimumTableRows ?? 2;
   const minimumColumns = options.minimumTableColumns ?? 2;
   const columnTolerance = options.columnTolerance ?? 16;
-  const rowCandidates = lines.map((line) => ({ line, cells: splitCells(line) }));
+  const rowCandidates = lines.map((line) => ({
+    line,
+    cells: line.reasons.includes("column-major-table-row")
+      ? line.spans.map((span) => ({ bounds: span.bounds, spans: [span] }))
+      : splitCells(line),
+  }));
   const runs: Array<typeof rowCandidates> = [];
   let run: typeof rowCandidates = [];
   for (const candidate of rowCandidates) {
     const first = run[0];
-    const compatible = !first || compatibleRows(first, candidate, columnTolerance);
+    const reconstructed =
+      first?.line.reasons.includes("column-major-table-row") &&
+      candidate.line.reasons.includes("column-major-table-row");
+    const compatible =
+      !first ||
+      (reconstructed
+        ? compatibleReconstructedRows(first, candidate, columnTolerance)
+        : compatibleRows(first, candidate, columnTolerance));
     if (candidate.cells.length >= minimumColumns && compatible) run.push(candidate);
     else {
       if (run.length >= minimumRows) runs.push(run);
@@ -429,6 +449,25 @@ function compatibleRows(
       return leftAligned || rightAligned;
     })
   );
+}
+
+function compatibleReconstructedRows(
+  first: { cells: Array<{ bounds: Rect }> },
+  next: { cells: Array<{ bounds: Rect }> },
+  tolerance: number,
+): boolean {
+  const smaller = first.cells.length <= next.cells.length ? first.cells : next.cells;
+  const larger = smaller === first.cells ? next.cells : first.cells;
+  const aligned = smaller.filter((cell) =>
+    larger.some((other) => {
+      const leftAligned = Math.abs(cell.bounds.x - other.bounds.x) <= tolerance;
+      const rightAligned =
+        Math.abs(cell.bounds.x + cell.bounds.width - other.bounds.x - other.bounds.width) <=
+        tolerance;
+      return leftAligned || rightAligned;
+    }),
+  ).length;
+  return aligned >= Math.max(2, Math.ceil(smaller.length * 0.75));
 }
 
 function joinSpans(spans: TextSpan[]): string {

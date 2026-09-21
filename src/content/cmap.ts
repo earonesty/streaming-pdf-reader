@@ -132,11 +132,24 @@ function decodeUtf16Hex(hex: string): string {
 }
 
 export function normalizeTextCompatibility(text: string): string {
-  return text
+  return [...text]
+    .map((character) => (isPdfControlCharacter(character) ? " " : character))
+    .join("")
     .replaceAll("ﬀ", "ff")
     .replaceAll("ﬁ", "fi")
     .replaceAll("ﬂ", "fl")
     .replaceAll("ﬃ", "ffi")
     .replaceAll("ﬄ", "ffl")
     .replaceAll("ﳋ", "لخ");
+}
+
+function isPdfControlCharacter(character: string): boolean {
+  const code = character.codePointAt(0) ?? 0;
+  return (
+    (code >= 0 && code <= 8) ||
+    code === 11 ||
+    code === 12 ||
+    (code >= 14 && code <= 31) ||
+    code === 127
+  );
 }
