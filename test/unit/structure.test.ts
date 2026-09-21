@@ -90,13 +90,20 @@ describe("structured extraction quality gate", () => {
     );
     const pdf = await openPdf(source);
     try {
-      const lines = structurePage(await pdf.getPage(0), { lineOrder: "visual" }).lines.map(
-        (line) => line.text,
-      );
+      const structured = structurePage(await pdf.getPage(0));
+      const lines = structured.lines.map((line) => line.text);
       expect(lines).toContain("1. 25-08000002 CANNER, SCOTT F 1670 NW 1 TERRACE C. RIZZUTO");
       expect(lines).toContain(
         "2. 26-08000022 ELUSMA, FRANCELENE ELUSMA, JOREL 2511 NE 3 TERRACE C. RIZZUTO",
       );
+      expect(
+        structured.blocks
+          .filter((block) => block.type === "list")
+          .flatMap((block) => block.items.map((item) => item.text)),
+      ).toEqual([
+        "25-08000002 CANNER, SCOTT F 1670 NW 1 TERRACE C. RIZZUTO",
+        "26-08000022 ELUSMA, FRANCELENE ELUSMA, JOREL 2511 NE 3 TERRACE C. RIZZUTO",
+      ]);
     } finally {
       pdf.close();
       await source.close();
