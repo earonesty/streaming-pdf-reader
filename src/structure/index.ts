@@ -1,4 +1,5 @@
 import type { ExtractedPage, Rect, TextSpan } from "../types.js";
+import { orderReadingColumns } from "./columns.js";
 import { inferSemanticBlocks, type SemanticBlock } from "./semantic.js";
 
 export type { SemanticBlock } from "./semantic.js";
@@ -49,8 +50,14 @@ export interface StructureOptions {
 
 export function structurePage(page: ExtractedPage, options: StructureOptions = {}): StructuredPage {
   const lineTolerance = options.lineTolerance ?? 2;
-  const lines = groupLines(page.spans, lineTolerance);
-  const tables = inferTables(page.number, lines, options);
+  const groupedLines = groupLines(page.spans, lineTolerance);
+  const tables = inferTables(page.number, groupedLines, options);
+  const lines = orderReadingColumns(
+    page,
+    groupedLines,
+    tables,
+    (spans) => textLines([spans])[0] as TextLine,
+  );
   return {
     page: page.number,
     lines,
