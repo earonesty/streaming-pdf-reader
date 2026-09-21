@@ -155,6 +155,79 @@ describe("structured extraction quality gate", () => {
     }
   });
 
+  it("derives coherent rows from a rotated Derby enforcement register", async () => {
+    const source = await fileSource(
+      fileURLToPath(new URL("../fixtures/derby-rotated-register.pdf", import.meta.url)),
+    );
+    const pdf = await openPdf(source);
+    try {
+      const page = await pdf.getPage(0);
+      expect(page.rotate).toBe(90);
+      const lines = structurePage(page).lines.map((line) => line.text);
+      expect(lines).toContain("Address / location Authorisation");
+      expect(lines).toContain("Land at 76-78 Osmaston Road,");
+      expect(lines).toContain("Derby");
+      expect(
+        lines.some(
+          (line) =>
+            line.startsWith("The following condi") &&
+            line.endsWith("of the Planning Permission has not been complied with:-"),
+        ),
+      ).toBe(true);
+      expect(lines.some((line) => line === "A" || line === "ddress / location")).toBe(false);
+      expect(structuredTableRows(page)).toEqual(
+        expect.arrayContaining([
+          expect.arrayContaining([
+            "Address / location",
+            "Issue Date",
+            "Service Date",
+            "Summary of Breach",
+          ]),
+          expect.arrayContaining([
+            "Land at 76-78 Osmaston Road, Derby",
+            "01/10/1996",
+            expect.stringContaining("The following condi"),
+          ]),
+        ]),
+      );
+    } finally {
+      pdf.close();
+      await source.close();
+    }
+  });
+
+  it.each([
+    {
+      rotate: 90 as const,
+      first: { x: 80, y: 20, transform: [0, -1, 1, 0] as TextSpan["transform"] },
+      second: { x: 80, y: 55, transform: [0, -1, 1, 0] as TextSpan["transform"] },
+    },
+    {
+      rotate: 270 as const,
+      first: { x: 20, y: 180, transform: [0, 1, -1, 0] as TextSpan["transform"] },
+      second: { x: 20, y: 145, transform: [0, 1, -1, 0] as TextSpan["transform"] },
+    },
+  ])("normalizes $rotate-degree page geometry before grouping rows", (fixture) => {
+    const page: ExtractedPage = {
+      number: 1,
+      width: 100,
+      height: 200,
+      rotate: fixture.rotate,
+      spans: [
+        {
+          ...span("Hello", fixture.first.x, fixture.first.y, 30, 10),
+          transform: fixture.first.transform,
+        },
+        {
+          ...span("world", fixture.second.x, fixture.second.y, 30, 10),
+          transform: fixture.second.transform,
+        },
+      ],
+    };
+
+    expect(structurePage(page).lines.map((line) => line.text)).toEqual(["Hello world"]);
+  });
+
   it("keeps hyphen continuations and styled word fragments joined", () => {
     const page: ExtractedPage = {
       number: 1,
@@ -340,4 +413,9 @@ function columnMajorText(): string[] {
   return ["ALPHA", "BRAVO", "CHARLIE"].flatMap((label) =>
     Array.from({ length: 6 }, (_, index) => `${label} ${index + 1}`),
   );
+}
+
+function structuredTableRows(page: ExtractedPage): string[][] {
+  const table = structurePage(page).tables[0];
+  return table ? tableToRows(table) : [];
 }
