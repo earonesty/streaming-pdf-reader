@@ -195,6 +195,7 @@ endbfchar`),
   it("decodes UTF-16 byte pairs and normalizes compatibility glyphs", () => {
     expect(decodeUtf16Bytes(Uint8Array.of(0, 65, 0, 66, 0))).toBe("AB");
     expect(normalizeTextCompatibility("ﬀﬁﬂﬃﬄﳋ")).toBe("fffiflffifflلخ");
+    expect(normalizeTextCompatibility("order.\u0003I\u0003first")).toBe("order. I first");
   });
 
   it("collapses zero-padded character codes only when the pattern is complete", () => {

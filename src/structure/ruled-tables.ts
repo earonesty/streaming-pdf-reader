@@ -1,4 +1,4 @@
-import type { ExtractedPage, Rect, TextSpan, VectorFill } from "../types.js";
+import type { ExtractedPage, Rect, TextSpan, VectorFill, VectorPath } from "../types.js";
 import type { Table, TableCell, TextLine } from "./index.js";
 
 /** Infer tables whose horizontal rules define rows even when columns have no borders. */
@@ -19,7 +19,9 @@ export function inferRuledTables(page: ExtractedPage, lines: TextLine[]): Table[
     .filter((band) => band.lines.length > 0);
   if (bands.length < 2) return [];
 
-  const columns = headerColumnStarts(bands[0]?.lines ?? []);
+  const ruledColumns = verticalRuleColumnStarts(page.paths ?? [], rules[0] ?? 0, rules.at(-1) ?? 0);
+  const columns =
+    ruledColumns.length >= 2 ? ruledColumns : headerColumnStarts(bands[0]?.lines ?? []);
   if (columns.length < 2) return [];
   const cells = bands.flatMap((band, row) => rowCells(band.lines, row, columns));
   if (cells.length < columns.length + 1) return [];
@@ -39,17 +41,115 @@ export function inferRuledTables(page: ExtractedPage, lines: TextLine[]): Table[
 function horizontalRules(page: ExtractedPage): number[] {
   const maximumThickness = Math.max(2, page.height * 0.003);
   const minimumWidth = page.width * 0.5;
-  const candidates = (page.fills ?? [])
+  const filledCandidates = (page.fills ?? [])
     .map(fillBounds)
     .filter((bounds) => bounds.width >= minimumWidth && bounds.height <= maximumThickness)
-    .map((bounds) => bounds.y + bounds.height / 2)
-    .sort((left, right) => right - left);
+    .map((bounds) => bounds.y + bounds.height / 2);
+  const strokedCandidates = groupedHorizontalPathRules(
+    page.paths ?? [],
+    minimumWidth,
+    maximumThickness,
+  );
+  const candidates = [...filledCandidates, ...strokedCandidates].sort(
+    (left, right) => right - left,
+  );
   const output: number[] = [];
   for (const value of candidates) {
     if (!output.some((existing) => Math.abs(existing - value) <= maximumThickness))
       output.push(value);
   }
   return output;
+}
+
+function groupedHorizontalPathRules(
+  paths: VectorPath[],
+  minimumWidth: number,
+  tolerance: number,
+): number[] {
+  const segments = paths.flatMap((path) => {
+    if (!path.stroke || (path.strokeOpacity ?? 1) === 0) return [];
+    const segment = simpleLineSegment(path.d);
+    if (!segment || Math.abs(segment.y1 - segment.y2) > tolerance) return [];
+    return [
+      {
+        y: (segment.y1 + segment.y2) / 2,
+        left: Math.min(segment.x1, segment.x2),
+        right: Math.max(segment.x1, segment.x2),
+      },
+    ];
+  });
+  const groups: Array<typeof segments> = [];
+  for (const segment of segments) {
+    const group = groups.find(
+      (candidate) => Math.abs((candidate[0]?.y ?? 0) - segment.y) <= tolerance,
+    );
+    if (group) group.push(segment);
+    else groups.push([segment]);
+  }
+  return groups
+    .filter(
+      (group) => coveredWidth(group.map(({ left, right }) => ({ left, right }))) >= minimumWidth,
+    )
+    .map((group) => group.reduce((sum, segment) => sum + segment.y, 0) / group.length);
+}
+
+function verticalRuleColumnStarts(paths: VectorPath[], top: number, bottom: number): number[] {
+  const tolerance = 2;
+  const segments = paths.flatMap((path) => {
+    if (!path.stroke || (path.strokeOpacity ?? 1) === 0) return [];
+    const segment = simpleLineSegment(path.d);
+    if (!segment || Math.abs(segment.x1 - segment.x2) > tolerance) return [];
+    return [
+      {
+        x: (segment.x1 + segment.x2) / 2,
+        left: Math.min(segment.y1, segment.y2),
+        right: Math.max(segment.y1, segment.y2),
+      },
+    ];
+  });
+  const groups: Array<typeof segments> = [];
+  for (const segment of segments) {
+    const group = groups.find(
+      (candidate) => Math.abs((candidate[0]?.x ?? 0) - segment.x) <= tolerance,
+    );
+    if (group) group.push(segment);
+    else groups.push([segment]);
+  }
+  const tableHeight = Math.abs(top - bottom);
+  const boundaries = groups
+    .filter(
+      (group) =>
+        coveredWidth(group.map(({ left, right }) => ({ left, right }))) >= tableHeight - tolerance,
+    )
+    .map((group) => group.reduce((sum, segment) => sum + segment.x, 0) / group.length)
+    .sort((left, right) => left - right);
+  return boundaries.slice(0, -1);
+}
+
+function simpleLineSegment(
+  d: string,
+): { x1: number; y1: number; x2: number; y2: number } | undefined {
+  const match = /^M\s*(-?[\d.]+)[ ,]+(-?[\d.]+)\s*L\s*(-?[\d.]+)[ ,]+(-?[\d.]+)$/u.exec(d);
+  if (!match) return undefined;
+  const [, x1, y1, x2, y2] = match;
+  return { x1: Number(x1), y1: Number(y1), x2: Number(x2), y2: Number(y2) };
+}
+
+function coveredWidth(intervals: Array<{ left: number; right: number }>): number {
+  const ordered = [...intervals].sort((left, right) => left.left - right.left);
+  let width = 0;
+  let start = 0;
+  let end = 0;
+  for (const interval of ordered) {
+    if (interval.left > end + 2) {
+      width += Math.max(0, end - start);
+      start = interval.left;
+      end = interval.right;
+    } else {
+      end = Math.max(end, interval.right);
+    }
+  }
+  return width + Math.max(0, end - start);
 }
 
 function headerColumnStarts(lines: TextLine[]): number[] {
