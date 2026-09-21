@@ -45,11 +45,12 @@ export interface StructureOptions {
   columnTolerance?: number;
   minimumTableRows?: number;
   minimumTableColumns?: number;
+  lineOrder?: "content" | "visual";
 }
 
 export function structurePage(page: ExtractedPage, options: StructureOptions = {}): StructuredPage {
   const lineTolerance = options.lineTolerance ?? 2;
-  const lines = groupLines(page.spans, lineTolerance);
+  const lines = groupLines(page.spans, lineTolerance, options.lineOrder ?? "content");
   const tables = inferTables(page.number, lines, options);
   return {
     page: page.number,
@@ -98,10 +99,15 @@ function isNumericField(value: string): boolean {
   return /^(?:\p{Sc}\s*)?[\d.,'’\s]+(?:\s*%)?$/u.test(value.trim());
 }
 
-function groupLines(spans: TextSpan[], tolerance: number): TextLine[] {
+function groupLines(
+  spans: TextSpan[],
+  tolerance: number,
+  lineOrder: "content" | "visual",
+): TextLine[] {
   const horizontal = groupHorizontalLines(
     spans.filter((span) => span.direction !== "ttb"),
     tolerance,
+    lineOrder,
   );
   const vertical = groupVerticalLines(
     spans.filter((span) => span.direction === "ttb"),
@@ -110,7 +116,11 @@ function groupLines(spans: TextSpan[], tolerance: number): TextLine[] {
   return [...horizontal, ...vertical];
 }
 
-function groupHorizontalLines(spans: TextSpan[], tolerance: number): TextLine[] {
+function groupHorizontalLines(
+  spans: TextSpan[],
+  tolerance: number,
+  lineOrder: "content" | "visual",
+): TextLine[] {
   const rows: TextSpan[][] = [];
   for (const span of spans) {
     const row = rows.at(-1);
@@ -125,6 +135,30 @@ function groupHorizontalLines(spans: TextSpan[], tolerance: number): TextLine[] 
 
   attachSuperscriptRows(rows, tolerance);
 
+  if (lineOrder === "content") return textLines(rows);
+
+  // Content streams are not required to emit text in visual order. Merge
+  // baseline fragments after superscript attachment so columns painted in
+  // separate passes reconstruct as one visual row without losing styled runs.
+  const mergedRows: TextSpan[][] = [];
+  for (const row of rows) {
+    const existing = mergedRows.find(
+      (candidate) =>
+        Math.abs((candidate[0]?.bounds.y ?? Number.NaN) - (row[0]?.bounds.y ?? Number.NaN)) <=
+        tolerance,
+    );
+    if (existing) existing.push(...row);
+    else mergedRows.push([...row]);
+  }
+  mergedRows.sort(
+    (left, right) =>
+      (right[0]?.bounds.y ?? 0) - (left[0]?.bounds.y ?? 0) ||
+      (left[0]?.bounds.x ?? 0) - (right[0]?.bounds.x ?? 0),
+  );
+  return textLines(mergedRows);
+}
+
+function textLines(rows: TextSpan[][]): TextLine[] {
   return rows.map((row) => {
     row.sort((left, right) => left.bounds.x - right.bounds.x);
     return {

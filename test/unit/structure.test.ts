@@ -82,6 +82,27 @@ describe("structured extraction quality gate", () => {
     }
   });
 
+  it("reconstructs Pompano agenda rows painted out of visual order", async () => {
+    const source = await fileSource(
+      fileURLToPath(
+        new URL("../fixtures/pompano-unsafe-structures-sept-2026.pdf", import.meta.url),
+      ),
+    );
+    const pdf = await openPdf(source);
+    try {
+      const lines = structurePage(await pdf.getPage(0), { lineOrder: "visual" }).lines.map(
+        (line) => line.text,
+      );
+      expect(lines).toContain("1. 25-08000002 CANNER, SCOTT F 1670 NW 1 TERRACE C. RIZZUTO");
+      expect(lines).toContain(
+        "2. 26-08000022 ELUSMA, FRANCELENE ELUSMA, JOREL 2511 NE 3 TERRACE C. RIZZUTO",
+      );
+    } finally {
+      pdf.close();
+      await source.close();
+    }
+  });
+
   it("keeps hyphen continuations and styled word fragments joined", () => {
     const page: ExtractedPage = {
       number: 1,
