@@ -45,12 +45,11 @@ export interface StructureOptions {
   columnTolerance?: number;
   minimumTableRows?: number;
   minimumTableColumns?: number;
-  lineOrder?: "content" | "visual";
 }
 
 export function structurePage(page: ExtractedPage, options: StructureOptions = {}): StructuredPage {
   const lineTolerance = options.lineTolerance ?? 2;
-  const lines = groupLines(page.spans, lineTolerance, options.lineOrder ?? "content");
+  const lines = groupLines(page.spans, lineTolerance);
   const tables = inferTables(page.number, lines, options);
   return {
     page: page.number,
@@ -99,15 +98,10 @@ function isNumericField(value: string): boolean {
   return /^(?:\p{Sc}\s*)?[\d.,'’\s]+(?:\s*%)?$/u.test(value.trim());
 }
 
-function groupLines(
-  spans: TextSpan[],
-  tolerance: number,
-  lineOrder: "content" | "visual",
-): TextLine[] {
+function groupLines(spans: TextSpan[], tolerance: number): TextLine[] {
   const horizontal = groupHorizontalLines(
     spans.filter((span) => span.direction !== "ttb"),
     tolerance,
-    lineOrder,
   );
   const vertical = groupVerticalLines(
     spans.filter((span) => span.direction === "ttb"),
@@ -116,11 +110,7 @@ function groupLines(
   return [...horizontal, ...vertical];
 }
 
-function groupHorizontalLines(
-  spans: TextSpan[],
-  tolerance: number,
-  lineOrder: "content" | "visual",
-): TextLine[] {
+function groupHorizontalLines(spans: TextSpan[], tolerance: number): TextLine[] {
   const rows: TextSpan[][] = [];
   for (const span of spans) {
     const row = rows.at(-1);
@@ -135,20 +125,25 @@ function groupHorizontalLines(
 
   attachSuperscriptRows(rows, tolerance);
 
-  if (lineOrder === "content") return textLines(rows);
+  const baselineGroups = groupRowsByBaseline(rows, tolerance);
+  const splitBaselines = baselineGroups.filter((group) => group.length > 1);
+  const formsSparseRows =
+    splitBaselines.length > 0 &&
+    splitBaselines.length < 3 &&
+    splitBaselines.every((group) => group.length >= 3);
+  if (!formsSparseRows) {
+    // Sustained parallel baselines indicate independent layout regions, such
+    // as newspaper columns or side-by-side cards. Two-cell label/value regions
+    // are also kept separate so they can become coherent semantic sections.
+    return textLines(rows);
+  }
 
-  // Content streams are not required to emit text in visual order. Merge
-  // baseline fragments after superscript attachment so columns painted in
-  // separate passes reconstruct as one visual row without losing styled runs.
+  // Sparse baselines split into three or more fragments indicate tabular rows
+  // painted in separate content-stream passes. Reconstruct those rows from
+  // geometry so case, owner/address, and inspector cells remain together.
   const mergedRows: TextSpan[][] = [];
-  for (const row of rows) {
-    const existing = mergedRows.find(
-      (candidate) =>
-        Math.abs((candidate[0]?.bounds.y ?? Number.NaN) - (row[0]?.bounds.y ?? Number.NaN)) <=
-        tolerance,
-    );
-    if (existing) existing.push(...row);
-    else mergedRows.push([...row]);
+  for (const group of baselineGroups) {
+    mergedRows.push(group.flatMap((index) => rows[index] ?? []));
   }
   mergedRows.sort(
     (left, right) =>
@@ -156,6 +151,21 @@ function groupHorizontalLines(
       (left[0]?.bounds.x ?? 0) - (right[0]?.bounds.x ?? 0),
   );
   return textLines(mergedRows);
+}
+
+function groupRowsByBaseline(rows: TextSpan[][], tolerance: number): number[][] {
+  const groups: number[][] = [];
+  for (const [index, row] of rows.entries()) {
+    const y = row[0]?.bounds.y;
+    if (y === undefined) continue;
+    const existing = groups.find((group) => {
+      const first = rows[group[0] ?? -1]?.[0];
+      return first !== undefined && Math.abs(first.bounds.y - y) <= tolerance;
+    });
+    if (existing) existing.push(index);
+    else groups.push([index]);
+  }
+  return groups;
 }
 
 function textLines(rows: TextSpan[][]): TextLine[] {
