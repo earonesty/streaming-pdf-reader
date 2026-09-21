@@ -75,6 +75,7 @@
     "corpus:check": "pnpm corpus:build && git diff --exit-code -- corpus/manifest.json",
     "corpus:fetch": "node scripts/fetch-corpus.mjs",
     "fixtures:fetch": "node scripts/fetch-fixtures.mjs",
+    "fixtures:generate:semantic-columns": "node scripts/generate-three-column-fixture.mjs",
     "maintainability": "node scripts/check-source-size.mjs && jscpd src --config .jscpd.json",
     "memory:compare": "pnpm run build && node scripts/memory-comparison.mjs",
     "semantic:report": "pnpm run build && pnpm --dir packages/html-writer build && node scripts/semantic-oracle-report.mjs",
@@ -111,6 +112,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.10",
+    "@boxpdf/writer": "1.13.0",
     "@hyzyla/pdfium": "^2.1.13",
     "@types/node": "^24.3.0",
     "@types/opentype.js": "^1.3.10",

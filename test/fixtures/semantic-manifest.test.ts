@@ -23,10 +23,10 @@ const manifest = JSON.parse(await readFile(resolve(fixtureRoot, "manifest.json")
 };
 
 describe("semantic fixture contracts", () => {
-  it("contains twelve distinct hand-authored cases", () => {
+  it("contains thirteen distinct hand-authored cases", () => {
     expect(manifest.schemaVersion).toBe(1);
-    expect(manifest.fixtures).toHaveLength(12);
-    expect(new Set(manifest.fixtures.map((fixture) => fixture.id)).size).toBe(12);
+    expect(manifest.fixtures).toHaveLength(13);
+    expect(new Set(manifest.fixtures.map((fixture) => fixture.id)).size).toBe(13);
   });
 
   for (const fixture of manifest.fixtures) {

@@ -509,6 +509,29 @@
         ],
         "notes": "Advertisements and decoration may be figures when clearly captioned. Association is geometric and typographic, regardless of document genre or media subject."
       }
+    },
+    {
+      "id": "three-column-flow",
+      "file": "three-column-flow.pdf",
+      "sha256": "d432afcb1e23f4eb349c09f7b388a5d3863a4d933ad5897d31cbb46cc70622f2",
+      "source": "scripts/generate-three-column-fixture.mjs / @boxpdf/writer",
+      "pages": [1],
+      "challenge": "Three sustained reading columns painted in row-major content-stream order",
+      "expect": {
+        "readingOrder": [
+          [
+            "Three-column reading-flow adversary",
+            "ALPHA ONE opens the first narrative",
+            "ALPHA SIX closes the first column",
+            "BRAVO ONE starts only after Alpha ends",
+            "BRAVO SIX closes the second column",
+            "CHARLIE ONE begins the final narrative",
+            "CHARLIE SIX closes the third column"
+          ]
+        ],
+        "elements": { "article": { "min": 1 }, "table": { "max": 0 } },
+        "notes": "Two sustained vertical whitespace gutters establish three bounded reading regions. Semantic traversal is column-major even though the writer paints each horizontal band row-major."
+      }
     }
   ]
 }
