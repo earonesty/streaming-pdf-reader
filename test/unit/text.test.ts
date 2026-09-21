@@ -207,6 +207,40 @@ endbfchar`),
     expect(collapseZeroPaddedSingleByteCodes(tooShort)).toBe(tooShort);
   });
 
+  it("keeps simple-font text bytewise when ToUnicode pads source codes to two bytes", async () => {
+    const cmap = `1 begincodespacerange
+<0000> <00ff>
+endcodespacerange
+4 beginbfchar
+<0043> <0043>
+<0069> <0069>
+<0074> <0074>
+<0079> <0079>
+endbfchar`;
+    const content = "BT /F1 12 Tf 20 50 Td (City) Tj ET";
+    const pdf = `%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Count 1 /Kids [3 0 R] >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100]
+/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >> endobj
+4 0 obj << /Length ${content.length} >> stream
+${content}
+endstream endobj
+5 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica
+/Encoding /WinAnsiEncoding /ToUnicode 6 0 R >> endobj
+6 0 obj << /Length ${cmap.length} >> stream
+${cmap}
+endstream endobj
+trailer << /Root 1 0 R /Size 7 >> %%EOF`;
+    const reader = await openPdf(memorySource(new TextEncoder().encode(pdf)));
+    try {
+      const page = await reader.getPage(0);
+      expect(page.spans.map((item) => item.text).join("")).toBe("City");
+    } finally {
+      reader.close();
+    }
+  });
+
   it("interprets text-state, positioning, array, and quote operators", async () => {
     const content = `q 0 1 0 rg 10 20 30 40 re f Q
 q 1 0 0 RG 2 w 50 50 m 60 70 l 70 50 l h S Q

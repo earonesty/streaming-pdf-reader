@@ -78,10 +78,21 @@ export async function loadFonts(
       const toUnicode = await reader.resolve(toUnicodeValue);
       if (isStream(toUnicode)) {
         const unicodeMap = parseToUnicode(await reader.decodeStream(toUnicode));
-        const codeBytes = unicodeMap.codeBytes ?? (isName(font.get("Subtype"), "Type0") ? 2 : 1);
+        const compositeFont = isName(font.get("Subtype"), "Type0");
+        // Simple fonts always consume one-byte character codes. Some PDF
+        // producers emit their ToUnicode sources as zero-padded, two-byte
+        // values anyway (for example <0043> for "C") while painting literal
+        // strings as ordinary WinAnsi bytes. Respecting that malformed CMap
+        // width pairs adjacent letters into unrelated Unicode code points.
+        // The numeric mapping keys remain usable after forcing the source
+        // width back to the simple-font contract.
+        const decodingMap = compositeFont
+          ? unicodeMap
+          : { ...unicodeMap, codeBytes: 1 as const, codeSpaceRanges: [] };
+        const codeBytes = compositeFont ? (unicodeMap.codeBytes ?? 2) : 1;
         output.set(name, {
           ...fontProperties(encoding),
-          decode: (bytes) => decodeWithMap(bytes, unicodeMap, codeBytes, encoding),
+          decode: (bytes) => decodeWithMap(bytes, decodingMap, codeBytes, encoding),
           codeUnitBytes: codeBytes === 2 ? 2 : 1,
         });
         continue;
