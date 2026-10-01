@@ -49,6 +49,35 @@ describe("CID browser glyph mapping", () => {
     );
   });
 
+  it("maps CID range offsets and boundaries without treating the range end as a cidchar", async () => {
+    const stream = (text: string): PdfStream => ({
+      type: "stream",
+      dict: new Map(),
+      bytes: new TextEncoder().encode(text),
+    });
+    const encoding = stream("2 begincidrange <0020> <0022> 3 <0221> <0222> 545 endcidrange");
+    const unicode = stream(
+      "6 beginbfchar <001f> <001f> <0020> <0020> <0021> <0041> <0022> <0042> <0221> <201c> <0222> <201d> endbfchar",
+    );
+    const font: PdfDict = new Map<string, PdfValue>([
+      ["Subtype", { type: "name", value: "Type0" }],
+      ["Encoding", encoding],
+    ]);
+    const reader = {
+      resolve: async (value: PdfValue) => value,
+      decodeStream: async (value: PdfStream) => value.bytes,
+    } as unknown as PdfObjectReader;
+    await expect(loadCidUnicodeGlyphMap(reader, font, unicode)).resolves.toEqual(
+      new Map([
+        [32, 3],
+        [65, 4],
+        [66, 5],
+        [0x201c, 545],
+        [0x201d, 546],
+      ]),
+    );
+  });
+
   it("does not remap simple fonts without a ToUnicode stream", async () => {
     const reader = {} as PdfObjectReader;
     await expect(loadCidUnicodeGlyphMap(reader, new Map(), undefined)).resolves.toEqual(new Map());

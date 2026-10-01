@@ -11,6 +11,7 @@ export function convertCffFont(
   unicodeToCid: ReadonlyMap<number, number>,
   widthsByName: ReadonlyMap<string | number, number>,
   defaultWidth: number,
+  openType = false,
 ): EmbeddedOpenTypeFont | undefined {
   const glyphCount = cffGlyphCount(bytes);
   if (!glyphCount) return undefined;
@@ -27,14 +28,22 @@ export function convertCffFont(
       if (name) glyphsByName.set(name, glyph);
     }
     const visualCodeMapping = unicodeToCid.size === 0;
+    // Non-CID CFF inside OpenType can also back a CIDFontType0: CIDs are glyph indices.
+    const directGlyphCount =
+      openType && !(parsed as typeof parsed & { isCIDFont?: boolean }).isCIDFont
+        ? glyphCount
+        : undefined;
     const mappings =
       unicodeToCid.size > 0
-        ? cidMappings(unicodeToCid, glyphsByName)
+        ? cidMappings(unicodeToCid, glyphsByName, directGlyphCount)
         : namedMappings(characters, glyphNames, glyphsByName);
     if (mappings.size === 0) return undefined;
     const widths = new Map<number, number>();
     for (const [name, width] of widthsByName) {
-      const glyph = glyphsByName.get(name);
+      const glyph =
+        typeof name === "number"
+          ? glyphForCid(name, glyphsByName, directGlyphCount)
+          : glyphsByName.get(name);
       if (glyph !== undefined) widths.set(glyph, width);
     }
     const data = wrapCffAsOpenType(bytes, glyphCount, mappings, widths, defaultWidth);
@@ -78,14 +87,23 @@ function visualCodePoint(code: number): number {
 function cidMappings(
   unicodeToCid: ReadonlyMap<number, number>,
   glyphsByName: ReadonlyMap<string | number, number>,
+  directGlyphCount?: number,
 ): Map<number, number> {
   const output = new Map<number, number>();
   for (const [codePoint, cid] of unicodeToCid) {
-    const glyph =
-      glyphsByName.get(cid) ?? glyphsByName.get(`cid${cid.toString().padStart(5, "0")}`);
+    const glyph = glyphForCid(cid, glyphsByName, directGlyphCount);
     if (glyph !== undefined) output.set(codePoint, glyph);
   }
   return output;
+}
+
+function glyphForCid(
+  cid: number,
+  glyphsByName: ReadonlyMap<string | number, number>,
+  directGlyphCount?: number,
+): number | undefined {
+  if (directGlyphCount !== undefined) return cid >= 0 && cid < directGlyphCount ? cid : undefined;
+  return glyphsByName.get(cid) ?? glyphsByName.get(`cid${cid.toString().padStart(5, "0")}`);
 }
 
 function cffGlyphCount(bytes: Uint8Array): number | undefined {

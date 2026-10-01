@@ -102,6 +102,8 @@ The v1 parser supports:
   WinAnsi text, UTF-16 strings, Type 0 fonts, and common `ToUnicode` mappings
 - Standard 14, explicit, embedded TrueType, and PFA/PFB Type 1 horizontal
   metrics
+- embedded OpenType (`FontFile3` with `Subtype /OpenType`), using the existing
+  TrueType repair or CFF conversion path without additional dependencies
 - horizontal and vertical CID widths, vertical origins, `TJ` displacement, and
   top-to-bottom structure grouping
 - bounded sparse byte caching with source-read and resident-byte telemetry
@@ -113,6 +115,11 @@ stream filters, Type1C/CFF width recovery, named CMap collections without a
 `ToUnicode` map or usable embedded TrueType cmap, OCR, and rendering are outside
 the v1 support surface. Unsupported filters and configured resource limits fail
 with explicit errors.
+
+OpenType font assets preserve their outline tables and use PDF character mappings
+for browser text. Embedded Encoding CMaps support `cidchar` and `cidrange` entries.
+Malformed OpenType directories, CFF2 fonts, and font collections retain the existing
+font fallback behavior.
 
 ## Compatibility oracle
 
