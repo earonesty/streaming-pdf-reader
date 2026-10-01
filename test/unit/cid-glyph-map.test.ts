@@ -78,8 +78,55 @@ describe("CID browser glyph mapping", () => {
     );
   });
 
+  it.each(["cidchar", "cidrange"])(
+    "stops promptly at many unterminated %s markers while retaining earlier mappings",
+    async (kind) => {
+      const encoding = `1 begincidchar <0001> 7 endcidchar ${`begin${kind} `.repeat(100_000)}<0002> 8`;
+      const start = performance.now();
+      expect(await customCidMap(encoding)).toEqual(new Map([[65, 7]]));
+      // A generous bound catches repeated scans (tens of seconds) without relying on exact timing.
+      expect(performance.now() - start).toBeLessThan(2000);
+    },
+  );
+
+  it("reads mixed blocks and ignores mappings outside blocks or after a missing terminator", async () => {
+    expect(
+      await customCidMap(
+        "<0001> 99 1 begincidchar <0001> 7 endcidchar " +
+          "1 begincidrange <0002> <0002> 8 endcidrange " +
+          "1 begincidchar <0001> 9 endcidrange",
+      ),
+    ).toEqual(
+      new Map([
+        [65, 7],
+        [66, 8],
+      ]),
+    );
+  });
+
   it("does not remap simple fonts without a ToUnicode stream", async () => {
     const reader = {} as PdfObjectReader;
     await expect(loadCidUnicodeGlyphMap(reader, new Map(), undefined)).resolves.toEqual(new Map());
   });
 });
+
+async function customCidMap(encodingText: string): Promise<Map<number, number>> {
+  const stream = (text: string): PdfStream => ({
+    type: "stream",
+    dict: new Map(),
+    bytes: new TextEncoder().encode(text),
+  });
+  const font: PdfDict = new Map<string, PdfValue>([
+    ["Subtype", { type: "name", value: "Type0" }],
+    ["Encoding", stream(encodingText)],
+  ]);
+  const reader = {
+    resolve: async (value: PdfValue) => value,
+    decodeStream: async (value: PdfStream) => value.bytes,
+  } as unknown as PdfObjectReader;
+  return loadCidUnicodeGlyphMap(
+    reader,
+    font,
+    stream("2 beginbfchar <0001> <0041> <0002> <0042> endbfchar"),
+  );
+}

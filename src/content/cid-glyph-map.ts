@@ -43,12 +43,12 @@ function parseCidCharacters(
   const text = new TextDecoder("latin1").decode(bytes);
   const output = new Map<number, number>();
   const sources = [...unicode.keys()].sort((left, right) => left - right);
-  for (const block of text.matchAll(/begin(cidchar|cidrange)([\s\S]*?)end\1/g)) {
-    const range = block[1] === "cidrange";
+  for (const block of cidBlocks(text)) {
+    const range = block.kind === "cidrange";
     const pattern = range
       ? /<([\da-f]{1,8})>\s*<([\da-f]{1,8})>\s+(\d+)/gi
       : /<([\da-f]{1,8})>\s+(\d+)/gi;
-    for (const match of (block[2] ?? "").matchAll(pattern)) {
+    for (const match of block.text.matchAll(pattern)) {
       const start = Number.parseInt(match[1] ?? "", 16);
       const end = range ? Number.parseInt(match[2] ?? "", 16) : start;
       const cid = Number(match[range ? 3 : 2]);
@@ -77,4 +77,19 @@ function firstSource(sources: number[], start: number): number {
     else high = middle;
   }
   return low;
+}
+
+/** Scan each block once; an unterminated block must not restart searches at later markers. */
+function* cidBlocks(text: string): Generator<{ kind: string; text: string }> {
+  const begin = /begin(cidchar|cidrange)/g;
+  while (true) {
+    const match = begin.exec(text);
+    if (!match) return;
+    const kind = match[1] ?? "";
+    const endMarker = `end${kind}`;
+    const end = text.indexOf(endMarker, begin.lastIndex);
+    if (end === -1) return;
+    yield { kind, text: text.slice(begin.lastIndex, end) };
+    begin.lastIndex = end + endMarker.length;
+  }
 }
