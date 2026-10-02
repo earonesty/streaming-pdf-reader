@@ -43,6 +43,8 @@ function parseCidCharacters(
   const text = new TextDecoder("latin1").decode(bytes);
   const output = new Map<number, number>();
   const sources = [...unicode.keys()].sort((left, right) => left - right);
+  if (sources.length === 0) return output;
+  const entries: Array<[number, number, number]> = [];
   for (const block of cidBlocks(text)) {
     const range = block.kind === "cidrange";
     const pattern = range
@@ -52,20 +54,38 @@ function parseCidCharacters(
       const start = Number.parseInt(match[1] ?? "", 16);
       const end = range ? Number.parseInt(match[2] ?? "", 16) : start;
       const cid = Number(match[range ? 3 : 2]);
-      if (!Number.isSafeInteger(cid) || cid < 0 || cid + end - start > 0xffff) continue;
-      if (!range) {
-        if (unicode.has(start)) output.set(start, cid);
+      if (!Number.isSafeInteger(cid) || cid < 0 || end < start || cid + end - start > 0xffff)
         continue;
-      }
-      // Resolve only sources present in ToUnicode, rather than expanding potentially huge ranges.
-      for (let index = firstSource(sources, start); index < sources.length; index += 1) {
-        const source = sources[index];
-        if (source === undefined || source > end) break;
-        output.set(source, cid + source - start);
-      }
+      entries.push([start, end, cid]);
+    }
+  }
+  // Last entry wins. Resolve backwards and remove assigned sources from future scans.
+  // Each source is assigned at most once, even when every range overlaps every other range.
+  const next = Int32Array.from({ length: sources.length + 1 }, (_, index) => index);
+  for (const [start, end, cid] of entries.reverse()) {
+    let index = unassignedSource(next, firstSource(sources, start));
+    while (index < sources.length) {
+      const source = sources[index];
+      if (source === undefined || source > end) break;
+      output.set(source, cid + source - start);
+      const successor = unassignedSource(next, index + 1);
+      next[index] = successor;
+      index = successor;
     }
   }
   return output;
+}
+
+/** Find the next unassigned source, compressing paths to skip previously resolved intervals. */
+function unassignedSource(next: Int32Array, index: number): number {
+  let root = index;
+  while ((next[root] ?? root) !== root) root = next[root] ?? root;
+  while (index !== root) {
+    const parent = next[index] ?? root;
+    next[index] = root;
+    index = parent;
+  }
+  return root;
 }
 
 function firstSource(sources: number[], start: number): number {
