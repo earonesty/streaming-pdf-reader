@@ -1,3 +1,4 @@
+import { PdfError } from "../errors.js";
 import type { PdfObjectReader } from "../syntax/document.js";
 import { isName, isStream, type PdfDict } from "../syntax/values.js";
 import type { EmbeddedFont } from "../types.js";
@@ -55,7 +56,13 @@ export async function trueTypeGlyphMappings(
   if (mapValue === undefined) return unicodeToCid;
   const map = await reader.resolve(mapValue);
   if (!isStream(map)) return unicodeToCid;
-  const bytes = await reader.decodeStream(map);
+  let bytes: Uint8Array;
+  try {
+    bytes = await reader.decodeStream(map);
+  } catch (error) {
+    if (error instanceof PdfError && error.code === "UNSUPPORTED_FEATURE") return unicodeToCid;
+    throw error;
+  }
   const mappings = new Map<number, number>();
   for (const [unicode, cid] of unicodeToCid) {
     const offset = cid * 2;

@@ -65,7 +65,12 @@ function fontPdf(
   composite = false,
   trueType = false,
   customCmap = false,
-  options: { cidToGid?: Uint8Array; fontFile2?: boolean; cid?: number } = {},
+  options: {
+    cidToGid?: Uint8Array;
+    cidToGidFilter?: string;
+    fontFile2?: boolean;
+    cid?: number;
+  } = {},
 ): Uint8Array {
   return buildPdfObjects([
     "<< /Type /Catalog /Pages 2 0 R >>",
@@ -88,7 +93,10 @@ function fontPdf(
     streamObject(
       new TextEncoder().encode(`1 begincidrange <0001> <0002> ${options.cid ?? 1} endcidrange`),
     ),
-    streamObject(options.cidToGid ?? new Uint8Array()),
+    streamObject(
+      options.cidToGid ?? new Uint8Array(),
+      options.cidToGidFilter ? `/Filter /${options.cidToGidFilter}` : "",
+    ),
   ]);
 }
 
@@ -170,6 +178,64 @@ describe("FontFile3 OpenType programs", () => {
       }
     },
   );
+
+  it.each([false, true])(
+    "retains text and CID cmap fallback when CIDToGIDMap uses an unsupported filter (FontFile2=%s)",
+    async (fontFile2) => {
+      const reader = await openPdf(
+        memorySource(
+          fontPdf(trueTypeOpenType(), true, true, false, {
+            cidToGid: Uint8Array.of(0, 0, 0, 2),
+            cidToGidFilter: "RunLengthDecode",
+            fontFile2,
+          }),
+        ),
+      );
+      try {
+        const page = await reader.getPage(0);
+        expect(page.spans[0]?.text).toBe("A");
+        const asset = page.fonts?.[0];
+        if (asset?.format !== "truetype") throw new Error("missing TrueType font");
+        expect(parseTrueTypeCmap(asset.data)?.glyphOfCodePoint(65)).toBe(1);
+        expect(page.spans[0]?.fontAssetId).toBe(asset.id);
+      } finally {
+        reader.close();
+      }
+    },
+  );
+
+  it("preserves CIDToGIDMap decoded-stream resource-limit errors", async () => {
+    const reader = await openPdf(
+      memorySource(
+        fontPdf(trueTypeOpenType(), true, true, false, {
+          cidToGid: new TextEncoder().encode(`${"00".repeat(64)}>`),
+          cidToGidFilter: "ASCIIHexDecode",
+        }),
+      ),
+      { maxDecodedStreamBytes: 32 },
+    );
+    try {
+      await expect(reader.getPage(0)).rejects.toMatchObject({ code: "RESOURCE_LIMIT" });
+    } finally {
+      reader.close();
+    }
+  });
+
+  it("preserves malformed CIDToGIDMap decoding errors", async () => {
+    const reader = await openPdf(
+      memorySource(
+        fontPdf(trueTypeOpenType(), true, true, false, {
+          cidToGid: Uint8Array.of(0, 0, 0, 2),
+          cidToGidFilter: "FlateDecode",
+        }),
+      ),
+    );
+    try {
+      await expect(reader.getPage(0)).rejects.toMatchObject({ code: "INVALID_PDF" });
+    } finally {
+      reader.close();
+    }
+  });
 
   it.each([new Uint8Array(), Uint8Array.of(0, 0, 0)])(
     "maps missing or truncated CIDToGIDMap entries to .notdef instead of assuming identity",
