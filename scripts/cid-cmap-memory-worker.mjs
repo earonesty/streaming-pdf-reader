@@ -3,8 +3,10 @@ import { deflateSync } from "node:zlib";
 import { memorySource, openPdf } from "../dist/index.js";
 
 const kind = process.argv[2];
-if (kind !== "cidchar" && kind !== "cidrange") throw new Error("expected CID record kind");
-const decodedBytes = 32 * 1024 * 1024;
+if (kind !== "cidchar" && kind !== "cidrange" && kind !== "small")
+  throw new Error("expected CID record kind or small-map mode");
+const decodedBytes = kind === "small" ? 0 : 32 * 1024 * 1024;
+const pageReads = kind === "small" ? 2_000 : 1;
 const pdf = buildPdf([
   "<< /Type /Catalog /Pages 2 0 R >>",
   "<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
@@ -17,18 +19,26 @@ const pdf = buildPdf([
 ]);
 // Release fixture-construction buffers before measuring the complete reader path.
 globalThis.gc();
-const baselineRss = process.memoryUsage().rss;
+const baseline = process.memoryUsage();
+let peakArrayBuffers = baseline.arrayBuffers;
 const start = performance.now();
 const reader = await openPdf(memorySource(pdf));
 try {
-  const page = await reader.getPage(0);
-  const text = page.spans.map((span) => span.text).join("");
+  let text = "";
+  for (let index = 0; index < pageReads; index += 1) {
+    const page = await reader.getPage(0);
+    text = page.spans.map((span) => span.text).join("");
+    peakArrayBuffers = Math.max(peakArrayBuffers, process.memoryUsage().arrayBuffers);
+    if (text !== "A") throw new Error("unexpected extracted text");
+  }
   process.stdout.write(
     `${JSON.stringify({
       decodedBytes,
       text,
       elapsedMs: performance.now() - start,
-      peakRssGrowth: peakRss() - baselineRss,
+      peakRssGrowth: peakRss() - baseline.rss,
+      pageReads,
+      peakArrayBufferGrowth: peakArrayBuffers - baseline.arrayBuffers,
     })}\n`,
   );
 } finally {
@@ -37,6 +47,7 @@ try {
 
 /** Generate near-limit repeated valid records without a large intermediate JS string. */
 function compressedEncoding() {
+  if (kind === "small") return stream(Buffer.from("1 begincidchar <0001> 7 endcidchar"));
   const prefix = Buffer.from(`2000000 begin${kind} `);
   const suffix = Buffer.from(` end${kind}`);
   const record = kind === "cidchar" ? "<0001> 7 " : "<0001> <0002> 7 ";

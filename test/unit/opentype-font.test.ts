@@ -65,6 +65,7 @@ function fontPdf(
   composite = false,
   trueType = false,
   customCmap = false,
+  options: { cidToGid?: Uint8Array; fontFile2?: boolean; cid?: number } = {},
 ): Uint8Array {
   return buildPdfObjects([
     "<< /Type /Catalog /Pages 2 0 R >>",
@@ -76,15 +77,18 @@ function fontPdf(
     composite
       ? `<< /Type /Font /Subtype /Type0 /BaseFont /EmbeddedOpenType /Encoding ${customCmap ? "10 0 R" : "/Identity-H"} /DescendantFonts [9 0 R] /ToUnicode 8 0 R >>`
       : `<< /Type /Font /Subtype /${trueType ? "TrueType" : "Type1"} /BaseFont /EmbeddedOpenType /Encoding /WinAnsiEncoding /FirstChar 65 /LastChar 65 /Widths [600] /FontDescriptor 6 0 R >>`,
-    "<< /Type /FontDescriptor /FontName /EmbeddedOpenType /Flags 32 /FontBBox [0 0 1000 1000] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 700 /StemV 80 /FontFile3 7 0 R >>",
+    `<< /Type /FontDescriptor /FontName /EmbeddedOpenType /Flags 32 /FontBBox [0 0 1000 1000] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 700 /StemV 80 /${options.fontFile2 ? "FontFile2" : "FontFile3"} 7 0 R >>`,
     streamObject(program, "/Subtype /OpenType"),
     streamObject(
       new TextEncoder().encode(
         "1 begincodespacerange <0000> <ffff> endcodespacerange 1 beginbfchar <0001> <0041> endbfchar",
       ),
     ),
-    `<< /Type /Font /Subtype /${trueType ? "CIDFontType2" : "CIDFontType0"} /BaseFont /EmbeddedOpenType /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 500 /W [1 [600]] /CIDToGIDMap /Identity /FontDescriptor 6 0 R >>`,
-    streamObject(new TextEncoder().encode("1 begincidrange <0001> <0002> 1 endcidrange")),
+    `<< /Type /Font /Subtype /${trueType ? "CIDFontType2" : "CIDFontType0"} /BaseFont /EmbeddedOpenType /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 500 /W [1 [600]] /CIDToGIDMap ${options.cidToGid ? "11 0 R" : "/Identity"} /FontDescriptor 6 0 R >>`,
+    streamObject(
+      new TextEncoder().encode(`1 begincidrange <0001> <0002> ${options.cid ?? 1} endcidrange`),
+    ),
+    streamObject(options.cidToGid ?? new Uint8Array()),
   ]);
 }
 
@@ -131,6 +135,55 @@ describe("FontFile3 OpenType programs", () => {
         expect(parseTrueTypeCmap(asset.data)?.glyphOfCodePoint(65)).toBe(1);
         expect(page.spans[0]?.fontAssetId).toBe(asset.id);
         expect(page.spans[0]?.text).toBe("A");
+      } finally {
+        reader.close();
+      }
+    },
+  );
+
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false],
+    [true, true],
+  ])(
+    "translates CIDs to GIDs before repairing TrueType cmap (FontFile2=%s, customCmap=%s)",
+    async (fontFile2, customCmap) => {
+      const cid = customCmap ? 7 : 1;
+      const cidToGid = new Uint8Array((cid + 1) * 2);
+      new DataView(cidToGid.buffer).setUint16(cid * 2, 2);
+      const reader = await openPdf(
+        memorySource(
+          fontPdf(trueTypeOpenType(), true, true, customCmap, { cidToGid, fontFile2, cid }),
+        ),
+      );
+      try {
+        const page = await reader.getPage(0);
+        const asset = page.fonts?.[0];
+        expect(asset?.format).toBe("truetype");
+        if (asset?.format !== "truetype") throw new Error("missing TrueType font");
+        expect(parseTrueTypeCmap(asset.data)?.glyphOfCodePoint(65)).toBe(2);
+        expect(page.spans[0]?.text).toBe("A");
+        expect(page.spans[0]?.fontAssetId).toBe(asset.id);
+      } finally {
+        reader.close();
+      }
+    },
+  );
+
+  it.each([new Uint8Array(), Uint8Array.of(0, 0, 0)])(
+    "maps missing or truncated CIDToGIDMap entries to .notdef instead of assuming identity",
+    async (cidToGid) => {
+      const reader = await openPdf(
+        memorySource(fontPdf(trueTypeOpenType(), true, true, false, { cidToGid })),
+      );
+      try {
+        const page = await reader.getPage(0);
+        expect(page.spans[0]?.text).toBe("A");
+        const asset = page.fonts?.[0];
+        expect(asset?.format).toBe("truetype");
+        if (asset?.format !== "truetype") throw new Error("missing TrueType font");
+        expect(parseTrueTypeCmap(asset.data)?.glyphOfCodePoint(65)).toBe(0);
       } finally {
         reader.close();
       }

@@ -42,6 +42,31 @@ export async function extractTrueTypeFont(
   }
 }
 
+/** Translate Unicode-to-CID mappings through a CIDFontType2's big-endian glyph-ID stream. */
+export async function trueTypeGlyphMappings(
+  reader: PdfObjectReader,
+  font: PdfDict,
+  unicodeToCid: ReadonlyMap<number, number>,
+): Promise<ReadonlyMap<number, number>> {
+  if (!isName(font.get("Subtype"), "Type0")) return unicodeToCid;
+  const descendant = await descendantFont(reader, font);
+  if (!descendant || !isName(descendant.get("Subtype"), "CIDFontType2")) return unicodeToCid;
+  const mapValue = descendant.get("CIDToGIDMap");
+  if (mapValue === undefined) return unicodeToCid;
+  const map = await reader.resolve(mapValue);
+  if (!isStream(map)) return unicodeToCid;
+  const bytes = await reader.decodeStream(map);
+  const mappings = new Map<number, number>();
+  for (const [unicode, cid] of unicodeToCid) {
+    const offset = cid * 2;
+    // Missing stream entries select .notdef rather than treating the CID as a GID.
+    const gid =
+      offset + 1 < bytes.length ? ((bytes[offset] ?? 0) << 8) | (bytes[offset + 1] ?? 0) : 0;
+    mappings.set(unicode, gid);
+  }
+  return mappings;
+}
+
 /** Convert embedded Type1 programs, preserving configured resource-limit errors. */
 export async function extractType1Font(
   reader: PdfObjectReader,

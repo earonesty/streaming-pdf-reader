@@ -31,4 +31,20 @@ describe("CID CMap resource bound", () => {
     },
     15_000,
   );
+
+  it("avoids large per-font allocations when repeatedly reading a tiny composite-font CMap", async () => {
+    const { stdout } = await promisify(execFile)(process.execPath, [
+      "--expose-gc",
+      worker,
+      "small",
+    ]);
+    const measurement = JSON.parse(stdout) as {
+      pageReads: number;
+      text: string;
+      peakArrayBufferGrowth: number;
+    };
+    expect(measurement.pageReads).toBe(2_000);
+    expect(measurement.text).toBe("A");
+    expect(measurement.peakArrayBufferGrowth).toBeLessThan(4 * 1024 * 1024);
+  }, 15_000);
 });

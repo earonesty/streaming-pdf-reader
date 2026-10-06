@@ -48,8 +48,9 @@ function parseCidCharacters(
   const sources = [...unicode.keys()].sort((left, right) => left - right);
   if (sources.length === 0) return output;
   // At most 65,536 valid records across all blocks, including duplicates.
-  // Fixed-width storage caps retained record memory at 768 KiB.
-  const entries = new Uint32Array(65_536 * 3);
+  // Grow on demand so small maps do not allocate the 768 KiB maximum capacity.
+  const maximumEntryWords = 65_536 * 3;
+  let entries = new Uint32Array(0);
   let entryWords = 0;
   for (const block of cidBlocks(text)) {
     const range = block.kind === "cidrange";
@@ -62,7 +63,13 @@ function parseCidCharacters(
       const cid = Number(match[range ? 3 : 2]);
       if (!Number.isSafeInteger(cid) || cid < 0 || end < start || cid + end - start > 0xffff)
         continue;
-      if (entryWords === entries.length) return output;
+      if (entryWords === maximumEntryWords) return output;
+      if (entryWords === entries.length) {
+        const capacity = Math.min(maximumEntryWords, Math.max(48, entries.length * 2));
+        const grown = new Uint32Array(capacity);
+        grown.set(entries);
+        entries = grown;
+      }
       entries[entryWords++] = start;
       entries[entryWords++] = end;
       entries[entryWords++] = cid;
