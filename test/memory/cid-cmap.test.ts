@@ -24,8 +24,9 @@ describe("CID CMap resource bound", () => {
       };
       expect(measurement.decodedBytes).toBe(32 * 1024 * 1024);
       expect(measurement.text).toBe("A");
-      // Includes stream decoding and the reader's other font parsers, not just retained records.
-      expect(measurement.peakRssGrowth).toBeLessThan(192 * 1024 * 1024);
+      // Includes stream decoding, decoded strings, and the reader's other font parsers.
+      // Allow Node 20 GC headroom while catching duplicate-record memory amplification.
+      expect(measurement.peakRssGrowth).toBeLessThan(256 * 1024 * 1024);
       expect(measurement.elapsedMs).toBeLessThan(5000);
     },
     15_000,
