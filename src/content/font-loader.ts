@@ -4,10 +4,16 @@ import type { EmbeddedFont } from "../types.js";
 import { loadCidUnicodeGlyphMap } from "./cid-glyph-map.js";
 import { decodeUtf16Bytes, decodeWithMap, parseToUnicode } from "./cmap.js";
 import { type FontDecoder, loadFontEncoding } from "./encoding.js";
-import { extractCffFont, extractTrueTypeFont, extractType1Font } from "./font-assets.js";
+import {
+  extractCffFont,
+  extractTrueTypeFont,
+  extractType1Font,
+  trueTypeGlyphMappings,
+} from "./font-assets.js";
 import { remapTrueTypeCmap, symbolicTrueTypeGlyphMap } from "./font-cmap.js";
 import { extractType3Font } from "./type3.js";
 
+/** Load page font decoders and bind supported embedded font assets to PDF character mappings. */
 export async function loadFonts(
   reader: PdfObjectReader,
   resources?: PdfDict,
@@ -60,7 +66,10 @@ export async function loadFonts(
           cidMappings.size > 0
             ? new Map<number, number>()
             : await symbolicTrueTypeGlyphMap(reader, font, asset.data, encoding);
-        const mappings = cidMappings.size > 0 ? cidMappings : symbolicMappings;
+        const mappings =
+          cidMappings.size > 0
+            ? await trueTypeGlyphMappings(reader, font, cidMappings)
+            : symbolicMappings;
         asset.data = remapTrueTypeCmap(asset.data, mappings) ?? asset.data;
         if (symbolicMappings.size > 0) asset.visualCodeMapping = true;
       }
@@ -117,6 +126,7 @@ export async function loadFonts(
   return output;
 }
 
+/** Retain font metadata while replacing the character decoder with ToUnicode decoding. */
 function fontProperties(encoding: FontDecoder): Omit<FontDecoder, "decode"> {
   const { decode: _, characterTable: __, ...properties } = encoding;
   return properties;

@@ -93,7 +93,7 @@
     "visual:baseline": "pnpm run build && pnpm --dir packages/html-writer build && pnpm corpus:fetch && node scripts/pdfium-visual-report.mjs --write-baseline",
     "visual:gate": "pnpm run build && pnpm --dir packages/html-writer build && pnpm corpus:fetch && node scripts/pdfium-visual-report.mjs --gate",
     "test": "pnpm run test:quick && pnpm run test:oracle && pnpm run test:memory",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "pnpm run build && pnpm --dir packages/html-writer build && vitest run --coverage",
     "test:quick": "vitest run test/unit test/fixtures",
     "test:oracle": "vitest run test/oracle",
     "test:memory": "pnpm run build && pnpm --dir packages/html-writer build && vitest run test/memory",

@@ -2,6 +2,7 @@ import opentype from "opentype.js";
 import type { EmbeddedOpenTypeFont } from "../types.js";
 import { wrapCffAsOpenType } from "./font-cmap.js";
 
+/** Wrap CFF outlines with PDF glyph mappings; malformed programs return no asset. */
 export function convertCffFont(
   bytes: Uint8Array,
   id: string,
@@ -11,6 +12,7 @@ export function convertCffFont(
   unicodeToCid: ReadonlyMap<number, number>,
   widthsByName: ReadonlyMap<string | number, number>,
   defaultWidth: number,
+  openType = false,
 ): EmbeddedOpenTypeFont | undefined {
   const glyphCount = cffGlyphCount(bytes);
   if (!glyphCount) return undefined;
@@ -27,14 +29,22 @@ export function convertCffFont(
       if (name) glyphsByName.set(name, glyph);
     }
     const visualCodeMapping = unicodeToCid.size === 0;
+    // Non-CID CFF inside OpenType can also back a CIDFontType0: CIDs are glyph indices.
+    const directGlyphCount =
+      openType && !(parsed as typeof parsed & { isCIDFont?: boolean }).isCIDFont
+        ? glyphCount
+        : undefined;
     const mappings =
       unicodeToCid.size > 0
-        ? cidMappings(unicodeToCid, glyphsByName)
+        ? cidMappings(unicodeToCid, glyphsByName, directGlyphCount)
         : namedMappings(characters, glyphNames, glyphsByName);
     if (mappings.size === 0) return undefined;
     const widths = new Map<number, number>();
     for (const [name, width] of widthsByName) {
-      const glyph = glyphsByName.get(name);
+      const glyph =
+        typeof name === "number"
+          ? glyphForCid(name, glyphsByName, directGlyphCount)
+          : glyphsByName.get(name);
       if (glyph !== undefined) widths.set(glyph, width);
     }
     const data = wrapCffAsOpenType(bytes, glyphCount, mappings, widths, defaultWidth);
@@ -52,6 +62,7 @@ export function convertCffFont(
   }
 }
 
+/** Map simple-font glyph names to visual codes and single Unicode characters. */
 function namedMappings(
   characters: string[],
   glyphNames: Array<string | undefined>,
@@ -71,23 +82,36 @@ function namedMappings(
   return output;
 }
 
+/** Place PDF character codes in the supplementary private-use area. */
 function visualCodePoint(code: number): number {
   return 0xf0000 + code;
 }
 
+/** Join Unicode-to-CID mappings to available CFF glyph indices. */
 function cidMappings(
   unicodeToCid: ReadonlyMap<number, number>,
   glyphsByName: ReadonlyMap<string | number, number>,
+  directGlyphCount?: number,
 ): Map<number, number> {
   const output = new Map<number, number>();
   for (const [codePoint, cid] of unicodeToCid) {
-    const glyph =
-      glyphsByName.get(cid) ?? glyphsByName.get(`cid${cid.toString().padStart(5, "0")}`);
+    const glyph = glyphForCid(cid, glyphsByName, directGlyphCount);
     if (glyph !== undefined) output.set(codePoint, glyph);
   }
   return output;
 }
 
+/** Resolve a CID by direct OpenType glyph index or by its CFF charset name. */
+function glyphForCid(
+  cid: number,
+  glyphsByName: ReadonlyMap<string | number, number>,
+  directGlyphCount?: number,
+): number | undefined {
+  if (directGlyphCount !== undefined) return cid >= 0 && cid < directGlyphCount ? cid : undefined;
+  return glyphsByName.get(cid) ?? glyphsByName.get(`cid${cid.toString().padStart(5, "0")}`);
+}
+
+/** Read the CFF CharStrings INDEX count from the top dictionary. */
 function cffGlyphCount(bytes: Uint8Array): number | undefined {
   if (bytes.length < 4 || bytes[0] !== 1) return undefined;
   const headerSize = bytes[2] ?? 0;
@@ -100,6 +124,7 @@ function cffGlyphCount(bytes: Uint8Array): number | undefined {
   return cffIndex(bytes, charStringsOffset)?.objects.length;
 }
 
+/** Read a bounded CFF INDEX as byte views, rejecting invalid offsets. */
 function cffIndex(
   bytes: Uint8Array,
   offset: number,
@@ -131,6 +156,7 @@ function cffIndex(
   return { objects, end };
 }
 
+/** Read the final numeric operand of a requested CFF dictionary operator. */
 function dictNumber(bytes: Uint8Array, wantedOperator: number): number | undefined {
   const operands: number[] = [];
   for (let offset = 0; offset < bytes.length; ) {
@@ -149,6 +175,7 @@ function dictNumber(bytes: Uint8Array, wantedOperator: number): number | undefin
   return undefined;
 }
 
+/** Decode supported CFF integer operands and return the next byte offset. */
 function dictOperand(
   bytes: Uint8Array,
   offset: number,
