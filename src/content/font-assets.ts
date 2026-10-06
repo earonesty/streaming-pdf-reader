@@ -4,6 +4,7 @@ import type { EmbeddedFont } from "../types.js";
 import { loadCidGlyphWidths } from "./cid.js";
 import { readOpenTypeTables } from "./opentype-tables.js";
 
+/** Extract TrueType outlines from FontFile2 or a validated FontFile3 OpenType program. */
 export async function extractTrueTypeFont(
   reader: PdfObjectReader,
   font: PdfDict,
@@ -41,6 +42,7 @@ export async function extractTrueTypeFont(
   }
 }
 
+/** Convert embedded Type1 programs, preserving configured resource-limit errors. */
 export async function extractType1Font(
   reader: PdfObjectReader,
   font: PdfDict,
@@ -71,6 +73,7 @@ export async function extractType1Font(
   }
 }
 
+/** Extract and convert standalone or OpenType CFF outlines with PDF glyph mappings. */
 export async function extractCffFont(
   reader: PdfObjectReader,
   font: PdfDict,
@@ -121,6 +124,7 @@ export async function extractCffFont(
   }
 }
 
+/** Resolve the first descendant of a composite font, or return a simple font. */
 async function descendantFont(
   reader: PdfObjectReader,
   font: PdfDict,

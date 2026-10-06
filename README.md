@@ -118,6 +118,10 @@ with explicit errors.
 
 OpenType font assets preserve their outline tables and use PDF character mappings
 for browser text. Embedded Encoding CMaps support `cidchar` and `cidrange` entries.
+CID glyph remapping accepts at most 65,536 valid records per Encoding CMap,
+including duplicates across blocks, with at most 768 KiB of record storage.
+Larger maps fall back without publishing partial glyph mappings; text extraction
+continues to use `ToUnicode`.
 Malformed OpenType directories, CFF2 fonts, and font collections retain the existing
 font fallback behavior.
 

@@ -2,6 +2,7 @@ import type { PdfObjectReader } from "../syntax/document.js";
 import { isName, isStream, type PdfDict, type PdfValue } from "../syntax/values.js";
 import { parseToUnicode } from "./cmap.js";
 
+/** Join Type0 Encoding CIDs to ToUnicode code points for browser font assets. */
 export async function loadCidUnicodeGlyphMap(
   reader: PdfObjectReader,
   font: PdfDict,
@@ -23,6 +24,7 @@ export async function loadCidUnicodeGlyphMap(
   return unicodeGlyphMap(unicode, (source) => cids.get(source));
 }
 
+/** Convert source mappings to Unicode glyph IDs, ignoring missing glyphs. */
 function unicodeGlyphMap(
   unicode: ReadonlyMap<number, string>,
   glyphForSource: (source: number) => number | undefined,
@@ -36,6 +38,7 @@ function unicodeGlyphMap(
   return output;
 }
 
+/** Resolve last-entry-wins mappings; over-budget CMaps fall back without partial results. */
 function parseCidCharacters(
   bytes: Uint8Array,
   unicode: ReadonlyMap<number, string>,
@@ -44,7 +47,10 @@ function parseCidCharacters(
   const output = new Map<number, number>();
   const sources = [...unicode.keys()].sort((left, right) => left - right);
   if (sources.length === 0) return output;
-  const entries: Array<[number, number, number]> = [];
+  // At most 65,536 valid records across all blocks, including duplicates.
+  // Fixed-width storage caps retained record memory at 768 KiB.
+  const entries = new Uint32Array(65_536 * 3);
+  let entryWords = 0;
   for (const block of cidBlocks(text)) {
     const range = block.kind === "cidrange";
     const pattern = range
@@ -56,13 +62,19 @@ function parseCidCharacters(
       const cid = Number(match[range ? 3 : 2]);
       if (!Number.isSafeInteger(cid) || cid < 0 || end < start || cid + end - start > 0xffff)
         continue;
-      entries.push([start, end, cid]);
+      if (entryWords === entries.length) return output;
+      entries[entryWords++] = start;
+      entries[entryWords++] = end;
+      entries[entryWords++] = cid;
     }
   }
   // Last entry wins. Resolve backwards and remove assigned sources from future scans.
   // Each source is assigned at most once, even when every range overlaps every other range.
   const next = Int32Array.from({ length: sources.length + 1 }, (_, index) => index);
-  for (const [start, end, cid] of entries.reverse()) {
+  for (let offset = entryWords - 3; offset >= 0; offset -= 3) {
+    const start = entries[offset] ?? 0;
+    const end = entries[offset + 1] ?? 0;
+    const cid = entries[offset + 2] ?? 0;
     let index = unassignedSource(next, firstSource(sources, start));
     while (index < sources.length) {
       const source = sources[index];
@@ -88,6 +100,7 @@ function unassignedSource(next: Int32Array, index: number): number {
   return root;
 }
 
+/** Find the first source at or above a range start with binary search. */
 function firstSource(sources: number[], start: number): number {
   let low = 0;
   let high = sources.length;

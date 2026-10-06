@@ -1,0 +1,33 @@
+import { execFile } from "node:child_process";
+import { resolve } from "node:path";
+import { promisify } from "node:util";
+import { describe, expect, it } from "vitest";
+
+const worker = resolve(import.meta.dirname, "../../scripts/cid-cmap-memory-worker.mjs");
+
+describe("CID CMap resource bound", () => {
+  it.each(["cidchar", "cidrange"])(
+    "extracts text from a 32 MiB repeated %s CMap within a fixed memory and time budget",
+    async (kind) => {
+      const { stdout, stderr } = await promisify(execFile)(process.execPath, [
+        "--expose-gc",
+        worker,
+        kind,
+      ]);
+      if (!stdout)
+        throw new Error(`worker ${process.execPath} ${worker} returned no output: ${stderr}`);
+      const measurement = JSON.parse(stdout) as {
+        decodedBytes: number;
+        text: string;
+        elapsedMs: number;
+        peakRssGrowth: number;
+      };
+      expect(measurement.decodedBytes).toBe(32 * 1024 * 1024);
+      expect(measurement.text).toBe("A");
+      // Includes stream decoding and the reader's other font parsers, not just retained records.
+      expect(measurement.peakRssGrowth).toBeLessThan(192 * 1024 * 1024);
+      expect(measurement.elapsedMs).toBeLessThan(5000);
+    },
+    15_000,
+  );
+});

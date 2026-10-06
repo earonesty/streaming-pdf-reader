@@ -138,6 +138,35 @@ describe("CID browser glyph mapping", () => {
     expect(performance.now() - start).toBeLessThan(2000);
   });
 
+  it.each(["cidchar", "cidrange"])(
+    "accepts exactly 65,536 valid %s records and falls back on the next record",
+    async (kind) => {
+      const record = kind === "cidchar" ? "<0001> 7 " : "<0001> <0002> 7 ";
+      const encoding = `65536 begin${kind} ${record.repeat(65_535)}${record.replace(" 7 ", " 9 ")} end${kind}`;
+      expect(await customCidMap(encoding)).toEqual(
+        kind === "cidchar"
+          ? new Map([[65, 9]])
+          : new Map([
+              [65, 9],
+              [66, 10],
+            ]),
+      );
+      // Count valid records across blocks; never return a partial mapping on fallback.
+      expect(await customCidMap(`${encoding} 1 begincidchar <0002> 8 endcidchar`)).toEqual(
+        new Map(),
+      );
+      // Invalid records do not consume the valid-record budget.
+      expect(await customCidMap(`${encoding} 1 begincidchar <0002> 65536 endcidchar`)).toEqual(
+        kind === "cidchar"
+          ? new Map([[65, 9]])
+          : new Map([
+              [65, 9],
+              [66, 10],
+            ]),
+      );
+    },
+  );
+
   it("extracts a page promptly with large ToUnicode and repeated overlapping CID ranges", async () => {
     const encode = (text: string) => new TextEncoder().encode(text);
     const pdf = buildPdfObjects([
@@ -173,6 +202,7 @@ describe("CID browser glyph mapping", () => {
   });
 });
 
+/** Exercise the font-loader join with in-memory Encoding and ToUnicode streams. */
 async function customCidMap(
   encodingText: string,
   unicodeText = "2 beginbfchar <0001> <0041> <0002> <0042> endbfchar",
@@ -193,6 +223,7 @@ async function customCidMap(
   return loadCidUnicodeGlyphMap(reader, font, stream(unicodeText));
 }
 
+/** Build a large ToUnicode map to expose repeated range-scan work. */
 function largeUnicodeCmap(): string {
   const entries = Array.from({ length: 40_000 }, (_, index) => {
     const source = index + 1;

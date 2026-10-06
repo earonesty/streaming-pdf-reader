@@ -6,6 +6,7 @@ import { memorySource, openPdf } from "../../src/index.js";
 import { buildPdfObjects, streamObject } from "../support/pdf-builder.js";
 import { buildTrueTypeFont } from "../support/truetype-font.js";
 
+/** Build an OpenType program containing synthetic CFF outlines. */
 function cffOpenType(glyphName = "A"): Uint8Array {
   const path = new opentype.Path();
   path.moveTo(0, 0);
@@ -27,6 +28,7 @@ function cffOpenType(glyphName = "A"): Uint8Array {
   );
 }
 
+/** Build a synthetic TrueType-flavored OpenType program. */
 function trueTypeOpenType(): Uint8Array {
   const original = buildTrueTypeFont();
   const view = new DataView(original.buffer);
@@ -57,6 +59,7 @@ function trueTypeOpenType(): Uint8Array {
   return bytes;
 }
 
+/** Build a PDF embedding the supplied OpenType font and character mappings. */
 function fontPdf(
   program: Uint8Array,
   composite = false,

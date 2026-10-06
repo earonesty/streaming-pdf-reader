@@ -2,6 +2,7 @@ import opentype from "opentype.js";
 import type { EmbeddedOpenTypeFont } from "../types.js";
 import { wrapCffAsOpenType } from "./font-cmap.js";
 
+/** Wrap CFF outlines with PDF glyph mappings; malformed programs return no asset. */
 export function convertCffFont(
   bytes: Uint8Array,
   id: string,
@@ -61,6 +62,7 @@ export function convertCffFont(
   }
 }
 
+/** Map simple-font glyph names to visual codes and single Unicode characters. */
 function namedMappings(
   characters: string[],
   glyphNames: Array<string | undefined>,
@@ -80,10 +82,12 @@ function namedMappings(
   return output;
 }
 
+/** Place PDF character codes in the supplementary private-use area. */
 function visualCodePoint(code: number): number {
   return 0xf0000 + code;
 }
 
+/** Join Unicode-to-CID mappings to available CFF glyph indices. */
 function cidMappings(
   unicodeToCid: ReadonlyMap<number, number>,
   glyphsByName: ReadonlyMap<string | number, number>,
@@ -97,6 +101,7 @@ function cidMappings(
   return output;
 }
 
+/** Resolve a CID by direct OpenType glyph index or by its CFF charset name. */
 function glyphForCid(
   cid: number,
   glyphsByName: ReadonlyMap<string | number, number>,
@@ -106,6 +111,7 @@ function glyphForCid(
   return glyphsByName.get(cid) ?? glyphsByName.get(`cid${cid.toString().padStart(5, "0")}`);
 }
 
+/** Read the CFF CharStrings INDEX count from the top dictionary. */
 function cffGlyphCount(bytes: Uint8Array): number | undefined {
   if (bytes.length < 4 || bytes[0] !== 1) return undefined;
   const headerSize = bytes[2] ?? 0;
@@ -118,6 +124,7 @@ function cffGlyphCount(bytes: Uint8Array): number | undefined {
   return cffIndex(bytes, charStringsOffset)?.objects.length;
 }
 
+/** Read a bounded CFF INDEX as byte views, rejecting invalid offsets. */
 function cffIndex(
   bytes: Uint8Array,
   offset: number,
@@ -149,6 +156,7 @@ function cffIndex(
   return { objects, end };
 }
 
+/** Read the final numeric operand of a requested CFF dictionary operator. */
 function dictNumber(bytes: Uint8Array, wantedOperator: number): number | undefined {
   const operands: number[] = [];
   for (let offset = 0; offset < bytes.length; ) {
@@ -167,6 +175,7 @@ function dictNumber(bytes: Uint8Array, wantedOperator: number): number | undefin
   return undefined;
 }
 
+/** Decode supported CFF integer operands and return the next byte offset. */
 function dictOperand(
   bytes: Uint8Array,
   offset: number,
