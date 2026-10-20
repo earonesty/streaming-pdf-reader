@@ -53,6 +53,7 @@ export function parseToUnicode(bytes: Uint8Array): UnicodeMap {
       if (startHex === undefined || endHex === undefined || destinationHex === undefined) continue;
       const start = Number.parseInt(startHex, 16);
       const end = Number.parseInt(endHex, 16);
+      if (!validUnicodeRange(start, end)) continue;
       sourceWidths.push(Math.ceil(startHex.length / 2));
       for (let code = start; code <= end; code += 1) {
         mapping.set(code, decodeUtf16Hex(incrementHex(destinationHex, code - start)));
@@ -67,6 +68,7 @@ export function parseToUnicode(bytes: Uint8Array): UnicodeMap {
       if (startHex === undefined || endHex === undefined) continue;
       const start = Number.parseInt(startHex, 16);
       const end = Number.parseInt(endHex, 16);
+      if (!validUnicodeRange(start, end)) continue;
       sourceWidths.push(Math.ceil(startHex.length / 2));
       for (let code = start; code <= end; code += 1) {
         const destination = destinations[code - start]?.[1];
@@ -151,5 +153,17 @@ function isPdfControlCharacter(character: string): boolean {
     code === 12 ||
     (code >= 14 && code <= 31) ||
     code === 127
+  );
+}
+
+// A malformed font must not expand billions of codes or increment an unsafe integer forever.
+function validUnicodeRange(start: number, end: number): boolean {
+  const length = end - start + 1;
+  return (
+    Number.isSafeInteger(start) &&
+    Number.isSafeInteger(end) &&
+    Number.isSafeInteger(length) &&
+    length > 0 &&
+    length <= 65536
   );
 }
