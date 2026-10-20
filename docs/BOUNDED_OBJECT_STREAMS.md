@@ -120,6 +120,13 @@ pnpm exec tsup --config scripts/object-stream-workerd.config.ts
 MINIFLARE_MODULE=/tmp/boxpdf-worker-test/node_modules/miniflare/dist/src/index.js node scripts/object-stream-workerd-smoke.mjs artifacts/oldsmar-2026-10-20.pdf
 ```
 
+The harness checks the total page count and every requested page's number,
+span count and text SHA256 against `scripts/oldsmar-output-baseline.json` before
+reporting success. The baseline records the first ten pages from the pre-change
+reader at `a2fe737` with a 64 MiB decoded-stream limit. Empty, missing, reordered
+or changed output fails the check; requested pages outside that baseline fail
+explicitly and require independently verified baseline coverage first.
+
 The harness serves positional reads through a host service binding. It does not
 contact production, read credentials, or put the full PDF into the isolate.
 

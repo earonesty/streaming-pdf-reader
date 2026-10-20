@@ -1,0 +1,57 @@
+{
+  "fixtureSha256": "41223a5cb8b53f12bde9a56d4ebe4c249ee984418292c17af8bc11cfc55e61bc",
+  "source": "Pre-change reader at a2fe737 with a 64 MiB decoded-stream limit; text joined with newline before SHA256.",
+  "count": 1344,
+  "pages": [
+    {
+      "number": 1,
+      "spans": 296,
+      "textSha256": "b263ba825e812297b525adf7c518babdf0e7ae6018ba4551bbc516680d998b2d"
+    },
+    {
+      "number": 2,
+      "spans": 381,
+      "textSha256": "6c3bf698c667c4aabaad26800584a7618308e118e40dfd0dd1771d2f1f92ece1"
+    },
+    {
+      "number": 3,
+      "spans": 422,
+      "textSha256": "0f4f8eb89a49c0b66ce13f6edfce561726cb1599d23f9ca03e815c2b04cd4a8f"
+    },
+    {
+      "number": 4,
+      "spans": 486,
+      "textSha256": "e2dffaa5b76438b6da06b05002fbf4bc1dcce1ee0edd5710b02d4e3cc8c3e774"
+    },
+    {
+      "number": 5,
+      "spans": 554,
+      "textSha256": "4e0d7800cdb790e0b79d98b715c47769048dbc9428bbe12c5a81052164509802"
+    },
+    {
+      "number": 6,
+      "spans": 53,
+      "textSha256": "232f775d7f32f837b833748db9ad3ab5890903e42e6926566abf7dbae013c9a8"
+    },
+    {
+      "number": 7,
+      "spans": 82,
+      "textSha256": "a334fe4af8ef4a291ac8d2b18f71ca963c6bf835f8c1f19265c793dae58f2eb7"
+    },
+    {
+      "number": 8,
+      "spans": 116,
+      "textSha256": "66a57299c4f28cdb9f0f99dcda56e43cc7cec8d957b49bda07c46150f748467a"
+    },
+    {
+      "number": 9,
+      "spans": 115,
+      "textSha256": "129340fc8dbae0b3ee5331432a7ccab2872fd216545c71f69238c3c70a5abdea"
+    },
+    {
+      "number": 10,
+      "spans": 305,
+      "textSha256": "4a184871dae475b586e5d7ff7aa1cee23d3e28dd42197dfa831cd91751ba8fc0"
+    }
+  ]
+}

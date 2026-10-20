@@ -1,12 +1,13 @@
 import { execFile } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { expect, it } from "vitest";
 
 it("extracts beyond 32 MiB without retaining the decoded object stream", async () => {
   const { stdout } = await promisify(execFile)(process.execPath, [
     "--max-old-space-size=64",
-    new URL("../../scripts/object-stream-memory-worker.mjs", import.meta.url).pathname,
-    new URL("../fixtures/large-object-stream.pdf", import.meta.url).pathname,
+    fileURLToPath(new URL("../../scripts/object-stream-memory-worker.mjs", import.meta.url)),
+    fileURLToPath(new URL("../fixtures/large-object-stream.pdf", import.meta.url)),
   ]);
   const result = JSON.parse(stdout);
   expect(result.count).toBe(1);

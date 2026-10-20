@@ -1,3 +1,4 @@
+import { deepStrictEqual } from "node:assert";
 import { open, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -10,6 +11,14 @@ const filePath = process.argv[2];
 const pages = (process.argv[3] ?? "1,2,3,4,5,6,7,8,9,10").split(",").map(Number);
 if (!filePath || pages.some((n) => !Number.isSafeInteger(n) || n < 1))
   throw new Error("Usage: node scripts/object-stream-workerd-smoke.mjs <pdf> [1,2,...]");
+const baseline = JSON.parse(
+  await readFile(new URL("./oldsmar-output-baseline.json", import.meta.url), "utf8"),
+);
+const expectedPages = pages.map((number) => {
+  const expected = baseline.pages.find((page) => page.number === number);
+  if (!expected) throw new Error(`No Oldsmar output baseline for page ${number}`);
+  return expected;
+});
 const file = await open(filePath, "r");
 let runtime;
 let rangeRequests = 0;
@@ -54,7 +63,10 @@ try {
   });
   const text = await response.text();
   if (!response.ok) throw new Error(`Worker failed HTTP ${response.status}: ${text}`);
-  console.log(JSON.stringify({ ...JSON.parse(text), rangeRequests }));
+  const result = JSON.parse(text);
+  deepStrictEqual(result.count, baseline.count, "Oldsmar page count differs from baseline");
+  deepStrictEqual(result.pages, expectedPages, "Oldsmar page output differs from baseline");
+  console.log(JSON.stringify({ ...result, rangeRequests }));
 } finally {
   try {
     await runtime?.dispose();
