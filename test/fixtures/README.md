@@ -24,3 +24,13 @@ SHA-256: `2b9d25ac04654f672519d6e0d525fe10916ac557e111d30d6f356323239ea120`
 
 The embedded Go font's BSD redistribution notice is in `GO-FONT-LICENSE.txt`.
 This externally generated PDF is a test fixture, not package runtime content.
+
+`large-object-stream.pdf` is an original, generated regression fixture (MIT,
+under this repository's license). It places a small page tree after a decoded
+object stream larger than 32 MiB with 163,053 header entries. It must load and
+extract `Bounded object stream` with bounded target buffers. Regenerate with
+`node scripts/generate-large-object-stream.mjs`; the real Oldsmar artifact and
+streaming fetch/benchmark commands are documented in
+[the bounded-object-stream notes](../../docs/BOUNDED_OBJECT_STREAMS.md).
+
+SHA-256: `05a80de83db85a1a63773b63db99d3b89bd6ace64528aea4361648da934ddd49`
