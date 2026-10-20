@@ -17,6 +17,10 @@ export interface ReaderStats {
   largestSourceRead: number;
   objectCacheBytes: number;
   peakObjectCacheBytes: number;
+  /** Logical bytes traversed, including bounded decoder replay. */
+  objectStreamDecodedBytes: number;
+  /** Peak target + output chunk buffers; excludes inflater, parsed values and caches. */
+  peakObjectStreamBufferBytes: number;
   xrefEntries: number;
   xrefResidentBytes: number;
 }

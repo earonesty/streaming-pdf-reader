@@ -11,9 +11,18 @@ the complete file. Explicit byte and object cache budgets govern memory use.
 ```text
 peak parser-owned memory <= configured caches
   + active page window
-  + largest permitted decoded object
-  + measured fixed overhead
+  + compressed input and direct-read staging
+  + largest permitted decoded object / selected-object buffers
+  + measured parser and runtime overhead
 ```
+
+Large Flate object streams are scanned incrementally and only the selected
+object is materialized. `maxObjectStreamDecodedBytes` defaults to at least a 128 MiB
+aggregate work budget per lookup, including replays and retries; it does not
+allocate a buffer of that size. `maxDecodedStreamBytes` continues to govern
+ordinary full-buffer decoding. Temporary-buffer counters do not include total
+parsed-value or runtime memory. See [bounded object-stream extraction](docs/BOUNDED_OBJECT_STREAMS.md)
+for the regression fixture, memory accounting and Worker checks.
 
 Every input implements a random-access source:
 

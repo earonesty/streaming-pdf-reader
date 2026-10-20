@@ -1,202 +1,154 @@
-# Proposal: bounded extraction from large compressed object streams
+# Bounded extraction from large compressed object streams
 
-Status: implementation proposal; this change does not alter the reader or raise limits.
+This change implements bounded object-stream extraction in `src/syntax/object-stream.ts`.
+It does not increase the ordinary decoded-stream materialization limit.
 
-## Problem and reproduction
+## Reproduction and fixtures
 
-A small indirect PDF object can live inside an `/ObjStm` whose complete decoded
-body is much larger than the reader's memory budget. Random-access input and
-page-at-a-time extraction do not bound the current object-stream lookup.
-
-The public Oldsmar council packet provides a concrete reproduction:
+The public Oldsmar council packet fails before page 1 in the old reader:
 
 - URL: <https://myoldsmar.civicweb.net/document/256785/CITY%20COUNCIL%20-%2020%20Oct%202026.pdf?handle=5F2A941EAEFC46C2B1CB7A06310E459E>
-- SHA256: `41223a5cb8b53f12bde9a56d4ebe4c249ee984418292c17af8bc11cfc55e61bc`
+- SHA256: `41223a5cb8b53f12bde9a56d4ebe4c249ee984418292c17af8bc11cfc55e61bc`.
 - File: 153,251,311 bytes; 1,344 pages.
 - Object stream 7951: 7,009,653 compressed bytes; 44,684,446 decoded bytes.
 - `/N`: 163,053; `/First`: 2,459,850.
-- Reading the page-tree root fails before page 1 with the default 33,554,432-byte
-  decoded-stream limit, including with an 8 MiB source cache and 8 MiB object/xref
-  cache budgets.
 
-These measurements come from the retained production artifact and local
-reproduction with reader 0.2.6. Inspection of upstream main at
-`a2fe737` (reader 0.2.7) confirms the same relevant allocation path remains.
-A prior local experiment allowing a 64 MiB decoded stream read ten pages in
-32.06 seconds and peaked at 268,156 KiB process RSS. That measurement includes
-Node and the extraction workload; it is not a measurement of stream bytes alone
-or a Cloudflare isolate memory measurement. It does not validate a limit increase
-for a 128 MiB Worker.
+The old `#readCompressedObject` calls `decodeStream` on the entire container.
+`inflateOnce` retains all chunks and then copies them into another contiguous
+buffer. Object lookup also allocates a JS record for every header entry. The
+32 MiB decoded-stream limit correctly stops this allocation, including with
+small source/object/xref caches. Smaller page batches cannot fix root loading.
 
-The public URL can change. A fixture fetcher should verify the hash and retain
-this exact artifact outside Git; do not commit a 153 MB PDF or credentials.
-Synthetic fixtures must provide the default offline CI coverage.
+`test/fixtures/large-object-stream.pdf` is a checked-in, offline synthetic
+regression: 163,053 entries and 45,259,330 decoded bytes, with a small page tree
+near the end. Its text is `Bounded object stream`; compressed file size is
+1,155,941 bytes. `node scripts/generate-large-object-stream.mjs` regenerates it.
 
-## Current allocation boundary
+The real 153 MB packet stays outside Git. To fetch and verify it without
+materializing the download in JS memory:
 
-The relevant code is `src/syntax/document.ts`:
+```sh
+node scripts/fetch-oldsmar-fixture.mjs
+pnpm build
+node --max-old-space-size=64 scripts/object-stream-memory-worker.mjs artifacts/oldsmar-2026-10-20.pdf 1,2,3,4,5,6,7,8,9,10
+```
 
-1. `PdfObjectReader.#readCompressedObject` obtains the container through the
-   existing object cache, then calls `decodeStream(container)`.
-2. `src/syntax/filters.ts`'s `inflateOnce` retains every output chunk. It then
-   allocates a second contiguous `Uint8Array` and copies the chunks into it.
-3. `#readCompressedObject` parses all `/N` header pairs into an array of JS
-   `{ object, offset }` records, selects one entry, and parses that value from
-   the full decoded stream.
+The fetcher enforces byte count and SHA256 before renaming the partial download.
+The source URL may change; mismatched artifacts must not replace this fixture.
 
-At the copy boundary, both the chunk collection and contiguous decoded output
-are live. Index records add allocation proportional to `/N`. Byte-store and
-object-cache limits do not cover these temporary allocations. Reducing pages
-per batch cannot change a failure during page-tree-root resolution.
+## Implementation
 
-## Proposed implementation
+The decoder scans header pairs incrementally, retaining only the matching
+indexed entry and the first identity-match fallback. For a sorted header with
+a known next offset, it can copy the exact target interval in that same pass.
+For unsorted offsets or a final entry whose end is unknown until EOF, a second
+bounded pass finds the interval and copies the target. Neither path buffers the
+header or allocates `/N` records. The scanner validates integer token length,
+header size/count, safe nonnegative integers, complete pairs and body offsets.
+`ValueParser` sees only the selected interval, so malformed syntax cannot read
+into its neighbor.
 
-### Separate materialization from traversal
+All passes finish decoding to check integrity. A recognized zlib wrapper must
+pass its checksum; it cannot be retried as raw DEFLATE to bypass corruption.
+Raw-deflate fallback remains available for streams without a recognized zlib
+wrapper. Failed attempts release their speculative target state.
 
-Keep `decodeStream` and its existing decoded-materialization limit for callers
-that require a complete buffer. Add an internal chunk-consumer decoder for
-object-stream lookup. For the first implementation, support a single
-`FlateDecode` (including the `Fl` alias) with absent/default predictor settings.
-Inspect the actual filter/parameter representation through the same resolution
-rules as `decodeStream`; a one-element Filter array must work too.
+Supported streaming forms are no filter, `FlateDecode`/`Fl`, and a one-element
+filter array, with absent/default predictor settings. Other filter chains and
+predictors retain the existing bounded decoder and its explicit failures.
 
-Unsupported filter chains and predictors keep the existing bounded path and
-explicit limit errors. They must not silently ignore a filter or receive an
-unbounded fallback. Streaming support for other chains can be added separately.
+Output chunks are at most 64 KiB. Only the selected object's bytes are retained,
+under `maxObjectBytes`; there is no full decoded-stream or header-entry cache.
+Replay costs CPU. DEFLATE byte offsets cannot be treated as seek
+positions without retaining decoder state. Further caching/checkpoint work
+must have an explicit budget and equivalent integrity tests.
 
-Use fixed-size input pushes and output chunks. Do not append discarded chunks
-to pako's default result collection. A byte-range consumer can discard output
-before and after the requested interval while counting all traversed bytes.
-Decoder state and callback buffers must be released on success and failure.
+## Aggregate work limit
 
-### Scan the header with constant workspace
+`maxObjectStreamDecodedBytes` defaults to **at least 128 MiB per object lookup**, shared
+across both passes, filter retries, and xref-recovery retries. If a caller raises
+`maxDecodedStreamBytes`, the default aggregate allowance is at least twice that
+limit, preserving the prior full-buffer acceptance range. It is a work
+budget, not a buffer allocation request. Decoded output from failed attempts
+counts too. Exceeding it raises `PdfError(RESOURCE_LIMIT)` and does not trigger
+xref recovery. The implementation can observe the final offending output chunk
+before rejecting it; stats include that work.
 
-The header consists of `/N` pairs of object numbers and relative body offsets.
-Implement an incremental integer/whitespace/comment scanner across chunk
-boundaries. Do not turn the header into a string, buffer `/First` bytes, or
-allocate an array of all entries.
+Reader stats expose cumulative `objectStreamDecodedBytes` and
+`peakObjectStreamBufferBytes`. The latter measures target plus output-chunk
+buffers only. It excludes the compressed container, source/object/xref caches,
+inflater state, parsed objects, fonts, page output and runtime overhead.
 
-One complete header scan can retain only:
+## Memory accounting and Worker acceptance
 
-- The pair at the xref entry's index, for the existing preferred lookup.
-- The first pair matching the requested object number, for the existing
-  index-mismatch fallback.
-- Token position, pair count, and bounded numeric-token state.
+The Oldsmar checks use `maxObjectBytes = 16 MiB` and fixed **8 MiB each** for
+source, object and xref caches, with the existing 32 MiB generic decoded-stream
+limit. A conservative live raw-buffer envelope includes:
 
-If the indexed pair matches the object number, select it; otherwise use the
-first matching pair, preserving current selection behavior. A second header
-scan can find the smallest body offset strictly greater than the selected
-start. This supports headers whose offsets are not sorted without retaining
-all pairs. For the final object, determine its end from the validated decoded
-length. Adjacent, ordinary headers may use a one-pass optimization only after
-its equivalence is tested.
+| Allocation | Configured envelope |
+| --- | ---: |
+| Direct-object read staging | 16 MiB |
+| Compressed container copy | 16 MiB |
+| Source, object and xref caches combined | 24 MiB |
+| Selected object | 16 MiB |
+| Two output chunks at a callback boundary | 128 KiB |
 
-Require safe integers for `/N`, `/First`, object numbers, offsets, indexes,
-lengths, and their arithmetic. Reject negative/out-of-range values, partial
-pairs, and header tokens extending into the body. Bound numeric-token length
-before concatenating text. Explicitly test zero-length, duplicate and
-out-of-order offsets and choose a documented rejection or compatibility rule.
-Do not use advertised sizes as unchecked allocation requests.
+That envelope is **72.125 MiB before inflater, scanner, parsed values, fonts,
+page output and runtime overhead**. The container can also be present in the
+object cache; counting both is conservative. This is not a total JS-heap bound:
+parser expansion and rendering allocations need independent measurement.
+The remaining 55.875 MiB of a 128 MiB limit cannot be assumed available entirely
+to the reader. Arbitrary PDFs are not certified to fit a 128 MiB isolate by this
+change. An oversized selected object still fails its configured limit.
 
-### Materialize only the requested object
+The synthetic isolated-process test gates incremental Node RSS growth and
+tracked temporary bytes. Node process RSS includes runtime/allocator overhead
+and is not a Worker-isolate measurement. The real-artifact acceptance check
+runs the normal ten-page continuation in workerd with these exact settings and
+compares output. This checks the complete execution rather than a count-only
+probe; it does not expose a measured isolate high-water mark or certify all
+PDFs to fit Cloudflare's 128 MiB production envelope. Repeat distant page
+samples and continuations before downstream rollout.
 
-Replay the decoder from the beginning and copy only the selected object's byte
-interval into a bounded buffer. Give `ValueParser` exactly that interval so a
-malformed value cannot consume its neighbor's bytes. Check target size before
-growing buffers, and bound geometric-growth/copy peaks, not only final length.
-The existing parser nesting and object-cache budgets remain in force.
+The optional smoke harness is reproducible without adding a native runtime to
+the reader's dependencies. Install Miniflare into a separate scratch directory,
+then supply its module path:
 
-Finish decoding to validate stream integrity and the referenced offsets unless
-a separately validated stream result is available. Finding the target is not
-permission to accept a truncated stream or bad checksum. Filter retry attempts
-must reset speculative parser/output state; resource-limit errors must not
-become raw-deflate retries.
+```sh
+npm install --prefix /tmp/boxpdf-worker-test miniflare@4.20260409.0
+pnpm exec tsup --config scripts/object-stream-workerd.config.ts
+MINIFLARE_MODULE=/tmp/boxpdf-worker-test/node_modules/miniflare/dist/src/index.js node scripts/object-stream-workerd-smoke.mjs artifacts/oldsmar-2026-10-20.pdf
+```
 
-For a correctness-first implementation, replay costs CPU but keeps live
-workspace independent of total decoded stream size and header entry count.
-DEFLATE output offsets are not random-access input offsets: seeking to an
-arbitrary compressed byte is invalid without the decoder's state/window.
+The harness serves positional reads through a host service binding. It does not
+contact production, read credentials, or put the full PDF into the isolate.
 
-### Bound memory and work separately
+## Validation evidence
 
-Proposed option semantics, subject to implementation measurements:
+Against upstream main `a2fe737`, a local pre-change reader with a temporary
+64 MiB materialization limit reads the first ten real pages in 37.73 seconds,
+peaking at 242,220 KiB process RSS. The final bounded implementation reads those
+same ten pages in **20.37 seconds**, peaking at **157,876 KiB RSS**, with matching
+text hashes and span counts on every page. Peak tracked target/output buffers
+are **65,627 bytes**. The first version replayed every lookup and took 45.29
+seconds; the sorted-header fast path halves decoded work without retaining a
+stream/header cache.
 
-| Limit | Proposed behavior |
-| --- | --- |
-| `maxDecodedStreamBytes` | Preserve existing full-buffer materialization guard. |
-| `maxObjectStreamWorkspaceBytes` | Bound scanner buffers, output windows and target-buffer allocation peaks together; initial candidate 8 MiB. |
-| `maxObjectStreamDecodedBytes` | Bound logical output traversed per decoding pass; initial candidate 128 MiB, sufficient for this 44.7 MB stream. |
-| `maxObjectStreamEntries` | Bound header scanning work; initial candidate 1,000,000, with further structural validation against `/First`. |
+The local workerd ten-page smoke returns 1,344 total pages and exactly matching
+hashes/span counts in **21.12 seconds**, with 410 host range reads and the same
+65,627-byte tracked buffer peak. A single-page check alone initially succeeded
+while the slower ten-page version failed with a transport connection-loss
+error; the completed ten-page check applies to the final fast path. These are
+local execution measurements, not a measured isolate high-water mark, full
+1,344-page text equivalence, or production recovery.
 
-These are proposed defaults, not verified memory guarantees. The selected
-object must fit both its workspace allocation allowance and `maxObjectBytes`;
-otherwise fail with `PdfError(RESOURCE_LIMIT)` identifying the binding budget.
-Previously accepted documents should retain a bounded compatibility path where
-possible. Document any new opt-in/default limits that reduce accepted coverage.
+Tests cover the large fixture, exact target bounds, unsorted offsets, identity
+fallback, cross-chunk headers/comments, raw/unfiltered/alias forms, corruption,
+truncation, malformed metadata, aggregate work and selected-object limits, and
+bounded fallback behavior. The memory worker records range reads, counters,
+text hashes, wall time and process memory for reproducible follow-up checks.
 
-Also impose a finite aggregate decoded-byte/pass budget per object lookup:
-three bounded passes must not accidentally become unlimited retries. Expose
-traversed bytes, replay count and peak temporary bytes in reader stats, alongside
-the current source/cache measurements. Stats must describe their measurement
-scope; the sum of buffer counters is not total JS heap or isolate RSS.
-
-The initial path may continue materializing the compressed container under
-`maxObjectBytes`; for Oldsmar that input is 7 MB. Account for it independently
-from the temporary workspace and caches. Streaming compressed input directly
-from `PdfSource` can be a follow-up, not an unsupported claim in the first PR.
-
-### Make repeated lookup costs visible
-
-A compact, byte-budgeted metadata/window cache is an optional optimization,
-not a precondition for correctness. Charge its allocations to an explicit
-budget and evict deterministically. Do not retain a decoded 44.7 MB object
-stream or a JS object per header pair as an implicit optimization.
-
-Benchmark page-tree resolution and representative page extraction with cold
-and warm caches. If replay makes the ordinary ten-page Worker continuation
-exceed its CPU/time budget, this approach alone is insufficient. Evaluate
-bounded inflater checkpoints or a host-provided spill adapter separately;
-neither a temporary filesystem nor writable external storage is available to
-all reader consumers. Do not add an implicit network/storage dependency.
-
-## Acceptance tests
-
-1. Generate an offline PDF with a small page-tree root near the end of an
-   object stream whose decoded body exceeds 32 MiB, with over 163,000 entries.
-   With small fixed caches/workspace, `getPageCount` and page text succeed.
-2. Compare extracted target values against full decoding on tractable fixtures:
-   first/middle/last entries, header tokens split at every output boundary,
-   comments/whitespace, Filter name/array/alias forms, xref-index mismatch and
-   offset ordering. Test back-to-back lookups and eviction.
-3. Reject malformed metadata, oversized targets, excessive logical expansion,
-   token-length attacks, deep values, truncated input and bad checksums with
-   deterministic errors and released temporary buffers. Verify unsupported
-   filters/predictors retain their bounded behavior.
-4. Extend isolated-process memory tests: grow total decoded body and `/N` while
-   fixing selected object size and budgets. Peak temporary counters should be
-   bounded; compare heap, ArrayBuffers and RSS with a generous runtime baseline.
-   Measure the peak while decoding/copying, not only after `releasePage()`.
-5. Run the real hash-verified Oldsmar packet through a range-backed source.
-   Verify 1,344 pages and compare text for representative pages and then all
-   pages against the current high-limit reader and an independent PDF oracle.
-   Preserve page order, empty-page behavior and extraction errors.
-6. Exercise real ten-page continuations in a 128 MiB Worker isolate with the
-   application's fixed 8 MiB source/object/xref cache budgets. Record peak
-   memory evidence available from the runtime, CPU, wall time, range reads,
-   replay counts and output equivalence. Repeat across continuations to detect
-   retained buffers. Node RSS alone cannot establish this acceptance gate.
-7. Run the repository's quick, oracle, memory, typecheck, maintainability,
-   packaging and release checks for the implementation change.
-
-## Delivery and downstream adoption
-
-Implement chunk decoding/scanning as focused syntax modules to preserve the
-600-line source-file limit. Add synthetic tests and instrumentation before
-wiring the lookup. Benchmark the real artifact before choosing defaults.
-Publish a reader release only after correctness and memory gates pass.
-
-DirtSignal can then adopt the release while retaining its existing compatibility
-patches, run its range-reader and ingestion regressions, and verify Oldsmar's
-normal scheduled continuation through complete persistence. This proposal does
-not change production dependencies, weaken validation, skip the packet, or
-claim that Oldsmar is recovered.
+DirtSignal adoption remains separate: retain its existing compatibility patches,
+run range-reader/ingestion regressions, and verify Oldsmar's normal scheduler
+path through source exhaustion and persistence. This upstream change does not
+modify production dependencies or claim production recovery.

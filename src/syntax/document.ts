@@ -2,6 +2,8 @@ import { normalizePdfError, PdfError } from "../errors.js";
 import type { PdfSource } from "../source.js";
 import { type ByteStoreOptions, type ByteStoreStats, SparseByteStore } from "../store/sparse.js";
 import { decodeAsciiHex, decodeFlate, decodeLzw } from "./filters.js";
+import { estimateObjectBytes } from "./object-size.js";
+import { extractObjectStream } from "./object-stream.js";
 import { ValueParser } from "./parser.js";
 import { findStartXref, scanPdfStructure } from "./recovery.js";
 import {
@@ -19,6 +21,8 @@ import { type CompressedXrefEntry, type DirectXrefEntry, XrefIndex } from "./xre
 export interface ParserLimits {
   maxObjectBytes?: number;
   maxDecodedStreamBytes?: number;
+  /** Logical bytes traversed per lookup, including every decoding pass and retry. */
+  maxObjectStreamDecodedBytes?: number;
   maxXrefBytes?: number;
   maxPageTreeDepth?: number;
   maxFormDepth?: number;
@@ -53,6 +57,7 @@ export class PdfObjectReader {
   readonly #xref: XrefIndex;
   readonly #xrefSectionOffsets = new Set<number>();
   readonly #cache = new Map<number, { value: PdfValue; size: number }>();
+  readonly #objectStreamMetrics = { decodedBytes: 0, peakBufferBytes: 0 };
   #objectCacheBytes = 0;
   #peakObjectCacheBytes = 0;
   #root?: PdfRef;
@@ -65,6 +70,15 @@ export class PdfObjectReader {
     this.limits = {
       maxObjectBytes: options.maxObjectBytes ?? DEFAULT_MAX_OBJECT_BYTES,
       maxDecodedStreamBytes: options.maxDecodedStreamBytes ?? DEFAULT_MAX_DECODED_STREAM_BYTES,
+      maxObjectStreamDecodedBytes:
+        options.maxObjectStreamDecodedBytes ??
+        Math.max(
+          128 * 1024 * 1024,
+          Math.min(
+            Number.MAX_SAFE_INTEGER,
+            2 * (options.maxDecodedStreamBytes ?? DEFAULT_MAX_DECODED_STREAM_BYTES),
+          ),
+        ),
       maxXrefBytes: options.maxXrefBytes ?? DEFAULT_MAX_XREF_BYTES,
       maxPageTreeDepth: options.maxPageTreeDepth ?? DEFAULT_MAX_PAGE_TREE_DEPTH,
       maxFormDepth: options.maxFormDepth ?? DEFAULT_MAX_FORM_DEPTH,
@@ -94,12 +108,16 @@ export class PdfObjectReader {
     ByteStoreStats & {
       objectCacheBytes: number;
       peakObjectCacheBytes: number;
+      objectStreamDecodedBytes: number;
+      peakObjectStreamBufferBytes: number;
       xrefEntries: number;
       xrefResidentBytes: number;
     }
   > {
     return {
       ...this.store.stats,
+      objectStreamDecodedBytes: this.#objectStreamMetrics.decodedBytes,
+      peakObjectStreamBufferBytes: this.#objectStreamMetrics.peakBufferBytes,
       objectCacheBytes: this.#objectCacheBytes,
       peakObjectCacheBytes: this.#peakObjectCacheBytes,
       xrefEntries: this.#xref.size,
@@ -166,20 +184,22 @@ export class PdfObjectReader {
     }
     if (!entry) throw new Error(`missing xref entry for object ${objectNumber}`);
     let value: PdfValue;
+    const objectStreamWork = { decodedBytes: 0 };
     try {
       value =
         entry.kind === "direct"
           ? await this.#readDirectObject(objectNumber, entry)
-          : await this.#readCompressedObject(objectNumber, entry);
+          : await this.#readCompressedObject(objectNumber, entry, objectStreamWork);
     } catch (error) {
-      if (this.#recoveryComplete) throw error;
+      if (this.#recoveryComplete || (error instanceof PdfError && error.code === "RESOURCE_LIMIT"))
+        throw error;
       await this.#recoverXref();
       const recovered = this.#xref.get(objectNumber);
       if (!recovered) throw error;
       value =
         recovered.kind === "direct"
           ? await this.#readDirectObject(objectNumber, recovered)
-          : await this.#readCompressedObject(objectNumber, recovered);
+          : await this.#readCompressedObject(objectNumber, recovered, objectStreamWork);
     }
     const size = estimateObjectBytes(value);
     if (size <= this.limits.maxObjectCacheBytes) {
@@ -443,13 +463,26 @@ export class PdfObjectReader {
     };
   }
 
-  async #readCompressedObject(objectNumber: number, entry: CompressedXrefEntry): Promise<PdfValue> {
+  async #readCompressedObject(
+    objectNumber: number,
+    entry: CompressedXrefEntry,
+    work: { decodedBytes: number },
+  ): Promise<PdfValue> {
     const container = await this.getObject(entry.streamObject);
     if (!isStream(container) || !isName(container.dict.get("Type"), "ObjStm")) {
       throw new Error(
         `object ${objectNumber} refers to invalid object stream ${entry.streamObject}`,
       );
     }
+    const extracted = extractObjectStream(
+      container,
+      objectNumber,
+      entry.index,
+      this.limits,
+      this.#objectStreamMetrics,
+      work,
+    );
+    if (extracted !== undefined) return extracted;
     const decoded = await this.decodeStream(container);
     const count = numberValue(container.dict.get("N"), "/N");
     const first = numberValue(container.dict.get("First"), "/First");
@@ -562,26 +595,4 @@ function pdfBox(value: PdfValue | undefined): [number, number, number, number] |
   if (!Array.isArray(value) || value.length !== 4 || value.some((item) => typeof item !== "number"))
     return undefined;
   return value as [number, number, number, number];
-}
-
-function estimateObjectBytes(value: PdfValue, seen = new Set<object>()): number {
-  if (value === null || typeof value === "boolean" || typeof value === "number") return 8;
-  if (typeof value === "string") return value.length * 2;
-  if (typeof value !== "object") return 0;
-  if (seen.has(value)) return 0;
-  seen.add(value);
-  if (Array.isArray(value)) {
-    return 16 + value.reduce<number>((total, item) => total + estimateObjectBytes(item, seen), 0);
-  }
-  if (value instanceof Map) {
-    let total = 32;
-    for (const [key, item] of value) total += key.length * 2 + estimateObjectBytes(item, seen);
-    return total;
-  }
-  if ("type" in value && value.type === "stream") {
-    return value.bytes.byteLength + estimateObjectBytes(value.dict, seen);
-  }
-  if ("type" in value && value.type === "string") return value.bytes.byteLength + 16;
-  if ("type" in value && value.type === "name") return value.value.length * 2 + 16;
-  return 24;
 }
