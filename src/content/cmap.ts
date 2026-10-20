@@ -1,3 +1,4 @@
+import { PdfError } from "../errors.js";
 import type { FontDecoder } from "./encoding.js";
 
 export interface UnicodeMap {
@@ -19,6 +20,7 @@ export function parseToUnicode(bytes: Uint8Array): UnicodeMap {
   const mapping = new Map<number, string>();
   const sourceWidths: number[] = [];
   const codeSpaceRanges: UnicodeMap["codeSpaceRanges"] = [];
+  let expansionsRemaining = 65536;
   for (const block of text.matchAll(/begincodespacerange([\s\S]*?)endcodespacerange/g)) {
     for (const match of (block[1] ?? "").matchAll(/<([0-9a-f]+)>\s*<([0-9a-f]+)>/gi)) {
       const startHex = match[1];
@@ -44,34 +46,33 @@ export function parseToUnicode(bytes: Uint8Array): UnicodeMap {
     }
   }
   for (const block of text.matchAll(/beginbfrange([\s\S]*?)endbfrange/g)) {
+    // Consume each complete declaration once; scalar triples inside an array
+    // are destination values, not independent ranges or extra expansion work.
     for (const match of (block[1] ?? "").matchAll(
-      /<([0-9a-f]+)>\s*<([0-9a-f]+)>\s*<([0-9a-f]+)>/gi,
+      /<([0-9a-f]+)>\s*<([0-9a-f]+)>\s*(?:<([0-9a-f]+)>|\[((?:\s*<[0-9a-f]+>\s*)+)\])/gi,
     )) {
       const startHex = match[1];
       const endHex = match[2];
-      const destinationHex = match[3];
-      if (startHex === undefined || endHex === undefined || destinationHex === undefined) continue;
-      const start = Number.parseInt(startHex, 16);
-      const end = Number.parseInt(endHex, 16);
-      if (!validUnicodeRange(start, end)) continue;
-      sourceWidths.push(Math.ceil(startHex.length / 2));
-      for (let code = start; code <= end; code += 1) {
-        mapping.set(code, decodeUtf16Hex(incrementHex(destinationHex, code - start)));
-      }
-    }
-    for (const match of (block[1] ?? "").matchAll(
-      /<([0-9a-f]+)>\s*<([0-9a-f]+)>\s*\[((?:\s*<[0-9a-f]+>\s*)+)\]/gi,
-    )) {
-      const startHex = match[1];
-      const endHex = match[2];
-      const destinations = [...(match[3] ?? "").matchAll(/<([0-9a-f]+)>/gi)];
       if (startHex === undefined || endHex === undefined) continue;
       const start = Number.parseInt(startHex, 16);
       const end = Number.parseInt(endHex, 16);
       if (!validUnicodeRange(start, end)) continue;
+      const length = end - start + 1;
+      if (length > expansionsRemaining) {
+        throw new PdfError(
+          "RESOURCE_LIMIT",
+          "ToUnicode ranges exceed the 65536-code cumulative expansion limit",
+        );
+      }
+      expansionsRemaining -= length;
       sourceWidths.push(Math.ceil(startHex.length / 2));
+      const scalar = match[3];
+      const destinations = (match[4] ?? "").matchAll(/<([0-9a-f]+)>/gi);
       for (let code = start; code <= end; code += 1) {
-        const destination = destinations[code - start]?.[1];
+        const destination =
+          scalar === undefined
+            ? destinations.next().value?.[1]
+            : incrementHex(scalar, code - start);
         if (destination !== undefined) mapping.set(code, decodeUtf16Hex(destination));
       }
     }
