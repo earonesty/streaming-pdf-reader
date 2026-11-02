@@ -517,8 +517,9 @@ export class PdfObjectReader {
     const value = await this.getObject(ref.object);
     if (!isDict(value)) throw new Error(`page tree object ${ref.object} is not a dictionary`);
     const resources = (await this.resolveDict(value.get("Resources"))) ?? inherited.resources;
-    const mediaBox = pdfBox(value.get("MediaBox")) ?? inherited.mediaBox;
-    const cropBox = pdfBox(value.get("CropBox")) ?? inherited.cropBox;
+    const mediaBox =
+      pdfBox(await this.resolve(value.get("MediaBox") ?? null)) ?? inherited.mediaBox;
+    const cropBox = pdfBox(await this.resolve(value.get("CropBox") ?? null)) ?? inherited.cropBox;
     const rotateValue = value.get("Rotate");
     const rotate = typeof rotateValue === "number" ? rotateValue : (inherited.rotate ?? 0);
     if (isName(value.get("Type"), "Page")) {

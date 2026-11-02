@@ -6,7 +6,8 @@ export async function contentStreams(
   value: PdfValue | undefined,
 ): Promise<Uint8Array[]> {
   if (value === undefined) return [];
-  const values = Array.isArray(value) ? value : [value];
+  const contents = await reader.resolve(value);
+  const values = Array.isArray(contents) ? contents : [contents];
   const output: Uint8Array[] = [];
   for (const item of values) {
     const resolved = await reader.resolve(item);
