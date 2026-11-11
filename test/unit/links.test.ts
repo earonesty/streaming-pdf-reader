@@ -4,14 +4,20 @@ import { memorySource, openPdf } from "../../src/index.js";
 function linkedPdf(
   uri: string,
   rotate = 0,
-  options: { action?: string; rect?: string; content?: string; annotation?: string } = {},
+  options: {
+    action?: string;
+    rect?: string;
+    content?: string;
+    annotation?: string;
+    font?: string;
+  } = {},
 ): Uint8Array {
   const content = options.content ?? "BT /F1 12 Tf 30 100 Td (Linked) Tj 80 0 Td (Plain) Tj ET";
   const objects = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
     `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /CropBox [10 20 290 190] /Rotate ${rotate} /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R /Annots 6 0 R >>`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    options.font ?? "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
     `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
     "[7 0 R]",
     options.annotation ??
@@ -98,6 +104,88 @@ it("does not extend a substring annotation to neighboring unlinked text", async 
     memorySource(
       linkedPdf("https://example.com", 0, {
         content: "BT /F1 12 Tf 30 100 Td (Linked Plain) Tj ET",
+      }),
+    ),
+  );
+  try {
+    expect((await pdf.getPage(0)).spans[0]?.href).toBeUndefined();
+  } finally {
+    pdf.close();
+  }
+});
+
+it("matches top-to-bottom text along its downward advance", async () => {
+  const pdf = await openPdf(
+    memorySource(
+      linkedPdf("https://example.com", 0, {
+        font: "<< /Type /Font /Subtype /Type0 /BaseFont /Test /Encoding /Identity-V /DescendantFonts [<< /Type /Font /Subtype /CIDFontType2 /BaseFont /Test /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 1000 /DW2 [880 -1000] >>] >>",
+        content: "BT /F1 12 Tf 1 0 0 1 100 100 Tm <004100420043> Tj ET",
+        rect: "[99 63 113 101]",
+      }),
+    ),
+  );
+  try {
+    const span = (await pdf.getPage(0)).spans[0];
+    expect(span?.direction).toBe("ttb");
+    expect(span?.href).toBe("https://example.com");
+  } finally {
+    pdf.close();
+  }
+});
+
+it("excludes text between separate link quadrilaterals", async () => {
+  const pdf = await openPdf(
+    memorySource(
+      linkedPdf("https://example.com", 0, {
+        content: "BT /F1 12 Tf 30 140 Td (Linked) Tj 0 -40 Td (Plain) Tj 0 -40 Td (Linked) Tj ET",
+        annotation:
+          "<< /Subtype /Link /Rect [29 56 75 155] /QuadPoints [29 136 75 136 75 155 29 155 29 56 75 56 75 75 29 75] /A 8 0 R >>",
+      }),
+    ),
+  );
+  try {
+    const spans = (await pdf.getPage(0)).spans;
+    expect(spans.filter((s) => s.text === "Linked").map((s) => s.href)).toEqual([
+      "https://example.com",
+      "https://example.com",
+    ]);
+    expect(spans.find((s) => s.text === "Plain")?.href).toBeUndefined();
+  } finally {
+    pdf.close();
+  }
+});
+
+it.each([
+  "[29 96 70 96 29 115 70 115]", // Common Z order.
+  "[29 96 70]", // Truncated.
+  "[29 96 70 96 70 116 29 116]", // Outside Rect.
+  "[29 96 29 96 29 96 29 96]", // Degenerate.
+  "[29 96 70 96 null 115 29 115]",
+])("handles QuadPoints ordering or falls back for invalid data: %s", async (quads) => {
+  const pdf = await openPdf(
+    memorySource(
+      linkedPdf("https://example.com", 0, {
+        annotation: `<< /Subtype /Link /Rect [29 96 70 115] /QuadPoints ${quads} /A 8 0 R >>`,
+      }),
+    ),
+  );
+  try {
+    expect((await pdf.getPage(0)).spans.map((s) => s.href)).toEqual([
+      "https://example.com",
+      undefined,
+    ]);
+  } finally {
+    pdf.close();
+  }
+});
+
+it("uses the polygon rather than its bounding box for slanted links", async () => {
+  const pdf = await openPdf(
+    memorySource(
+      linkedPdf("https://example.com", 0, {
+        content: "BT /F1 12 Tf 30 100 Td (Plain) Tj ET",
+        annotation:
+          "<< /Subtype /Link /Rect [20 90 100 150] /QuadPoints [20 90 40 90 100 150 80 150] /A 8 0 R >>",
       }),
     ),
   );

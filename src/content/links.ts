@@ -40,29 +40,31 @@ export async function attachPageLinks(
     const right = Math.max(x1, x2) - page.mediaBox[0];
     const bottom = Math.min(y1, y2) - page.mediaBox[1];
     const top = Math.max(y1, y2) - page.mediaBox[1];
+    const rawQuads = await optionalValue(reader, annotation.get("QuadPoints") ?? null);
+    const quads = Array.isArray(rawQuads)
+      ? await Promise.all(rawQuads.map((value) => optionalValue(reader, value)))
+      : rawQuads;
+    const regions = linkRegions(quads, left, bottom, right, top, page.mediaBox);
     for (const span of spans) {
       const [a, b, c, d] = span.transform ?? [1, 0, 0, 1];
-      const x = span.bounds.x + (a * span.bounds.width) / 2 - (c * span.bounds.height) / 2;
-      const y = span.bounds.y - (b * span.bounds.width) / 2 + (d * span.bounds.height) / 2;
+      const vertical = span.direction === "ttb";
+      const x = vertical
+        ? span.bounds.x + span.bounds.width / 2
+        : span.bounds.x + (a * span.bounds.width) / 2 - (c * span.bounds.height) / 2;
+      const y = vertical
+        ? span.bounds.y - span.bounds.height / 2
+        : span.bounds.y - (b * span.bounds.width) / 2 + (d * span.bounds.height) / 2;
       const tolerance = Math.max(0.5, span.fontSize * 0.35);
-      const dx = (a * span.bounds.width) / 2;
-      const dy = (-b * span.bounds.width) / 2;
+      const dx = vertical ? 0 : (a * span.bounds.width) / 2;
+      const dy = vertical ? -span.bounds.height / 2 : (-b * span.bounds.width) / 2;
       // Do not apply a substring annotation to an entire unsplit text chunk.
       // Exact glyph-level splitting is intentionally outside this release.
       if (
-        x >= left &&
-        x <= right &&
-        y >= bottom &&
-        y <= top &&
-        [
-          [-dx, -dy],
-          [dx, dy],
-        ].every(
-          ([ox = 0, oy = 0]) =>
-            x + ox >= left - tolerance &&
-            x + ox <= right + tolerance &&
-            y + oy >= bottom - tolerance &&
-            y + oy <= top + tolerance,
+        regions.some(
+          (region) =>
+            contains(region, x, y, 0) &&
+            contains(region, x - dx, y - dy, tolerance) &&
+            contains(region, x + dx, y + dy, tolerance),
         )
       )
         span.href = href;
@@ -78,4 +80,66 @@ async function optionalValue(reader: PdfObjectReader, value: PdfValue): Promise<
       return null;
     throw error;
   }
+}
+
+type Point = [number, number];
+
+/** Invalid QuadPoints fall back to Rect, including points outside Rect. */
+function linkRegions(
+  values: PdfValue,
+  left: number,
+  bottom: number,
+  right: number,
+  top: number,
+  origin: readonly [number, number, number, number],
+): Point[][] {
+  if (right <= left || top <= bottom) return [];
+  const fallback: Point[][] = [
+    [
+      [left, bottom],
+      [right, bottom],
+      [right, top],
+      [left, top],
+    ],
+  ];
+  if (
+    !Array.isArray(values) ||
+    !values.length ||
+    values.length % 8 !== 0 ||
+    !values.every((v) => typeof v === "number" && Number.isFinite(v))
+  )
+    return fallback;
+  const numbers = values as number[];
+  const regions: Point[][] = [];
+  for (let i = 0; i < numbers.length; i += 8) {
+    const points: Point[] = [];
+    for (let j = 0; j < 8; j += 2) {
+      const x = (numbers[i + j] as number) - origin[0];
+      const y = (numbers[i + j + 1] as number) - origin[1];
+      if (x < left || x > right || y < bottom || y > top) return fallback;
+      points.push([x, y]);
+    }
+    // Accept both perimeter and common Z-order encodings of a convex quad.
+    const cx = points.reduce((sum, p) => sum + p[0], 0) / 4;
+    const cy = points.reduce((sum, p) => sum + p[1], 0) / 4;
+    points.sort((a, b) => Math.atan2(a[1] - cy, a[0] - cx) - Math.atan2(b[1] - cy, b[0] - cx));
+    if (
+      !points.every((p, j) => {
+        const q = points[(j + 1) % 4] as Point;
+        const r = points[(j + 2) % 4] as Point;
+        return (q[0] - p[0]) * (r[1] - q[1]) - (q[1] - p[1]) * (r[0] - q[0]) > 0;
+      })
+    )
+      return fallback;
+    regions.push(points);
+  }
+  return regions;
+}
+
+function contains(region: Point[], x: number, y: number, tolerance: number): boolean {
+  return region.every(([ax, ay], i) => {
+    const [bx, by] = region[(i + 1) % region.length] as Point;
+    const cross = (bx - ax) * (y - ay) - (by - ay) * (x - ax);
+    return cross >= -tolerance * Math.hypot(bx - ax, by - ay);
+  });
 }
