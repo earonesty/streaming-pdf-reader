@@ -66,7 +66,7 @@ export function structurePage(page: ExtractedPage, options: StructureOptions = {
     options,
   );
   const tables = [...ruledTables, ...inferredTables];
-  attachTablePanels(semanticPage, tables, groupedLines);
+  attachTablePanels(page, tables, groupedLines);
   const lines = orderReadingColumns(
     semanticPage,
     groupedLines,

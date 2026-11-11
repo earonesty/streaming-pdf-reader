@@ -17,4 +17,4 @@ pdftoppm -f 2 -singlefile -scale-to 2400 -x 950 -y 575 -W 755 -H 590 -png \
 The crop includes the whole state machine and its legend, excluding the caption
 (which remains semantic text). The report and preview copy this local asset so
 both HTML and Markdown targets display it. A PNG reference does not require the
-converter to emit PNG: its current SVG is a valid representation of the diagram.
+converter to emit PNG. The current SVG can be compared visually against this crop; caption-association checks alone do not establish diagram fidelity.

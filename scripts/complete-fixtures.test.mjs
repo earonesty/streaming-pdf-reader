@@ -30,3 +30,19 @@ test("Markdown compares its complete parsed structure independently", () => {
   assert.deepEqual(compareComplete("**Label:** value", "__Label:__ value", "markdown"), []);
   assert.equal(compareComplete("**Label:** value", "Label: value", "markdown").length, 1);
 });
+test("preserves word spaces around inline elements and preformatted edges", () => {
+  for (const [a, b, format] of [
+    ["<p>Hello <strong>world</strong></p>", "<p>Hello<strong>world</strong></p>", "html"],
+    ["**Note** text", "**Note**text", "markdown"],
+    ["<pre>  code\n</pre>", "<pre>code</pre>", "html"],
+  ])
+    assert.equal(compareComplete(a, b, format).length, 1);
+  assert.deepEqual(
+    compareComplete(
+      "<div>\n<p>Hello <strong>world</strong></p>\n</div>",
+      "<div><p>Hello <strong>world</strong></p></div>",
+      "html",
+    ),
+    [],
+  );
+});

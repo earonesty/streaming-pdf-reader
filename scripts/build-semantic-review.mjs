@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { copyFile, cp, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { marked } from "marked";
 import { parse, serialize } from "parse5";
@@ -110,13 +110,16 @@ for (const fixture of cases) {
   const outputId = fixture.outputId ?? id;
   const sourcePdf = resolve(output, "sources", `${id}.pdf`);
   await copyFile(fixture.pdf, sourcePdf);
+  const pageName = new RegExp(`^${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-[0-9]+\\.png$`);
+  for (const name of await readdir(resolve(output, "sources")))
+    if (pageName.test(name)) await rm(resolve(output, "sources", name));
   execFileSync(
     "pdftoppm",
     ["-scale-to", "1200", "-png", sourcePdf, resolve(output, "sources", id)],
     { stdio: "pipe" },
   );
   const pages = (await readdir(resolve(output, "sources")))
-    .filter((name) => name.startsWith(`${id}-`) && name.endsWith(".png"))
+    .filter((name) => pageName.test(name))
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
     .map((name) => `sources/${name}`);
   const markdown = fixture.bounded
@@ -143,7 +146,16 @@ for (const fixture of cases) {
     markdown: cleanHtml(marked.parse(markdown)),
     markdownRaw: markdown,
     contracts: fixture.contracts,
-    findings: report.filter((row) => [id, outputId].includes(row.id)),
+    findings: report
+      .filter((row) => [id, outputId].includes(row.id))
+      .map(({ format, coverage, expectedTokens, actualTokens, findings, changes }) => ({
+        format,
+        coverage,
+        expectedTokens,
+        actualTokens,
+        findings,
+        changes,
+      })),
   };
   if (fixture.oracleId) {
     const oracle = await readFile(resolve(input, `${fixture.oracleId}.oracle.md`), "utf8");

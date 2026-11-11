@@ -1,5 +1,4 @@
 import { extractPageGraphics } from "./content/graphics.js";
-import { attachPageLinks } from "./content/links.js";
 import { extractPageText } from "./content/text.js";
 import { normalizePdfError } from "./errors.js";
 import type { PdfSource } from "./source.js";
@@ -56,7 +55,6 @@ export class StreamingPdfReader {
       const fonts: EmbeddedFont[] = [];
       const visualSpans: ExtractedPage["spans"] = [];
       const spans = await extractPageText(this.#objects, page, fonts, visualSpans);
-      await attachPageLinks(this.#objects, page, spans);
       const { fills, paths, images } = await extractPageGraphics(this.#objects, page);
       for (const span of spans) span.source.page = index + 1;
       for (const span of visualSpans) span.source.page = index + 1;

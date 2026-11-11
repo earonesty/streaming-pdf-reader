@@ -1,7 +1,6 @@
 # Semantic oracle: checks-only review
 
-**Current policy:** whole-document references are drafts and cannot fail the gate.
-Only focused checks with recorded verification evidence are enforced. See the
+**Current policy:** historical whole-document references are advisory drafts. Complete fixture expectations and focused checks with recorded verification evidence are enforced. See the
 [current policy and before/after workflow](semantic-regression-review.md#current-authority-and-gate-policy).
 The entries below are a chronological review log, not a declaration that the
 original targets were correct.
@@ -12,7 +11,7 @@ Current coverage and latest cross-document findings are in
 record the initial oracle work and subsequent reviewed decisions chronologically.
 
 
-This change does not modify reader, inference, or writer source. The independently
+The initial checks-only phase did not modify reader, inference, or writer source; the later links/table fixes are recorded in the regression review. The independently
 reviewed ideal HTML files were initially unchanged; subsequent user-reviewed
 corrections are recorded below. `marked` is a development-only parser
 used to interpret actual Markdown independently of the writer.
@@ -21,7 +20,7 @@ used to interpret actual Markdown independently of the writer.
 
 - `pnpm test:semantic-oracle`: adversarial tests of the checker itself.
 - `pnpm semantic:report`: build both packages and report HTML and Markdown findings.
-- `pnpm semantic:gate`: the same comparison, exiting 1 when any difference exists.
+- `pnpm semantic:gate`: the same comparison, exiting 1 on complete-fixture differences or enforced verified-check failures; draft differences remain advisory.
 - After building, `node scripts/semantic-oracle-report.mjs --gate --out /tmp/semantic-review`
   saves actual HTML, Markdown, and a detailed `report.json`.
 - `--json` prints the detailed report. The report JSON schema replaces the former
@@ -127,7 +126,7 @@ Acme Markdown now fails only `tableHeaders`, exposing its unmarked row-label
 column. Link destinations remain strict and unchanged. The full corpus has 2/20
 exact passes (both hanging-indent outputs), reflecting the corrected target and
 stronger checks, not a converter regression. All 16 checker tests and all 12
-ideal-fixture tests pass. The corpus gate still exits 1 for review findings.
+ideal-fixture tests pass. At that stage the corpus gate still exited 1; current gate policy is stated above.
 
 ## Source-verified research-code correction
 
@@ -153,3 +152,11 @@ formats. All 23 checker self-tests and 12 ideal-fixture tests pass.
 ## Fixture policy
 
 Fixtures should be understandable, not necessarily narrow. Covering interacting features is valuable. Maintain complete expected HTML, independent expected Markdown, and an explicit feature inventory. Focused assertions are supplementary diagnostics, not the definition of a fixture. Use large real-world PDFs to discover defects and design reviewable examples. See ../fixtures/semantic/expected/README.md for normalization, promotion and update rules.
+
+## Complete fixture promotion decisions
+
+The user approved promoting rich-content and product cards to complete fixtures after reviewing source/current/target previews. These decisions supersede the earlier open questions in this chronological log.
+
+- **Rich-content:** retain the entire long-token paragraph and inset, with normal text resuming afterward. Preserve mixed inline emphasis and source annotation destinations, table column/row relationships, and the three-column footer. The in-cell link is bold in the source; no invented aria-label belongs in the expectation. HTML keeps neutral inset grouping; Markdown's indented block representation was accepted. The complete expectations and feature inventory live under `fixtures/semantic/expected`.
+- **Order-confirmation:** retain the thank-you, order metadata, product cards represented as the accepted table, complete shipping/billing sections, and delivery/returns footer. Subtotal/shipping/tax/total are label/value pairs, rendered as bold-colon labels in Markdown. The user explicitly accepted that relationship. There is no additional “Order total” heading in the promoted expectation. Preserve tracking/support links and product row-label semantics.
+- **Figure 2 draft:** retain the user-requested divider, bold figure number and italic caption. This is a semantic presentation preference, not a claim that the PDF contains an identical horizontal rule. The reference crop remains a visual review aid; it is not a machine-readable transcript of every diagram label.

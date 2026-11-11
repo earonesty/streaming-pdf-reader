@@ -2,10 +2,10 @@
 
 ## Current authority and gate policy
 
-Whole-document references are **drafts**, not pass/fail authorities. Their
+Historical whole-document references under `ideal` are **drafts**, not pass/fail authorities. Complete expectations under `expected` are authoritative and their differences also fail the gate. Their
 comparisons are labeled `REVIEW` or `DRAFT MATCH` and never block the gate.
 Focused checks carry per-check verification evidence in
-`fixtures/semantic/review-contracts.json`. Only findings on checks backed by
+`fixtures/semantic/review-contracts.json`. For focused contracts, only findings on checks backed by
 source review or existing regression evidence can fail `--gate`; checks without
 that evidence remain advisory. The known paragraph-continuity findings are still
 failures, rather than being waived by this change.
@@ -13,7 +13,7 @@ failures, rather than being waived by this change.
 Capture output before a heuristic change, then compare after it:
 
 ```sh
-node scripts/semantic-oracle-report.mjs --out /tmp/semantic-before
+pnpm semantic:report --out /tmp/semantic-before
 # Make the change and rebuild both packages.
 node scripts/semantic-oracle-report.mjs --compare /tmp/semantic-before/report.json --out /tmp/semantic-after --gate
 ```
@@ -36,8 +36,7 @@ unchanged in this checks-only work.
 
 ## Coverage
 
-The preview now contains 17 distinct PDFs, always showing full current output.
-Ten have reviewed full-document HTML targets and derived oracle Markdown. Six
+The preview now contains 22 distinct PDFs: the original 17-document review set plus five bounded reproductions. Two original targets have been promoted to complete fixtures with separate expected Markdown; eight retain advisory draft HTML and derived Markdown. Six
 municipal PDFs and SciCap currently have focused contracts, not full ideal
 outputs. TraceMonkey has both types of coverage. Do not interpret a passing
 focused contract as a complete semantic-quality verdict.
@@ -92,7 +91,7 @@ node scripts/semantic-oracle-report.mjs --gate --out /tmp/semantic-review-result
 pnpm semantic:preview --input /tmp/semantic-review-results --out /tmp/semantic-review-preview
 ```
 
-The gate deliberately exits 1 on review findings; run the preview command after
+The gate exits 1 on complete-fixture differences or enforced verified-check failures; advisory draft findings do not fail it. When enforced failures remain, run the preview command after
 it, not chained with `&&`. The preview requires Poppler's `pdftoppm` and writes a
 `preview.html`, source PDF copies, and page PNGs. It uses local assets and requires
 no server. Source page selection supports every page; both output panes contain

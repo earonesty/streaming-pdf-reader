@@ -286,3 +286,55 @@ test("draft targets and unverified checks cannot fail the gate", async () => {
   assert.equal(reviewFails([row]), true);
   assert.equal(reviewStatus(row), "FAIL");
 });
+test("keeps inline words joined but block boundaries separate in contracts", async () => {
+  const { checkReviewContracts } = await import("./review-contracts.mjs");
+  assert.deepEqual(
+    checkReviewContracts(
+      "<table><tr><td>Any per<strong>son</strong> engaging</td></tr></table>",
+      "html",
+      [{ kind: "rowContains", cells: ["Any person engaging"] }],
+    ),
+    [],
+  );
+  assert.equal(
+    checkReviewContracts("<div><p>Case Status</p><p>Unrelated text</p><p>Open</p></div>", "html", [
+      { kind: "labelValue", label: "Case Status", value: "Open" },
+    ]).length,
+    1,
+  );
+  assert.deepEqual(
+    checkReviewContracts("<dl><div><dt>Case Status</dt><dd>Open</dd></div></dl>", "html", [
+      { kind: "labelValue", label: "Case Status", value: "Open" },
+    ]),
+    [],
+  );
+  assert.equal(checkReviewContracts("<p>\u0085</p>", "html", [{ kind: "noControls" }]).length, 1);
+});
+test("detects detached table captions and preserves definition value spaces", () => {
+  assert.ok(
+    findings(
+      "<table><caption>Totals</caption><tr><td>5</td></tr></table>",
+      "<p>Totals</p><table><tr><td>5</td></tr></table>",
+    ).some((f) => f.check === "tableCaptions"),
+  );
+  assert.deepEqual(
+    inspectDocument("**Label:** <em>Alpha</em> <em>Beta</em>", "markdown").definitions,
+    [JSON.stringify(["Label", "Alpha Beta"])],
+  );
+});
+test("oracle Markdown preserves irregular tables and unsupported header roles as HTML", async () => {
+  const { oracleMarkdown } = await import("./oracle-markdown.mjs");
+  for (const html of [
+    "<table><tr><th>A</th></tr><tr><td>one</td><td>two</td></tr></table>",
+    '<table><tr><th>A</th><th>B</th></tr><tr><td>one</td><th scope="row">two</th></tr></table>',
+    '<table><tr><th>A</th><th>B</th></tr><tr><td rowspan="2">one</td><td>two</td></tr><tr><td>three</td></tr></table>',
+  ]) {
+    const markdown = oracleMarkdown(html);
+    assert.ok(markdown.includes("<table>"));
+    assert.deepEqual(inspectDocument(markdown, "markdown").tables, inspectDocument(html).tables);
+    assert.deepEqual(
+      inspectDocument(markdown, "markdown").tableHeaders,
+      inspectDocument(html).tableHeaders,
+    );
+  }
+});

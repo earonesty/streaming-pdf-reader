@@ -48,6 +48,15 @@ export function oracleMarkdown(html) {
       const first = Array.from(rows[0].children);
       if (
         !first.length ||
+        rows.some((row) => row.children.length !== first.length) ||
+        rows
+          .slice(1)
+          .some((row) =>
+            Array.from(row.children).some(
+              (cell, index) =>
+                cell.tagName === "TH" && (index !== 0 || cell.getAttribute("scope") === "col"),
+            ),
+          ) ||
         !first.every((cell) => cell.tagName === "TH" && cell.getAttribute("scope") !== "row")
       )
         return `\n\n${node.outerHTML}\n\n`;

@@ -5,7 +5,8 @@ import type { Table, TextLine } from "./index.js";
 export function attachTablePanels(page: ExtractedPage, tables: Table[], lines: TextLine[]): void {
   if (page.rotate !== 0) return;
   const panels = (page.paths ?? [])
-    .filter((path) => path.stroke && /Z$/i.test(path.d))
+    .filter((path) => path.stroke && (path.strokeOpacity ?? 1) > 0 && /Z$/i.test(path.d))
+    .flatMap((path) => (path.d.match(/M[^M]*Z/gi) ?? []).map((d) => ({ d })))
     .flatMap((path) => {
       const numbers = path.d.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
       if (numbers.length < 8 || numbers.length % 2) return [];
@@ -21,7 +22,9 @@ export function attachTablePanels(page: ExtractedPage, tables: Table[], lines: T
       ];
     });
   const assigned = new Set(tables.flatMap((table) => table.cells.flatMap((cell) => cell.spans)));
-  for (const table of tables) {
+  for (const table of [...tables].sort(
+    (a, b) => b.bounds.y + b.bounds.height - a.bounds.y - a.bounds.height,
+  )) {
     const panel = panels
       .filter(
         (panel) =>
@@ -36,11 +39,21 @@ export function attachTablePanels(page: ExtractedPage, tables: Table[], lines: T
     );
     const above = extras.filter((line) => line.bounds.y >= table.bounds.y + table.bounds.height);
     const below = extras.filter((line) => line.bounds.y + line.bounds.height <= table.bounds.y);
-    if (above.length === 1 && above[0]?.spans.every((span) => /bold/i.test(span.fontFamily ?? "")))
+    if (
+      above.length === 1 &&
+      above[0]?.spans.every((span) => /bold/i.test(span.fontFamily ?? ""))
+    ) {
       table.caption = above;
+      for (const span of above[0].spans) assigned.add(span);
+    }
     // A single wide line inside the same panel is a spanning footer,
     // not a cell in whichever column its final inline run happens to reach.
-    if (below.length === 1 && below[0] && below[0].bounds.width > table.bounds.width * 0.6) {
+    if (
+      below.length === 1 &&
+      below[0] &&
+      below[0].bounds.width > table.bounds.width * 0.6 &&
+      separatedFooter(page, table, below[0])
+    ) {
       const line = below[0];
       table.cells.push({
         row: Math.max(...table.cells.map((cell) => cell.row)) + 1,
@@ -64,4 +77,31 @@ function contains(outer: Rect, inner: Rect): boolean {
     inner.x + inner.width <= outer.x + outer.width &&
     inner.y + inner.height <= outer.y + outer.height
   );
+}
+
+function separatedFooter(page: ExtractedPage, table: Table, line: TextLine): boolean {
+  return (page.paths ?? []).some((path) => {
+    if (
+      !path.stroke ||
+      (path.strokeOpacity ?? 1) <= 0 ||
+      !/^(?:M[-\d., ]+)+L[-\d., ]+$/.test(path.d)
+    )
+      return false;
+    const points = [...path.d.matchAll(/[ML]\s*(-?[\d.]+)[ ,]+(-?[\d.]+)/g)].map((match) => [
+      Number(match[1]),
+      Number(match[2]),
+    ]);
+    const a = points.at(-2),
+      b = points.at(-1);
+    if (!a || !b) return false;
+    const [x1 = 0, y1 = 0] = a,
+      [x2 = 0, y2 = 0] = b;
+    return (
+      Math.abs(y1 - y2) <= 1 &&
+      Math.min(x1, x2) <= table.bounds.x &&
+      Math.max(x1, x2) >= table.bounds.x + table.bounds.width &&
+      y1 >= line.bounds.y + line.bounds.height &&
+      y1 <= table.bounds.y
+    );
+  });
 }

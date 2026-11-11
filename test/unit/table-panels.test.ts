@@ -17,8 +17,31 @@ it("requires enclosure evidence before absorbing adjacent text into a table", as
       columnSpan: 3,
       text: "Footer cell spans all columns and keeps mixed inline content together.",
     });
+    const transparent = structurePage({
+      ...page,
+      paths: page.paths?.map((path) => ({ ...path, strokeOpacity: 0 })),
+    }).tables[0];
+    expect(transparent?.caption).toBeUndefined();
+    expect(transparent?.cells.some((cell) => cell.text.includes("Footer cell"))).toBe(false);
+    const unseparated = structurePage({
+      ...page,
+      paths: page.paths?.filter((path) => /Z$/i.test(path.d)),
+    }).tables[0];
+    expect(unseparated?.cells.some((cell) => cell.text.includes("Footer cell"))).toBe(false);
+    const disjoint = structurePage({
+      ...page,
+      paths: [
+        {
+          d: "M70 320L100 320L100 460L70 460ZM490 320L530 320L530 460L490 460Z",
+          stroke: "#000000",
+        },
+      ],
+    }).tables[0];
+    expect(disjoint?.caption).toBeUndefined();
+    expect(disjoint?.cells.some((cell) => cell.text.includes("Footer cell"))).toBe(false);
     const open = structurePage({ ...page, paths: [] }).tables[0];
     expect(open?.caption).toBeUndefined();
+    expect(open?.cells.some((cell) => cell.text.includes("Footer cell"))).toBe(false);
     expect(open?.cells.every((cell) => cell.columnSpan === 1)).toBe(true);
   } finally {
     pdf.close();

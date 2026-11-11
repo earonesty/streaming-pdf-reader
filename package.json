@@ -106,7 +106,7 @@
     "fixtures:generate:semantic-boundaries": "node scripts/generate-flow-boundaries.mjs",
     "test:semantic-boundaries": "vitest run test/semantic-boundaries",
     "test:semantic-complete": "pnpm build && pnpm --dir packages/html-writer build && node --test scripts/complete-fixture-output.test.mjs",
-    "reproduce:semantic-boundaries": "BOXPDF_REPRODUCE_FLOW_DEFECTS=1 vitest run test/semantic-boundaries"
+    "reproduce:semantic-boundaries": "node scripts/reproduce-semantic-boundaries.mjs"
   },
   "engines": {
     "node": ">=20"

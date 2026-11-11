@@ -24,7 +24,7 @@ export function reorderBidiLines(spans: TextSpan[]): TextSpan[] {
         direction: "rtl" as const,
       }));
       const mixedText = reorderMixedRtlCitation(reordered.map((span) => span.text).join(""));
-      if (mixedText !== undefined) {
+      if (mixedText !== undefined && new Set(reordered.map((span) => span.href)).size <= 1) {
         const first = reordered[0] as TextSpan;
         output.push({ ...first, text: mixedText, bounds: { ...first.bounds, x: left } });
         start = end;

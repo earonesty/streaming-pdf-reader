@@ -110,7 +110,7 @@ function styledText(value: string, range: StyledRange, format: "html" | "markdow
     html =
       format === "html"
         ? `<a href="${escapeHtml(range.href)}">${html}</a>`
-        : `[${html}](<${range.href.replaceAll("<", "%3C").replaceAll(">", "%3E")}>)`;
+        : `[${html}](<${range.href.replaceAll("\\", "\\\\").replaceAll("&", "&amp;").replaceAll("<", "%3C").replaceAll(">", "%3E")}>)`;
   if (range.italic) html = format === "html" ? `<em>${html}</em>` : `_${html}_`;
   if (range.bold) html = format === "html" ? `<strong>${html}</strong>` : `**${html}**`;
   return html;

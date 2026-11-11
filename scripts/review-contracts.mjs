@@ -12,7 +12,18 @@ function all(node, predicate) {
 }
 function plain(node) {
   if (ignored.has(node.tagName)) return "";
-  return node.nodeName === "#text" ? node.value : children(node).map(plain).join(" ");
+  return node.nodeName === "#text"
+    ? node.value
+    : children(node)
+        .map((child) => {
+          const value = plain(child);
+          return /^(?:p|div|section|article|h[1-6]|table|tr|td|th|li|dt|dd|br)$/.test(
+            child.tagName ?? "",
+          )
+            ? ` ${value} `
+            : value;
+        })
+        .join("");
 }
 const normalize = (value) => value.normalize("NFKC").replace(/\s+/g, " ").trim();
 const tokens = (value) => normalize(value).match(/[\p{L}\p{N}]+|[^\s\p{L}\p{N}]/gu) ?? [];
@@ -90,7 +101,14 @@ export function checkReviewContracts(source, format, checks) {
         const groups = all(root, (node) => ["p", "tr", "li", "div"].includes(node.tagName));
         pass = groups.some((node) => {
           // A whole document wrapper is not evidence of a label/value association.
-          if (all(node, (child) => ["section", "article", "table"].includes(child.tagName)).length)
+          if (
+            all(
+              node,
+              (child) =>
+                child !== node &&
+                ["section", "article", "table", "div", "p", "li", "tr"].includes(child.tagName),
+            ).length
+          )
             return false;
           return sequence(plain(node), [check.label, check.value]);
         });
@@ -104,7 +122,7 @@ export function checkReviewContracts(source, format, checks) {
             code === 11 ||
             code === 12 ||
             (code >= 14 && code <= 31) ||
-            code === 127
+            (code >= 127 && code <= 159)
           );
         });
         break;

@@ -97,12 +97,16 @@ describe.each(["html", "markdown"] as const)("bounded semantic flow: %s", (forma
     // Either a description value or ordinary paragraph is acceptable, but the
     // sentence may not be split merely because its visual line wrapped.
     const value = [...nodes(document, "p"), ...nodes(document, "dd")].find((node) =>
-      normalize(text(node)).includes("missing or has a delinquent balance."),
+      normalize(text(node)).includes(
+        "Our records indicate that the permit is missing or has a delinquent balance. Please contact the service desk to resolve the balance before the next inspection.",
+      ),
     );
     expect(value, "Notes sentence split at its wrapped line").toBeDefined();
     const body = normalize(text(document));
     expect(body.indexOf("Notes")).toBeLessThan(body.indexOf("Documents Issued"));
-    expect(body.indexOf("delinquent balance.")).toBeLessThan(body.indexOf("Documents Issued"));
+    expect(body.indexOf("to resolve the balance before the next inspection.")).toBeLessThan(
+      body.indexOf("Documents Issued"),
+    );
     expect(
       nodes(document, "tr").map((row) => nodes(row, "td").map((cell) => normalize(text(cell)))),
     ).toContainEqual(["12-33(d)", "Not in compliance"]);

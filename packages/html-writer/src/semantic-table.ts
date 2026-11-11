@@ -1,4 +1,4 @@
-import type { Table, TableCell, TextLine } from "@boxpdf/reader/structure";
+import { type Table, type TableCell, type TextLine, tableToRows } from "@boxpdf/reader/structure";
 import { semanticTextHtml, semanticTextMarkdown } from "./semantic-inline.js";
 
 export function boldTableHeader(table: Table): boolean {
@@ -64,7 +64,7 @@ export function styledTableRow(
   return `${result}</tr>`;
 }
 export function panelTableHtml(table: Table, color: string): string {
-  const header = boldTableHeader(table);
+  const header = Boolean(inferTableHeader(table));
   const last = Math.max(...table.cells.map((cell) => cell.row));
   const footer = table.cells.some(
     (cell) => cell.row === last && cell.columnSpan === table.columns.length,
@@ -90,4 +90,16 @@ export function panelTableHtml(table: Table, color: string): string {
   result += "</tbody>";
   if (footer) result += `<tfoot>${styledTableRow(table, last, false, color, false)}</tfoot>`;
   return `${result}</table>`;
+}
+
+export function inferTableHeader(table: Table): string[] | undefined {
+  const rows = tableToRows(table);
+  const first = rows[0];
+  const numeric = (value: string) => /^(?:\p{Sc}\s*)?[\d.,'’\s]+(?:\s*%)?$/u.test(value.trim());
+  return first &&
+    (boldTableHeader(table) ||
+      (first.every((value) => /\p{L}/u.test(value) && !numeric(value)) &&
+        rows.slice(1).flat().some(numeric)))
+    ? first
+    : undefined;
 }

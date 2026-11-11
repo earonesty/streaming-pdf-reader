@@ -1,5 +1,5 @@
 import type { ParsedPage, PdfObjectReader } from "../syntax/document.js";
-import { isName } from "../syntax/values.js";
+import { isDict, isName, type PdfValue } from "../syntax/values.js";
 import type { TextSpan } from "../types.js";
 import { decodePdfString, isPdfString } from "./pdf-string.js";
 
@@ -9,14 +9,14 @@ export async function attachPageLinks(
   page: ParsedPage,
   spans: TextSpan[],
 ): Promise<void> {
-  const annotations = await reader.resolve(page.dict.get("Annots") ?? null);
+  const annotations = await optionalValue(reader, page.dict.get("Annots") ?? null);
   if (!Array.isArray(annotations)) return;
   for (const ref of annotations) {
-    const annotation = await reader.resolveDict(ref);
-    if (!annotation || !isName(annotation.get("Subtype"), "Link")) continue;
-    const action = await reader.resolveDict(annotation.get("A"));
-    if (!action || !isName(action.get("S"), "URI")) continue;
-    const uri = await reader.resolve(action.get("URI") ?? null);
+    const annotation = await optionalValue(reader, ref);
+    if (!isDict(annotation) || !isName(annotation.get("Subtype"), "Link")) continue;
+    const action = await optionalValue(reader, annotation.get("A") ?? null);
+    if (!isDict(action) || !isName(action.get("S"), "URI")) continue;
+    const uri = await optionalValue(reader, action.get("URI") ?? null);
     if (!isPdfString(uri)) continue;
     const href = decodePdfString(uri.bytes).trim();
     // Only navigational URI actions; never emit executable schemes into HTML.
@@ -25,7 +25,10 @@ export async function attachPageLinks(
       [...href].some((c) => c.charCodeAt(0) <= 32 || c.charCodeAt(0) === 127)
     )
       continue;
-    const rect = await reader.resolve(annotation.get("Rect") ?? null);
+    const rawRect = await optionalValue(reader, annotation.get("Rect") ?? null);
+    const rect = Array.isArray(rawRect)
+      ? await Promise.all(rawRect.map((value) => optionalValue(reader, value)))
+      : rawRect;
     if (
       !Array.isArray(rect) ||
       rect.length !== 4 ||
@@ -38,9 +41,41 @@ export async function attachPageLinks(
     const bottom = Math.min(y1, y2) - page.mediaBox[1];
     const top = Math.max(y1, y2) - page.mediaBox[1];
     for (const span of spans) {
-      const x = span.bounds.x + span.bounds.width / 2;
-      const y = span.bounds.y + span.bounds.height / 2;
-      if (x >= left && x <= right && y >= bottom && y <= top) span.href = href;
+      const [a, b, c, d] = span.transform ?? [1, 0, 0, 1];
+      const x = span.bounds.x + (a * span.bounds.width) / 2 - (c * span.bounds.height) / 2;
+      const y = span.bounds.y - (b * span.bounds.width) / 2 + (d * span.bounds.height) / 2;
+      const tolerance = Math.max(0.5, span.fontSize * 0.35);
+      const dx = (a * span.bounds.width) / 2;
+      const dy = (-b * span.bounds.width) / 2;
+      // Do not apply a substring annotation to an entire unsplit text chunk.
+      // Exact glyph-level splitting is intentionally outside this release.
+      if (
+        x >= left &&
+        x <= right &&
+        y >= bottom &&
+        y <= top &&
+        [
+          [-dx, -dy],
+          [dx, dy],
+        ].every(
+          ([ox = 0, oy = 0]) =>
+            x + ox >= left - tolerance &&
+            x + ox <= right + tolerance &&
+            y + oy >= bottom - tolerance &&
+            y + oy <= top + tolerance,
+        )
+      )
+        span.href = href;
     }
+  }
+}
+
+async function optionalValue(reader: PdfObjectReader, value: PdfValue): Promise<PdfValue> {
+  try {
+    return await reader.resolve(value);
+  } catch (error) {
+    if (error instanceof Error && /^missing xref entry for object /.test(error.message))
+      return null;
+    throw error;
   }
 }

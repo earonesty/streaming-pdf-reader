@@ -94,6 +94,7 @@ export function inspectDocument(source, format = "html") {
           .map(text),
       }),
     ),
+    tableCaptions: tagged(root, "table").map((node) => tagged(node, "caption").map(text).join(" ")),
     tables: tagged(root, "table").map((node) =>
       JSON.stringify(
         tagged(node, "tr").map((row) =>
@@ -125,7 +126,9 @@ export function compareDocuments(expected, actual) {
     "records",
     "definitions",
     "tableHeaders",
+    "tableCaptions",
   ]) {
+    if (key === "tableCaptions" && (!expected[key] || !actual[key])) continue; // Older report snapshots lack captions.
     const missing = difference(expected[key], actual[key]);
     const extra = difference(actual[key], expected[key]);
     if (missing.length || extra.length)
@@ -211,9 +214,8 @@ function definitionPairs(root, format) {
   }
   if (format !== "markdown") return pairs;
   for (const paragraph of tagged(root, "p")) {
-    const nodes = children(paragraph).filter(
-      (node) => node.nodeName !== "#text" || node.value.trim(),
-    );
+    const nodes = [...children(paragraph)];
+    while (nodes[0]?.nodeName === "#text" && !nodes[0].value.trim()) nodes.shift();
     const label = nodes[0];
     if (label?.tagName !== "strong") continue;
     const labelText = text(label);

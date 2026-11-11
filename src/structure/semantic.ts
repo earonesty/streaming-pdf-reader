@@ -78,7 +78,7 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
     if (table) {
       if (!emittedTables.has(table)) {
         const tableLines = lines.filter((item) => tableForLine.get(item) === table);
-        const definitions = tableDefinitions(table);
+        const definitions = table.caption ? undefined : tableDefinitions(table);
         blocks.push(
           definitions
             ? { type: "definitionList", entries: definitions, lines: tableLines }

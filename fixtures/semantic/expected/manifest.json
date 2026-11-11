@@ -19,7 +19,7 @@
       ],
       "verification": {
         "basis": "source-reviewed",
-        "evidence": "Source PDF review and user-approved relationships recorded in docs/semantic-oracle-review.md; existing semantic-flow.test.ts covers product cards and inset grouping. Expectations retain accepted output structure while explicitly correcting links and table semantics."
+        "evidence": "docs/semantic-oracle-review.md#complete-fixture-promotion-decisions records the source/preview review and accepted rich-content relationships; see this fixture\u2019s feature inventory and complete expectations."
       }
     },
     {
@@ -39,7 +39,7 @@
       ],
       "verification": {
         "basis": "source-reviewed",
-        "evidence": "Source PDF review and user-approved relationships recorded in docs/semantic-oracle-review.md; existing semantic-flow.test.ts covers product cards and inset grouping. Expectations retain accepted output structure while explicitly correcting links and table semantics."
+        "evidence": "docs/semantic-oracle-review.md#complete-fixture-promotion-decisions records the source/preview review and accepted order-confirmation relationships; see this fixture\u2019s feature inventory and complete expectations."
       }
     }
   ]
