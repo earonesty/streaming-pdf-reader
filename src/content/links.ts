@@ -41,9 +41,11 @@ export async function attachPageLinks(
     const bottom = Math.min(y1, y2) - page.mediaBox[1];
     const top = Math.max(y1, y2) - page.mediaBox[1];
     const rawQuads = await optionalValue(reader, annotation.get("QuadPoints") ?? null);
-    const quads = Array.isArray(rawQuads)
-      ? await Promise.all(rawQuads.map((value) => optionalValue(reader, value)))
-      : rawQuads;
+    // Bound annotation-derived allocations and matching work. The parser owns
+    // the source array; excessive optional geometry falls back to Rect.
+    const quads: PdfValue[] = [];
+    if (Array.isArray(rawQuads) && rawQuads.length <= 1024 * 8 && rawQuads.length % 8 === 0)
+      for (const value of rawQuads) quads.push(await optionalValue(reader, value));
     const regions = linkRegions(quads, left, bottom, right, top, page.mediaBox);
     for (const span of spans) {
       const [a, b, c, d] = span.transform ?? [1, 0, 0, 1];

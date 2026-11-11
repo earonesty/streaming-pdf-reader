@@ -20,6 +20,7 @@ import {
   inferTableHeader,
   panelTableHtml,
   semanticTableHtml,
+  spanningFooterRow,
   styledTableRow,
 } from "./semantic-table.js";
 
@@ -226,17 +227,23 @@ export async function writeSemanticDocument(
             !block.table.cells.some((cell) => cell.columnSpan > 1))
         ) {
           const continuationRows = sameRow(activeTable.header, rows[0]) ? rows.slice(1) : rows;
-          for (const [index] of continuationRows.entries())
+          const footerRow = spanningFooterRow(block.table);
+          for (const [index] of continuationRows.entries()) {
+            const row = index + (continuationRows.length < rows.length ? 1 : 0);
+            if (row === footerRow) await write("<tfoot>");
             await write(
               styledTableRow(
                 block.table,
-                index + (continuationRows.length < rows.length ? 1 : 0),
+                row,
                 false,
                 defaultColor,
                 markdown && !activeTable.rawMarkdown,
               ),
             );
+            if (row === footerRow) await write("</tfoot>");
+          }
           activeTable.table = block.table;
+          if (footerRow !== undefined) await closeTable();
           stats.mergedTables += 1;
           continue;
         }
@@ -249,6 +256,7 @@ export async function writeSemanticDocument(
             header: inferTableHeader(block.table),
             rawMarkdown: true,
           };
+          if (spanningFooterRow(block.table) !== undefined) await closeTable();
           continue;
         }
         await closeTable();

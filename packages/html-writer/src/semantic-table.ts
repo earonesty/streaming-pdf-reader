@@ -66,9 +66,7 @@ export function styledTableRow(
 export function panelTableHtml(table: Table, color: string): string {
   const header = Boolean(inferTableHeader(table));
   const last = Math.max(...table.cells.map((cell) => cell.row));
-  const footer = table.cells.some(
-    (cell) => cell.row === last && cell.columnSpan === table.columns.length,
-  );
+  const footer = spanningFooterRow(table) !== undefined;
   const caption = table.caption?.map((line) => line.text).join(" ");
   let result = `<table>${caption ? `<caption>${semanticTextHtml(caption, table.caption ?? [], color, false)}</caption>` : ""}`;
   if (header) result += `<thead>${styledTableRow(table, 0, true, color, false)}</thead>`;
@@ -112,4 +110,11 @@ export function semanticTableHtml(table: Table, color: string): string {
   return `<table>${tableToRows(table)
     .map((_, index) => styledTableRow(table, index, Boolean(header && index === 0), color, false))
     .join("")}</table>`;
+}
+
+export function spanningFooterRow(table: Table): number | undefined {
+  const last = Math.max(...table.cells.map((cell) => cell.row));
+  return table.cells.some((cell) => cell.row === last && cell.columnSpan === table.columns.length)
+    ? last
+    : undefined;
 }

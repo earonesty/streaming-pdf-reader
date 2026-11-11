@@ -325,6 +325,7 @@ test("detects detached table captions and preserves definition value spaces", ()
 test("oracle Markdown preserves irregular tables and unsupported header roles as HTML", async () => {
   const { oracleMarkdown } = await import("./oracle-markdown.mjs");
   for (const html of [
+    '<table><tr><th>A</th><th>B</th></tr><tr><th scope="rowgroup">Group</th><td>one</td></tr></table>',
     "<table><tr><th>A</th></tr><tr><td>one</td><td>two</td></tr></table>",
     '<table><tr><th>A</th><th>B</th></tr><tr><td>one</td><th scope="row">two</th></tr></table>',
     '<table><tr><th>A</th><th>B</th></tr><tr><td rowspan="2">one</td><td>two</td></tr><tr><td>three</td></tr></table>',

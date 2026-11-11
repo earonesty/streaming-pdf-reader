@@ -45,3 +45,11 @@ Both runtime cases have regression tests that failed before these fixes. CI's fu
 - Confirmed that `writePage(page, write, { profile: "semantic" })` used the legacy plain-text table serializer, losing the attached caption, spanning footer, emphasis, and link from the authoritative rich-content fixture.
 - Page tables and inset tables now share the document writer's complete styled-table renderer. This reuses existing inference and rendering behavior; the streaming document continuation policy is unchanged.
 - Added a public `writePage` regression using rich-content.pdf, explicitly checking caption, footer colspan, and styled hyperlink, then comparing the entire table with `writeHtmlDocument` output. The test failed before the fix.
+
+## Remaining review decisions
+
+- **Completed spanning footer:** fixed. Close the active table immediately after its spanning footer in HTML and raw-HTML Markdown, so a subsequent matching table cannot append rows after it.
+- **Incoming continuation footer:** fixed for HTML (and already-HTML Markdown) by emitting the incoming spanning row inside tfoot and closing the completed table. Native GFM that has already been streamed still keeps a later spanning table separate; converting earlier output would require buffering or a broader representation policy. A regression preserves this explicitly deferred behavior.
+- **Draft row-group headers:** fixed. Body headers convert to GFM only with absent or row scope; rowgroup and other scopes retain HTML.
+- **Partly linked RTL citations:** deferred as previously agreed. Preserving exact linked subranges through normalization requires finer text/link ownership; assigning one chunk's URI to the collapsed citation would overlink it. Existing text normalization and conservative omission remain covered.
+- **Excessive QuadPoints:** fixed. Limit optional geometry to 1,024 quadrilaterals per annotation before resolving coordinates; resolve accepted coordinates sequentially instead of allocating a promise per coordinate. Oversized geometry falls back to Rect. This bounds the added annotation processing; it does not claim to avoid the parser's existing source-array allocation.

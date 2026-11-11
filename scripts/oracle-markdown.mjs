@@ -54,7 +54,8 @@ export function oracleMarkdown(html) {
           .some((row) =>
             Array.from(row.children).some(
               (cell, index) =>
-                cell.tagName === "TH" && (index !== 0 || cell.getAttribute("scope") === "col"),
+                cell.tagName === "TH" &&
+                (index !== 0 || ![null, "row"].includes(cell.getAttribute("scope"))),
             ),
           ) ||
         !first.every((cell) => cell.tagName === "TH" && cell.getAttribute("scope") !== "row")

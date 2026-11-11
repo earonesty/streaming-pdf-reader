@@ -195,3 +195,19 @@ it("uses the polygon rather than its bounding box for slanted links", async () =
     pdf.close();
   }
 });
+
+it("falls back before resolving excessive QuadPoints geometry", async () => {
+  const pdf = await openPdf(
+    memorySource(
+      linkedPdf("https://example.com", 0, {
+        // Valid regions exclude Linked; an oversized array must fall back to Rect.
+        annotation: `<< /Subtype /Link /Rect [29 96 70 115] /QuadPoints [${"29 96 30 96 30 97 29 97 ".repeat(1025)}] /A 8 0 R >>`,
+      }),
+    ),
+  );
+  try {
+    expect((await pdf.getPage(0)).spans[0]?.href).toBe("https://example.com");
+  } finally {
+    pdf.close();
+  }
+});

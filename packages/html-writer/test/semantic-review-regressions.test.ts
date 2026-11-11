@@ -219,3 +219,67 @@ it("preserves the rich-content table through the single-page semantic API", asyn
     await source.close();
   }
 });
+
+function continuationPage(number: number, footer = false): ExtractedPage {
+  return {
+    number,
+    width: 300,
+    height: 300,
+    rotate: 0,
+    spans: [
+      span("Item", 20, 210),
+      span("Qty", 180, 210),
+      span("Widget", 20, 190),
+      span("2", 180, 190),
+      ...(footer ? [span("End of inventory summary", 20, 160)] : []),
+    ],
+    paths: footer
+      ? [
+          { d: "M15 155L210 155L210 220L15 220Z", stroke: "#000000" },
+          { d: "M15 180L210 180", stroke: "#000000" },
+        ]
+      : [],
+  };
+}
+it.each(["html", "markdown"] as const)(
+  "ends a table after its spanning footer in %s",
+  async (format) => {
+    let output = "";
+    await (format === "html" ? writeHtmlDocument : writeMarkdownDocument)(
+      [continuationPage(1, true), continuationPage(2)],
+      (chunk) => {
+        output += chunk;
+      },
+      { profile: "semantic" },
+    );
+    expect(output).toContain(
+      '<tfoot><tr><td colspan="2">End of inventory summary</td></tr></tfoot></table>',
+    );
+    const first = output.match(/<table>[\s\S]*?<\/table>/)?.[0];
+    expect(first?.match(/Widget/g)).toHaveLength(1);
+  },
+);
+it("places an incoming spanning footer in the continued HTML table", async () => {
+  let output = "";
+  await writeHtmlDocument(
+    [continuationPage(1), continuationPage(2, true)],
+    (chunk) => {
+      output += chunk;
+    },
+    { profile: "semantic" },
+  );
+  expect(output.match(/<table>/g)).toHaveLength(1);
+  expect(output).toContain(
+    '<tfoot><tr><td colspan="2">End of inventory summary</td></tr></tfoot></table>',
+  );
+});
+it("preserves a later spanning footer separately after streamed GFM", async () => {
+  let output = "";
+  await writeMarkdownDocument([continuationPage(1), continuationPage(2, true)], (chunk) => {
+    output += chunk;
+  });
+  expect(output).toContain("| Widget | 2 |");
+  expect(output).toContain(
+    '<tfoot><tr><td colspan="2">End of inventory summary</td></tr></tfoot></table>',
+  );
+});
