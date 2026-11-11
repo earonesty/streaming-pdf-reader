@@ -111,6 +111,21 @@ trailer << /Root 1 0 R /Size 8 >> %%EOF`;
     expect(reorderMixedRtlCitation("שלום עולם")).toBeUndefined();
   });
 
+  it("retains citation normalization without spreading a partial link over the line", () => {
+    const visual = ") לחוק מבקר המדינה4(ב()15לחיוב פעולות אלה לפי סעיף";
+    const chunks = [...visual]
+      .map((character, index) => ({
+        ...span(character, index * 5, 20),
+        ...(character === "4" ? { href: "https://example.com/citation" } : {}),
+      }))
+      .reverse();
+    const reordered = reorderBidiLines(chunks);
+    expect(reordered.map((item) => item.text).join("")).toBe(
+      "לחיוב פעולות אלה לפי סעיף15(ב)(4) לחוק מבקר המדינה",
+    );
+    expect(reordered.every((item) => !item.href)).toBe(true);
+  });
+
   it("parses sequential and array ToUnicode ranges with their source width", () => {
     const cmap = parseToUnicode(
       new TextEncoder().encode(`2 beginbfrange

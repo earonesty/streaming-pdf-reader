@@ -4,7 +4,7 @@ Review comments were checked against code and the user's accepted semantics. Dup
 
 ## Confirmed and addressed
 
-- Optional annotations/actions: null and non-dictionary values are skipped; dangling xref entries are ignored for optional link data, while unrelated resource/I/O errors still propagate. Rectangle members resolve indirectly. Link geometry uses the text transform and attachment precedes bidi relocation. Mixed RTL citation collapsing does not combine differently linked chunks.
+- Optional annotations/actions: null and non-dictionary values are skipped; dangling xref entries are ignored for optional link data, while unrelated resource/I/O errors still propagate. Rectangle members resolve indirectly. Link geometry uses the text transform and attachment precedes bidi relocation. Mixed RTL citation normalization retains its established text ordering; when collapsing differently linked chunks, it omits the URI instead of applying one chunk’s link to the whole line.
 - Link formatting: Markdown escapes entity-like ampersands and backslashes. Table headers use the same span-aware formatter as body cells. Panel and ordinary tables share header inference.
 - Table panels: use the original page rotation guard, ignore invisible strokes, evaluate separate closed subpaths, reserve caption ownership in reading order, require a horizontal separator before absorbing a footer, and retain captioned tables instead of converting them into definition lists. Captioned HTML tables remain open for compatible continuation; Markdown tables that start with a panel remain HTML for that continuation.
 - Complete comparisons: preserve inline word spacing and all preformatted whitespace, while ignoring layout whitespace between block elements. Promoted target HTML is also parsed for structural errors. Fixture acquisition now closes its file if PDF opening fails.
@@ -23,3 +23,12 @@ Review comments were checked against code and the user's accepted semantics. Dup
 - **Markdown table representation changing mid-continuation:** GFM cannot express a later colspan. Such a continuation remains separate when the initial table was already streamed as native GFM; tables beginning in raw HTML continue in HTML. HTML output preserves compatible continuations. Converting an already-emitted GFM table requires buffering or a broader output-policy change.
 
 The release's previously skipped column/page/Notes reproductions remain skipped; review fixes do not waive any additional existing checks.
+
+## Second review pass
+
+- Reproduced and fixed financial summaries emitted as literal GFM pipe rows inside an open raw-HTML table. Such summaries now emit HTML tfoot rows; native GFM tables retain their existing representation.
+- Reproduced partly linked mixed-RTL citations bypassing the established text reorder. Restored the reorder while conservatively omitting ambiguous link ownership on the collapsed line. This is the same bounded policy as deferred glyph-level link splitting, not a claim of complete partly linked RTL support.
+- Fixed the gate-policy pronoun and empty-caption definition-list condition. Scoped the source-literal anchor lint exception to its table cell.
+- Deferred sharing header inference across packages. The writer deliberately adds bold-header evidence to the numeric-content rule, while the older structure serializer retains its existing behavior. The duplicated numeric predicate is a maintainability concern, not a demonstrated new output defect; changing public structure exports or broadening the legacy serializer is outside this correction. Existing writer tests cover regular-weight inferred and bold nonnumeric headers.
+
+Both runtime cases have regression tests that failed before these fixes. CI's full quality pipeline passed on 8a818ce before this follow-up.

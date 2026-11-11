@@ -2,7 +2,7 @@
 
 ## Current authority and gate policy
 
-Historical whole-document references under `ideal` are **drafts**, not pass/fail authorities. Complete expectations under `expected` are authoritative and their differences also fail the gate. Their
+Historical whole-document references under `ideal` are **drafts**, not pass/fail authorities. Complete expectations under `expected` are authoritative and their differences also fail the gate. The `ideal` draft
 comparisons are labeled `REVIEW` or `DRAFT MATCH` and never block the gate.
 Focused checks carry per-check verification evidence in
 `fixtures/semantic/review-contracts.json`. For focused contracts, only findings on checks backed by

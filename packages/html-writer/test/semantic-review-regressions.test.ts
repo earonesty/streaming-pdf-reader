@@ -143,3 +143,40 @@ it.each(["html", "markdown"] as const)(
     expect(output).toContain("Spare");
   },
 );
+it("keeps financial summaries as HTML inside a raw Markdown table", async () => {
+  const first: ExtractedPage = {
+    number: 1,
+    width: 300,
+    height: 300,
+    rotate: 0,
+    spans: [
+      span("Inventory", 20, 230, { fontFamily: "Helvetica-Bold" }),
+      span("Item", 20, 210),
+      span("Qty", 180, 210),
+      span("Widget", 20, 190),
+      span("2", 180, 190),
+    ],
+    paths: [{ d: "M15 180L210 180L210 245L15 245Z", stroke: "#000000" }],
+  };
+  const totals: ExtractedPage = {
+    number: 2,
+    width: 300,
+    height: 300,
+    rotate: 0,
+    spans: [
+      span("Subtotal", 20, 210, { fontFamily: "Helvetica-Bold" }),
+      span("$20", 180, 210),
+      span("Tax", 20, 190),
+      span("$2", 180, 190),
+    ],
+  };
+  let output = "";
+  await writeMarkdownDocument([first, totals], (chunk) => {
+    output += chunk;
+  });
+  expect(output).toContain(
+    '<tfoot><tr><th scope="row">Subtotal</th><td>$20</td></tr><tr><th scope="row">Tax</th><td>$2</td></tr></tfoot>',
+  );
+  expect(output).not.toContain("| Subtotal |");
+  expect(output.match(/<table>/g)).toHaveLength(1);
+});

@@ -265,17 +265,20 @@ export async function writeSemanticDocument(
       }
       if (activeTable && block.type === "definitionList" && isFinancialSummary(block)) {
         const columns = activeTable.table.columns.length;
+        const htmlFooter = `<tfoot>${block.entries.map((entry) => financialSummaryRow(entry, columns)).join("")}</tfoot>`;
         await output(
-          `<tfoot>${block.entries.map((entry) => financialSummaryRow(entry, columns)).join("")}</tfoot>`,
-          block.entries
-            .map((entry) =>
-              markdownTableRow([
-                entry.term,
-                ...Array(Math.max(0, columns - 2)).fill(""),
-                entry.description,
-              ]),
-            )
-            .join(""),
+          htmlFooter,
+          activeTable.rawMarkdown
+            ? htmlFooter
+            : block.entries
+                .map((entry) =>
+                  markdownTableRow([
+                    entry.term,
+                    ...Array(Math.max(0, columns - 2)).fill(""),
+                    entry.description,
+                  ]),
+                )
+                .join(""),
         );
         await closeTable();
         continue;
