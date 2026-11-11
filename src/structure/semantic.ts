@@ -39,7 +39,10 @@ export type SemanticBlock =
 export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): SemanticBlock[] {
   const tableForLine = new Map<TextLine, Table>();
   for (const table of tables) {
-    const tableSpans = new Set(table.cells.flatMap((cell) => cell.spans));
+    const tableSpans = new Set([
+      ...table.cells.flatMap((cell) => cell.spans),
+      ...(table.caption ?? []).flatMap((line) => line.spans),
+    ]);
     for (const line of lines) {
       if (line.spans.some((span) => tableSpans.has(span))) tableForLine.set(line, table);
     }

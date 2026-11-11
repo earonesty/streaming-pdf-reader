@@ -1,116 +1,134 @@
-import { readFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { parse } from "parse5";
 import { openPdf } from "../dist/index.js";
 import { fileSource } from "../dist/node.js";
-import { writeHtmlDocument } from "../packages/html-writer/dist/index.js";
+import { writeHtmlDocument, writeMarkdownDocument } from "../packages/html-writer/dist/index.js";
+import { compareComplete } from "./complete-fixtures.mjs";
+import { oracleMarkdown } from "./oracle-markdown.mjs";
+import { checkReviewContracts } from "./review-contracts.mjs";
+import { classifyFindings, reviewFails, reviewStatus } from "./review-policy.mjs";
+import { compareDocuments, inspectDocument } from "./semantic-oracle.mjs";
 
 const oracleRoot = resolve(import.meta.dirname, "../fixtures/semantic/ideal");
 const manifest = JSON.parse(await readFile(resolve(oracleRoot, "manifest.json"), "utf8"));
-const semanticTags = new Set([
-  "header",
-  "address",
-  "section",
-  "h1",
-  "h2",
-  "h3",
-  "p",
-  "ul",
-  "ol",
-  "dl",
-  "table",
-  "figure",
-  "figcaption",
-  "pre",
-  "footer",
-]);
-
-const report = [];
-for (const fixture of manifest.fixtures) {
-  const source = await fileSource(resolve(oracleRoot, fixture.pdf));
-  const pdf = await openPdf(source);
-  let actual = "";
-  try {
-    await writeHtmlDocument(
-      pdf.pages(),
-      (chunk) => {
-        actual += chunk;
-      },
-      { profile: "semantic" },
-    );
-  } finally {
-    pdf.close();
-    await source.close();
-  }
-
-  const ideal = await readFile(resolve(oracleRoot, fixture.html), "utf8");
-  const idealDocument = parse(ideal);
-  const actualDocument = parse(actual);
-  const idealText = normalize(textOf(idealDocument));
-  const actualText = normalize(textOf(actualDocument));
-  const idealWords = idealText.split(" ").filter(Boolean);
-  const actualWords = new Set(actualText.split(" ").filter(Boolean));
-  const vocabularyCoverage =
-    idealWords.filter((word) => actualWords.has(word)).length / idealWords.length;
-  const orderWords = idealWords.filter((word) => word.length > 4);
-  let offset = 0;
-  let orderedWords = 0;
-  for (const word of orderWords) {
-    const found = actualText.indexOf(word, offset);
-    if (found < 0) continue;
-    orderedWords += 1;
-    offset = found + word.length;
-  }
-
-  const idealTags = tagCounts(idealDocument);
-  const actualTags = tagCounts(actualDocument);
-  report.push({
-    id: fixture.id,
-    idealWords: idealWords.length,
-    actualWords: actualText.split(" ").filter(Boolean).length,
-    vocabularyCoverage,
-    readingOrderCoverage: orderWords.length === 0 ? 1 : orderedWords / orderWords.length,
-    tags: Object.fromEntries(
-      [...semanticTags]
-        .map((tag) => [tag, { ideal: idealTags.get(tag) ?? 0, actual: actualTags.get(tag) ?? 0 }])
-        .filter(([, counts]) => counts.ideal > 0 || counts.actual > 0),
-    ),
-  });
+const outputIndex = process.argv.indexOf("--out");
+if (
+  outputIndex >= 0 &&
+  (!process.argv[outputIndex + 1] || process.argv[outputIndex + 1].startsWith("--"))
+)
+  throw new Error("--out requires a directory");
+const outputRoot = outputIndex >= 0 ? resolve(process.argv[outputIndex + 1]) : undefined;
+if (outputRoot) {
+  await mkdir(outputRoot, { recursive: true });
+  await cp(resolve(oracleRoot, "assets"), resolve(outputRoot, "assets"), { recursive: true });
 }
-
-if (process.argv.includes("--json")) console.log(JSON.stringify(report, undefined, 2));
-else printTable(report);
-
-function textOf(node) {
-  if (node.nodeName === "#text") return node.value ?? "";
-  return (node.childNodes ?? []).map(textOf).join(" ");
-}
-
-function normalize(value) {
-  return value.normalize("NFKC").replace(/\s+/g, " ").trim().toLocaleLowerCase("en");
-}
-
-function tagCounts(node, counts = new Map()) {
-  if (node.tagName) counts.set(node.tagName, (counts.get(node.tagName) ?? 0) + 1);
-  for (const child of node.childNodes ?? []) tagCounts(child, counts);
-  return counts;
-}
-
-function percent(value) {
-  return `${(value * 100).toFixed(1)}%`;
-}
-
-function printTable(rows) {
-  console.log(
-    "fixture                 words actual/ideal  vocabulary  reading order  missing roles",
+const compareIndex = process.argv.indexOf("--compare");
+if (
+  compareIndex >= 0 &&
+  (!process.argv[compareIndex + 1] || process.argv[compareIndex + 1].startsWith("--"))
+)
+  throw new Error("--compare requires a prior report.json");
+const previous =
+  compareIndex >= 0
+    ? JSON.parse(await readFile(resolve(process.argv[compareIndex + 1]), "utf8"))
+    : undefined;
+if (previous && (!Array.isArray(previous) || previous.some((row) => !row.document)))
+  throw new Error(
+    "Prior report lacks document snapshots; generate it with the current report tool first.",
   );
-  for (const row of rows) {
-    const missing = Object.entries(row.tags)
-      .filter(([, counts]) => counts.actual < counts.ideal)
-      .map(([tag, counts]) => `${tag}:${counts.actual}/${counts.ideal}`)
-      .join(", ");
-    console.log(
-      `${row.id.padEnd(23)} ${String(row.actualWords).padStart(5)}/${String(row.idealWords).padEnd(5)} ${percent(row.vocabularyCoverage).padStart(10)} ${percent(row.readingOrderCoverage).padStart(14)}  ${missing}`,
+const report = [];
+const contractsRoot = resolve(oracleRoot, "..");
+const contracts = JSON.parse(
+  await readFile(resolve(contractsRoot, "review-contracts.json"), "utf8"),
+);
+const completeRoot = resolve(contractsRoot, "expected");
+const complete = JSON.parse(await readFile(resolve(completeRoot, "manifest.json"), "utf8"));
+for (const fixture of [
+  ...manifest.fixtures,
+  ...contracts.fixtures,
+  ...complete.fixtures.map((f) => ({ ...f, complete: true })),
+]) {
+  const fixtureRoot = fixture.complete ? completeRoot : fixture.checks ? contractsRoot : oracleRoot;
+  const idealHtml = fixture.html
+    ? await readFile(resolve(fixtureRoot, fixture.html), "utf8")
+    : undefined;
+  const ideal = idealHtml ? inspectDocument(idealHtml) : undefined;
+  if (outputRoot && idealHtml) {
+    await writeFile(resolve(outputRoot, `${fixture.id}.oracle.html`), idealHtml);
+    await writeFile(
+      resolve(outputRoot, `${fixture.id}.oracle.md`),
+      fixture.complete
+        ? await readFile(resolve(fixtureRoot, fixture.markdown), "utf8")
+        : oracleMarkdown(idealHtml),
     );
   }
+  for (const format of ["html", "markdown"]) {
+    const source = await fileSource(resolve(fixtureRoot, fixture.pdf));
+    let pdf;
+    let output = "";
+    try {
+      pdf = await openPdf(source);
+      const writer = format === "html" ? writeHtmlDocument : writeMarkdownDocument;
+      await writer(
+        pdf.pages(),
+        (chunk) => {
+          output += chunk;
+        },
+        { profile: "semantic", ...(fixture.checks ? { imageOptions: "embedded" } : {}) },
+      );
+      const actual = inspectDocument(output, format);
+      const coverage = fixture.complete
+        ? "complete-fixture"
+        : fixture.checks
+          ? "focused-contracts"
+          : "draft-document";
+      const findings = fixture.complete
+        ? compareComplete(
+            format === "html"
+              ? idealHtml
+              : await readFile(resolve(fixtureRoot, fixture.markdown), "utf8"),
+            output,
+            format,
+          )
+        : fixture.checks
+          ? checkReviewContracts(output, format, fixture.checks)
+          : compareDocuments(ideal, actual);
+      const before = previous?.find((row) => row.id === fixture.id && row.format === format);
+      report.push({
+        id: fixture.id,
+        format,
+        coverage,
+        expectedTokens: ideal?.tokens.length,
+        actualTokens: actual.tokens.length,
+        findings: fixture.complete
+          ? findings
+          : classifyFindings(coverage, findings, fixture.checks),
+        document: actual,
+        ...(previous
+          ? {
+              changes: before
+                ? compareDocuments(before.document, actual)
+                : [{ check: "new-document" }],
+            }
+          : {}),
+      });
+      if (outputRoot)
+        await writeFile(
+          resolve(outputRoot, `${fixture.id}.${format === "html" ? "html" : "md"}`),
+          output,
+        );
+    } finally {
+      pdf?.close();
+      await source.close();
+    }
+  }
 }
+const json = JSON.stringify(report, null, 2);
+if (outputRoot) await writeFile(resolve(outputRoot, "report.json"), `${json}\n`);
+if (process.argv.includes("--json")) console.log(json);
+else
+  for (const row of report)
+    console.log(
+      `${row.id.padEnd(23)} ${row.format.padEnd(8)} ${reviewStatus(row)} ${row.findings.map((finding) => finding.check).join(", ")}${row.changes ? ` | changes: ${row.changes.map((change) => change.check).join(", ") || "none"}` : ""}`,
+    );
+if (process.argv.includes("--gate") && reviewFails(report)) process.exitCode = 1;

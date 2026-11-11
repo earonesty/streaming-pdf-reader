@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Semantic corpus review</title>
+<style>
+:root{color-scheme:light dark;font:15px/1.5 system-ui;background:light-dark(#fff,#181818);color:light-dark(#172033,#eee)}body{margin:24px}h1{font-size:22px;margin:0 0 16px}label{display:flex;flex-direction:column;gap:5px}select,button{font:inherit;padding:8px;background:light-dark(#fff,#252525);color:inherit;border:1px solid light-dark(#ccd2da,#555);border-radius:5px}header{display:flex;gap:16px;align-items:end;flex-wrap:wrap}#status{margin:14px 0}.panels{display:grid;grid-template-columns:1fr 1fr;gap:20px}.panel{min-width:0}.controls{display:flex;align-items:end;gap:10px;margin-bottom:10px}.controls label{flex:1}iframe{width:100%;height:75vh;border:1px solid light-dark(#dde2e8,#444);background:white}details{margin-top:16px}pre{white-space:pre-wrap;overflow-wrap:anywhere}a{color:light-dark(#245bd0,#8db6ff)}@media(max-width:750px){body{margin:12px}.panels{grid-template-columns:1fr}}
+</style></head><body>
+<h1>Semantic corpus review</h1>
+<header><label>Document<select id="document"></select></label><label>Source page<select id="page"></select></label><a href="#document" id="pdf" target="_blank" rel="noopener">Open source PDF</a></header>
+<p><strong>Fixture</strong>: complete expected HTML and Markdown, with a feature inventory. <strong>Bounded fixture</strong>: generated PDF with focused assertions. <strong>Corpus checks</strong>: selected relationships in real documents. <strong>Draft reference</strong>: advisory whole-document target; may also have focused checks.</p>
+<p id="status" aria-live="polite"></p>
+<div class="panels">
+<section class="panel"><div class="controls"><label>Left view<select id="left"></select></label></div><iframe id="left-frame" title="Left comparison" sandbox="allow-same-origin allow-popups"></iframe></section>
+<section class="panel"><div class="controls"><label>Right view<select id="right"></select></label></div><iframe id="right-frame" title="Right comparison" sandbox="allow-same-origin allow-popups"></iframe></section>
+</div>
+<details><summary>Checks and current findings</summary><pre id="findings"></pre></details>
+<p>Full documents, with identical neutral styling. Whole-document references are drafts, not ground truth. Draft reference Markdown is derived from the draft HTML reference using an independent renderer. Complex tables may retain HTML. Focused contracts protect selected relationships; they are not complete ideal documents.</p>
+<script type="application/json" id="review-data">"REVIEW_DATA"</script>
+<script>
+const data=JSON.parse(document.getElementById('review-data').textContent);
+const byId=id=>document.getElementById(id);
+const selector=byId('document');
+for(const [index,item] of data.entries())selector.add(new Option(`[${item.category}] ${item.name}`,String(index)));
+const choices=[['source','Source PDF page'],['html','Current HTML'],['markdown','Current Markdown — rendered'],['markdownRaw','Current Markdown — source'],['ideal','Draft reference HTML'],['oracleMarkdown','Draft reference Markdown — rendered'],['oracleMarkdownRaw','Draft reference Markdown — source']];
+for(const side of ['left','right'])for(const [value,label] of choices)byId(side).add(new Option(label,value));
+byId('left').value='markdown';byId('right').value='oracleMarkdown';
+const style='<style>body{margin:20px;color:#172033;background:#fff;font:15px/1.6 system-ui}table{border-collapse:collapse;max-width:100%;margin:20px 0}td,th{padding:8px;border-bottom:1px solid #ccd2da;text-align:left;vertical-align:top}h1{font-size:1.7em}h2{font-size:1.4em}h3{font-size:1.2em}h4{font-size:1.1em}img,svg{max-width:100%;height:auto}pre{white-space:pre-wrap;overflow-wrap:anywhere}a{color:#245bd0}p{overflow-wrap:anywhere}address{font-style:normal}</style>';
+function escapeHtml(value){return value.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function draw(){const item=data[Number(selector.value)];for(const side of ['left','right']){const view=byId(side).value;let content;if(view==='source'){const page=item.pages[Number(byId('page').value)||0];content=page?`<img alt="Source PDF page" src="${escapeHtml(page)}">`:'<p>Source image unavailable; use Open source PDF.</p>';}else if(view.endsWith('Raw'))content=`<pre>${escapeHtml(item[view]??'No whole-document draft reference. See focused review contracts below.')}</pre>`;else content=item[view]??'<p>No whole-document draft reference. See focused review contracts below.</p>';byId(`${side}-frame`).srcdoc=`<!doctype html><meta charset="utf-8">${style}${content}`;}byId('findings').textContent=JSON.stringify({coverage:item.coverage,features:item.features,contracts:item.contracts,findings:item.findings},null,2);}
+function load(){const item=data[Number(selector.value)];for(const side of ['left','right'])for(const option of byId(side).options){const choice=choices.find(c=>c[0]===option.value);option.textContent=item.complete?choice[1].replace('Draft reference','Expected'):choice[1];}byId('page').replaceChildren();item.pages.forEach((_,i)=>{byId('page').add(new Option(String(i+1),String(i)));});byId('pdf').href=item.pdf;byId('status').textContent=`${item.category} — ${item.coverage}`;for(const side of ['left','right']){for(const option of byId(side).options)option.disabled=(option.value==='ideal'||option.value.startsWith('oracle'))&&!item.ideal;if(byId(side).selectedOptions[0].disabled)byId(side).value=side==='right'?'html':'markdown';}draw();}
+selector.addEventListener('change',load);for(const id of ['left','right','page'])byId(id).addEventListener('change',draw);load();
+</script></body></html>

@@ -17,14 +17,20 @@ const manifest = JSON.parse(await readFile(resolve(oracleRoot, "manifest.json"),
 };
 
 describe("ideal semantic HTML oracles", () => {
-  it("covers exactly ten independently authored PDFs", async () => {
+  it("tracks eight advisory drafts and two promoted fixtures", async () => {
     expect(manifest.schemaVersion).toBe(1);
     expect(manifest.method).toContain("no extractor output");
-    expect(manifest.fixtures).toHaveLength(10);
-    expect(new Set(manifest.fixtures.map((fixture) => fixture.id)).size).toBe(10);
+    expect(manifest.fixtures).toHaveLength(8);
+    expect(new Set(manifest.fixtures.map((fixture) => fixture.id)).size).toBe(8);
 
     const htmlFiles = (await readdir(oracleRoot)).filter((file) => file.endsWith(".html")).sort();
-    expect(htmlFiles).toEqual(manifest.fixtures.map((fixture) => fixture.html).sort());
+    expect(htmlFiles).toEqual(
+      [
+        ...manifest.fixtures.map((fixture) => fixture.html),
+        "rich-content.html",
+        "order-confirmation.html",
+      ].sort(),
+    );
   });
 
   for (const fixture of manifest.fixtures) {

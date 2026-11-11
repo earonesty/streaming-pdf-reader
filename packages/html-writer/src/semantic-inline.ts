@@ -1,6 +1,7 @@
 import type { TextLine } from "@boxpdf/reader/structure";
 
 interface StyledRange {
+  href?: string;
   start: number;
   end: number;
   color?: string;
@@ -54,8 +55,15 @@ function semanticText(
       preserveWeight && /(?:bold|semibold|demi|medium|medi)/i.test(span.fontFamily ?? "");
     const italic = /(?:italic|oblique|slanted|slant|ital)/i.test(span.fontFamily ?? "");
     const nondefaultColor = color && color !== defaultColor ? color : undefined;
-    if (nondefaultColor || bold || italic) {
+    const href =
+      span.href &&
+      /^(?:https?:|mailto:)/i.test(span.href) &&
+      ![...span.href].some((c) => c.charCodeAt(0) <= 32 || c.charCodeAt(0) === 127)
+        ? span.href
+        : undefined;
+    if (nondefaultColor || bold || italic || href) {
       ranges.push({
+        ...(href ? { href } : {}),
         start,
         end: cursor,
         ...(nondefaultColor ? { color: nondefaultColor } : {}),
@@ -82,6 +90,7 @@ function mergeRanges(ranges: StyledRange[], text: string): StyledRange[] {
     if (
       previous &&
       previous.color === range.color &&
+      previous.href === range.href &&
       previous.bold === range.bold &&
       previous.italic === range.italic &&
       /^\s*$/.test(text.slice(previous.end, range.start))
@@ -97,6 +106,11 @@ function mergeRanges(ranges: StyledRange[], text: string): StyledRange[] {
 function styledText(value: string, range: StyledRange, format: "html" | "markdown"): string {
   let html = escapeText(value, format);
   if (range.color) html = `<span style="color:${range.color}">${html}</span>`;
+  if (range.href)
+    html =
+      format === "html"
+        ? `<a href="${escapeHtml(range.href)}">${html}</a>`
+        : `[${html}](<${range.href.replaceAll("<", "%3C").replaceAll(">", "%3E")}>)`;
   if (range.italic) html = format === "html" ? `<em>${html}</em>` : `_${html}_`;
   if (range.bold) html = format === "html" ? `<strong>${html}</strong>` : `**${html}**`;
   return html;

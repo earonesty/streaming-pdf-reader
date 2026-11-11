@@ -163,7 +163,9 @@ describe("semantic document flow", () => {
     expect(html).toContain("Issued: May 14, 2026");
     expect(html).toContain("Bill to: Onward Travel, LLC.");
     expect(html.match(/Service line item #/g)).toHaveLength(80);
-    expect(html).toContain("<th>Description</th><th>Qty</th><th>Unit</th><th>Amount</th>");
+    expect(html).toContain(
+      '<th scope="col">Description</th><th scope="col">Qty</th><th scope="col">Unit</th><th scope="col">Amount</th>',
+    );
     expect(html).toContain("Subtotal");
     expect(html).toContain(
       '<tfoot><tr><th scope="row" colspan="3">Subtotal</th><td>$21,000.00</td></tr>',

@@ -1,0 +1,93 @@
+import type { Table, TableCell, TextLine } from "@boxpdf/reader/structure";
+import { semanticTextHtml, semanticTextMarkdown } from "./semantic-inline.js";
+
+export function boldTableHeader(table: Table): boolean {
+  const first = table.cells.filter((cell) => cell.row === 0);
+  return (
+    first.length === table.columns.length &&
+    first.every(
+      (cell) =>
+        cell.spans.length > 0 &&
+        cell.spans.every((span) => /bold|semibold|demi/i.test(span.fontFamily ?? "")),
+    ) &&
+    table.cells.some(
+      (cell) =>
+        cell.row > 0 &&
+        cell.spans.some((span) => !/bold|semibold|demi/i.test(span.fontFamily ?? "")),
+    )
+  );
+}
+function cellLines(cell: TableCell): TextLine[] {
+  return [
+    {
+      type: "line",
+      text: cell.text,
+      spans: cell.spans,
+      bounds: cell.bounds,
+      confidence: cell.confidence,
+      reasons: cell.reasons,
+    },
+  ];
+}
+export function styledTableRow(
+  table: Table,
+  row: number,
+  header: boolean,
+  color: string,
+  markdown: boolean,
+): string {
+  const cells = table.cells.filter((cell) => cell.row === row).sort((a, b) => a.column - b.column);
+  const columns = Math.max(
+    table.columns.length,
+    ...table.cells.map((cell) => cell.column + cell.columnSpan),
+  );
+  if (markdown) {
+    const values = Array.from({ length: columns }, (_, column) => {
+      const cell = cells.find((cell) => cell.column === column);
+      return cell
+        ? semanticTextMarkdown(cell.text, cellLines(cell), color, !header).replaceAll("|", "\\|")
+        : "";
+    });
+    return `| ${values.join(" | ")} |\n`;
+  }
+  const tag = header ? "th" : "td";
+  let result = "<tr>";
+  for (let column = 0; column < columns; column++) {
+    const cell = cells.find((cell) => cell.column === column);
+    if (!cell) {
+      result += `<${tag}></${tag}>`;
+      continue;
+    }
+    result += `<${tag}${header ? ' scope="col"' : ""}${cell.columnSpan > 1 ? ` colspan="${cell.columnSpan}"` : ""}${cell.rowSpan > 1 ? ` rowspan="${cell.rowSpan}"` : ""}>${semanticTextHtml(cell.text, cellLines(cell), color, !header)}</${tag}>`;
+    column += cell.columnSpan - 1;
+  }
+  return `${result}</tr>`;
+}
+export function panelTableHtml(table: Table, color: string): string {
+  const header = boldTableHeader(table);
+  const last = Math.max(...table.cells.map((cell) => cell.row));
+  const footer = table.cells.some(
+    (cell) => cell.row === last && cell.columnSpan === table.columns.length,
+  );
+  const caption = table.caption?.map((line) => line.text).join(" ");
+  let result = `<table>${caption ? `<caption>${semanticTextHtml(caption, table.caption ?? [], color, false)}</caption>` : ""}`;
+  if (header) result += `<thead>${styledTableRow(table, 0, true, color, false)}</thead>`;
+  result += "<tbody>";
+  for (let row = header ? 1 : 0; row <= last - (footer ? 1 : 0); row++) {
+    // Descriptive first-column labels in a comparison matrix identify each row.
+    let html = styledTableRow(table, row, false, color, false);
+    const cells = table.cells.filter((cell) => cell.row === row);
+    if (
+      header &&
+      cells.length === table.columns.length &&
+      cells[0]?.column === 0 &&
+      cells[0].text.split(/\s+/).length >= 2 &&
+      cells.slice(1).every((cell) => cell.text.split(/\s+/).length <= 2)
+    )
+      html = html.replace(/^<tr><td>/, '<tr><th scope="row">').replace("</td>", "</th>");
+    result += html;
+  }
+  result += "</tbody>";
+  if (footer) result += `<tfoot>${styledTableRow(table, last, false, color, false)}</tfoot>`;
+  return `${result}</table>`;
+}

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "rule": "Fixtures may cover many interacting features. Complete expected HTML and separately authored Markdown are authoritative; focused assertions supplement them for diagnostics. Real documents guide fixture design. Never regenerate expectations from current output automatically.",
+  "fixtures": [
+    {
+      "id": "rich-content",
+      "pdf": "../rich-content.pdf",
+      "html": "rich-content.html",
+      "markdown": "rich-content.md",
+      "features": [
+        "Mixed inline bold and italic runs with wrapping",
+        "Linked fragments and exact destinations",
+        "Long token preservation across visual hard breaks",
+        "Inset paragraph grouping without inventing a quotation role in HTML",
+        "Return to outer paragraph measure",
+        "Comparison table column and row headers",
+        "Inline emphasis and link inside a cell",
+        "Footer cell spanning all three columns"
+      ],
+      "verification": {
+        "basis": "source-reviewed",
+        "evidence": "Source PDF review and user-approved relationships recorded in docs/semantic-oracle-review.md; existing semantic-flow.test.ts covers product cards and inset grouping. Expectations retain accepted output structure while explicitly correcting links and table semantics."
+      }
+    },
+    {
+      "id": "order-confirmation",
+      "pdf": "../order-confirmation.pdf",
+      "html": "order-confirmation.html",
+      "markdown": "order-confirmation.md",
+      "features": [
+        "Complete thank-you heading and order metadata",
+        "Tracking and support link destinations",
+        "Product cards represented as a data table with row labels",
+        "Product variants, quantities and prices stay associated",
+        "Complete shipping and billing sections",
+        "Subtotal, shipping, tax and total are label/value pairs",
+        "Markdown bold-colon label/value representation",
+        "Complete delivery and returns footer"
+      ],
+      "verification": {
+        "basis": "source-reviewed",
+        "evidence": "Source PDF review and user-approved relationships recorded in docs/semantic-oracle-review.md; existing semantic-flow.test.ts covers product cards and inset grouping. Expectations retain accepted output structure while explicitly correcting links and table semantics."
+      }
+    }
+  ]
+}
