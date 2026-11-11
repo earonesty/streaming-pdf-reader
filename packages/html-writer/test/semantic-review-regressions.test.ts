@@ -1,9 +1,12 @@
+import { fileURLToPath } from "node:url";
 import type { ExtractedPage, TextSpan } from "@boxpdf/reader";
+import { openPdf } from "@boxpdf/reader";
+import { fileSource } from "@boxpdf/reader/node";
 import type { Table, TextLine } from "@boxpdf/reader/structure";
 import { marked } from "marked";
 import { type DefaultTreeAdapterMap, parse } from "parse5";
 import { expect, it } from "vitest";
-import { writeHtmlDocument, writeMarkdownDocument } from "../src/index.js";
+import { writeHtmlDocument, writeMarkdownDocument, writePage } from "../src/index.js";
 import { semanticTextMarkdown } from "../src/semantic-inline.js";
 import { panelTableHtml } from "../src/semantic-table.js";
 
@@ -179,4 +182,40 @@ it("keeps financial summaries as HTML inside a raw Markdown table", async () => 
   );
   expect(output).not.toContain("| Subtotal |");
   expect(output.match(/<table>/g)).toHaveLength(1);
+});
+
+it("preserves the rich-content table through the single-page semantic API", async () => {
+  const source = await fileSource(
+    fileURLToPath(new URL("../../../fixtures/semantic/rich-content.pdf", import.meta.url)),
+  );
+  const reader = await openPdf(source);
+  try {
+    const page = await reader.getPage(0);
+    let single = "";
+    let document = "";
+    await writePage(
+      page,
+      (chunk) => {
+        single += chunk;
+      },
+      { profile: "semantic" },
+    );
+    await writeHtmlDocument(
+      [page],
+      (chunk) => {
+        document += chunk;
+      },
+      { profile: "semantic" },
+    );
+    const table = single.match(/<table>[\s\S]*?<\/table>/)?.[0];
+    expect(table).toContain("<caption>Plan comparison</caption>");
+    expect(table).toContain('<tfoot><tr><td colspan="3">');
+    expect(table).toContain(
+      '<strong><a href="https://example.com"><span style="color:#0f62fe">link</span></a></strong>',
+    );
+    expect(table).toBe(document.match(/<table>[\s\S]*?<\/table>/)?.[0]);
+  } finally {
+    reader.close();
+    await source.close();
+  }
 });

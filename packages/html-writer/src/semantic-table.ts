@@ -103,3 +103,13 @@ export function inferTableHeader(table: Table): string[] | undefined {
     ? first
     : undefined;
 }
+
+/** Render a complete semantic table for page and nested document output. */
+export function semanticTableHtml(table: Table, color: string): string {
+  if (table.caption || table.cells.some((cell) => cell.columnSpan > 1))
+    return panelTableHtml(table, color);
+  const header = inferTableHeader(table);
+  return `<table>${tableToRows(table)
+    .map((_, index) => styledTableRow(table, index, Boolean(header && index === 0), color, false))
+    .join("")}</table>`;
+}

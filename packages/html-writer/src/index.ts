@@ -14,7 +14,7 @@ import type {
   TextSpan,
   Type3Glyph,
 } from "@boxpdf/reader";
-import { type SemanticBlock, structurePage, tableToHtml } from "@boxpdf/reader/structure";
+import { type SemanticBlock, structurePage } from "@boxpdf/reader/structure";
 import { clearMediaCaptionAssociations } from "./semantic-caption.js";
 import { type SemanticDocumentStats, writeSemanticDocument } from "./semantic-document.js";
 import { dominantTextColor, semanticTextHtml } from "./semantic-inline.js";
@@ -25,6 +25,7 @@ import {
   type SemanticMedia,
   withoutSemanticMediaSpans,
 } from "./semantic-media.js";
+import { semanticTableHtml } from "./semantic-table.js";
 import {
   isSvgPath,
   vectorFillSvg,
@@ -690,7 +691,7 @@ async function writeFlowPage(
       emittedAsCaption = true;
     }
     if (emittedAsCaption) continue;
-    if (block.type === "table") await write(tableToHtml(block.table));
+    if (block.type === "table") await write(semanticTableHtml(block.table, defaultColor));
     else if (block.type === "heading") {
       await write(
         `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor, false)}</h${block.level}>`,
@@ -756,7 +757,7 @@ function nestedSemanticBlockHtml(block: SemanticBlock, defaultColor: string): st
   if (block.type === "insetGroup") {
     return `<div class="pdf-semantic-inset" style="margin-inline-start:${number(block.indentEm)}em">${block.blocks.map((item) => nestedSemanticBlockHtml(item, defaultColor)).join("")}</div>`;
   }
-  if (block.type === "table") return tableToHtml(block.table);
+  if (block.type === "table") return semanticTableHtml(block.table, defaultColor);
   if (block.type === "heading") {
     return `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor, false)}</h${block.level}>`;
   }

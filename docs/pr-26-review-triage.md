@@ -39,3 +39,9 @@ Both runtime cases have regression tests that failed before these fixes. CI's fu
 - Top-to-bottom spans now use their downward advance for the center and containment endpoints. This covers the reader's existing axis-aligned vertical geometry; it does not add arbitrary transformed vertical glyph geometry.
 - Valid convex QuadPoints now define separate matching polygons. Both perimeter and Z ordering are accepted. A span's center and advance endpoints must match the same region; partial-chunk splitting remains deferred. Missing, malformed, degenerate, or out-of-Rect quads fall back to Rect, consistent with the [PDF specification's link annotation guidance](https://pdf-issues.pdfa.org/32000-2-2020/clause12.html). Rectangle-only fallback was permitted, so the review severity was overstated, but excluding unrelated text is a worthwhile bounded improvement.
 - Regression coverage includes cropped coordinates, vertical text, disjoint and slanted polygons, Z ordering, and invalid-data fallback. Complete HTML/Markdown fixtures pass, and the real-document comparison against the preceding review pass reports no output changes.
+
+## Single-page semantic table integration
+
+- Confirmed that `writePage(page, write, { profile: "semantic" })` used the legacy plain-text table serializer, losing the attached caption, spanning footer, emphasis, and link from the authoritative rich-content fixture.
+- Page tables and inset tables now share the document writer's complete styled-table renderer. This reuses existing inference and rendering behavior; the streaming document continuation policy is unchanged.
+- Added a public `writePage` regression using rich-content.pdf, explicitly checking caption, footer colspan, and styled hyperlink, then comparing the entire table with `writeHtmlDocument` output. The test failed before the fix.

@@ -16,7 +16,12 @@ import {
   type SemanticMedia,
   withoutSemanticMediaSpans,
 } from "./semantic-media.js";
-import { inferTableHeader, panelTableHtml, styledTableRow } from "./semantic-table.js";
+import {
+  inferTableHeader,
+  panelTableHtml,
+  semanticTableHtml,
+  styledTableRow,
+} from "./semantic-table.js";
 
 export interface SemanticDocumentStats {
   pagesProcessed: number;
@@ -593,13 +598,7 @@ function semanticBlockHtml(block: SemanticBlock, defaultColor = "#000000"): stri
   if (block.type === "insetGroup") {
     return `<div class="pdf-semantic-inset" style="margin-inline-start:${block.indentEm}em">${block.blocks.map((item) => semanticBlockHtml(item, defaultColor)).join("")}</div>`;
   }
-  if (block.type === "table") {
-    const rows = tableToRows(block.table);
-    if (block.table.caption || block.table.cells.some((cell) => cell.columnSpan > 1))
-      return panelTableHtml(block.table, defaultColor);
-    const header = inferTableHeader(block.table);
-    return `<table>${rows.map((_, index) => styledTableRow(block.table, index, Boolean(header && index === 0), defaultColor, false)).join("")}</table>`;
-  }
+  if (block.type === "table") return semanticTableHtml(block.table, defaultColor);
   if (block.type === "heading")
     return `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor, false)}</h${block.level}>`;
   if (block.type === "paragraph")
