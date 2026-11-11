@@ -25,35 +25,17 @@
     <p>on the SpiderMonkey JavaScript interpreter, achieving 2x-20x speedups on many programs. The remainder of this paper is organized as follows. Section 3 is a general overview of trace tree based compilation we use to capture and compile frequently executed code regions. In Section 4 we describe our approach of covering nested loops using a number of individual trace trees. In Section 5 we describe our tracecompilation based speculative type specialization approach we use to generate efficient machine code from recorded bytecode traces. Our implementation of a dynamic type-specializing compiler for JavaScript is described in Section 6. Related work is discussed in Section 8. In Section 7 we evaluate our dynamic compiler based on</p>
     <figure data-source-page="2" data-visual-required="true">
       <pre><code>1 for (var i = 2; i &lt; 100; ++i) {
-2
-if (!primes[i])
-3
-continue;
-4
-for (var k = i + i; i &lt; 100; k += i)
-5
-primes[k] = false;
+2   if (!primes[i])
+3     continue;
+4   for (var k = i + i; i &lt; 100; k += i)
+5     primes[k] = false;
 6 }</code></pre>
       <figcaption>Figure 1. Sample program: sieve of Eratosthenes. primes is initialized to an array of 100 false values on entry to this code snippet.</figcaption>
     </figure>
-    <figure data-source-page="2" data-visual-required="true">
-      <section aria-label="State-machine labels">
-      <p>Symbol Key Interpret Bytecodes</p>
-      <p>abort recording Record LIR Trace finish at loop header</p>
-      <p>Overhead Interpreting</p>
-      <p>loop edge</p>
-      <p>cold/blacklisted loop/exit</p>
-      <p>Monitor</p>
-      <p>Native</p>
-      <p>compiled trace ready</p>
-      <p>hot loop/exit</p>
-      <p>Enter Compiled Trace loop edge with same types</p>
-      <p>Compile LIR Trace</p>
-      <p>Execute Compiled Trace</p>
-      <p>side exit, no existing trace Leave Compiled Trace</p>
-      <p>side exit to existing trace</p>
-      </section>
-      <figcaption>Figure 2. State machine describing the major activities of TraceMonkey and the conditions that cause transitions to a new activity. In the dark box, TM executes JS as compiled traces. In the light gray boxes, TM executes JS in the standard interpreter. White boxes are overhead. Thus, to maximize performance, we need to maximize time spent in the darkest box and minimize time spent in the white boxes. The best case is a loop where the types at the loop edge are the same as the types on entry–then TM can stay in native code until the loop is done.</figcaption>
+    <figure data-source-page="2">
+      <img src="assets/research-figure-2.png" alt="TraceMonkey state machine: interpreting, monitoring, recording and compiling traces, entering and executing native traces, and side exits." />
+      <hr>
+      <figcaption><strong>Figure 2.</strong> <em>State machine describing the major activities of TraceMonkey and the conditions that cause transitions to a new activity. In the dark box, TM executes JS as compiled traces. In the light gray boxes, TM executes JS in the standard interpreter. White boxes are overhead. Thus, to maximize performance, we need to maximize time spent in the darkest box and minimize time spent in the white boxes. The best case is a loop where the types at the loop edge are the same as the types on entry–then TM can stay in native code until the loop is done.</em></figcaption>
     </figure>
     <p>a set of industry benchmarks. The paper ends with conclusions in Section 9 and an outlook on future work is presented in Section 10.</p>
   </section>
@@ -61,58 +43,44 @@ primes[k] = false;
     <h2>2. Overview: Example Tracing Run</h2>
     <p>This section provides an overview of our system by describing how TraceMonkey executes an example program. The example program, shown in Figure 1, computes the first 100 prime numbers with nested loops. The narrative should be read along with Figure 2, which describes the activities TraceMonkey performs and when it transitions between the loops. TraceMonkey always begins executing a program in the bytecode interpreter. Every loop back edge is a potential trace point. When the interpreter crosses a loop edge, TraceMonkey invokes the trace monitor, which may decide to record or execute a native trace. At the start of execution, there are no compiled traces yet, so the trace monitor counts the number of times each loop back edge is executed until a loop becomes hot, currently after 2 crossings. Note that the way our loops are compiled, the loop edge is crossed before entering the loop, so the second crossing occurs immediately after the first iteration. Here is the sequence of events broken down by outer loop iteration:</p>
     <figure data-source-page="3" data-visual-required="true">
-      <pre><code>v0 := ld state[748]
-// load primes from the trace activation record
-st sp[0], v0
-// store primes to interpreter stack
-v1 := ld state[764]
-// load k from the trace activation record
-v2 := i2f(v1)
-// convert k from int to double
-st sp[8], v1
-// store k to interpreter stack
-st sp[16], 0
-// store false to interpreter stack
-v3 := ld v0[4]
-// load class word for primes
-v4 := and v3, -4
-// mask out object class tag for primes
-v5 := eq v4, Array
-// test whether primes is an array
-xf v5
-// side exit if v5 is false
+      <pre><code>v0 := ld state[748]             // load primes from the trace activation record
+      st sp[0], v0             // store primes to interpreter stack
+v1 := ld state[764]             // load k from the trace activation record
+v2 := i2f(v1)                  // convert k from int to double
+      st sp[8], v1             // store k to interpreter stack
+      st sp[16], 0             // store false to interpreter stack
+v3 := ld v0[4]                 // load class word for primes
+v4 := and v3, -4               // mask out object class tag for primes
+v5 := eq v4, Array             // test whether primes is an array
+      xf v5                    // side exit if v5 is false
 v6 := js_Array_set(v0, v2, false) // call function to set array element
-v7 := eq v6, 0
-// test return value from call
-xt v7
-// side exit if js_Array_set returns false.</code></pre>
+v7 := eq v6, 0                 // test return value from call
+      xt v7                    // side exit if js_Array_set returns false.</code></pre>
       <figcaption>Figure 3. LIR snippet for sample program. This is the LIR recorded for line 5 of the sample program in Figure 1. The LIR encodes the semantics in SSA form using temporary variables. The LIR also encodes all the stores that the interpreter would do to its data stack. Sometimes these stores can be optimized away as the stack locations are live only on exits to the interpreter. Finally, the LIR records guards and side exits to verify the assumptions made in this recording: that primes is an array and that the call to set its element succeeds.</figcaption>
     </figure>
-    <p>// load primes from the trace activation record // (*) store primes to interpreter stack // load k from the trace activation record // (*) store k to interpreter stack // (*) store false to interpreter stack // (*) load object class word for primes // (*) mask out object class tag for primes // (*) test whether primes is an array // (*) side exit if primes is not an array // bump stack for call alignment convention // push last argument for call // push first argument for call // call function to set array element // clean up extra stack space // (*) created by register allocator // (*) test return value of js_Array_set // (*) side exit if call failed</p>
-    <p>// restore ecx // restore esp // jump to ret statement</p>
     <figure data-source-page="3" data-visual-required="true">
-      <pre><code>mov edx, ebx(748)
-mov edi(0), edx
-mov esi, ebx(764)
-mov edi(8), esi
-mov edi(16), 0
-mov eax, edx(4)
-and eax, -4
-cmp eax, Array
-jne side_exit_1
-sub esp, 8
-push false
-push esi
-call js_Array_set
-add esp, 8
-mov ecx, ebx
-test eax, eax
-je side_exit_2
+      <pre><code>mov edx, ebx(748)       // load primes from the trace activation record
+mov edi(0), edx         // (*) store primes to interpreter stack
+mov esi, ebx(764)       // load k from the trace activation record
+mov edi(8), esi         // (*) store k to interpreter stack
+mov edi(16), 0          // (*) store false to interpreter stack
+mov eax, edx(4)         // (*) load object class word for primes
+and eax, -4             // (*) mask out object class tag for primes
+cmp eax, Array         // (*) test whether primes is an array
+jne side_exit_1        // (*) side exit if primes is not an array
+sub esp, 8              // bump stack for call alignment convention
+push false             // push last argument for call
+push esi               // push first argument for call
+call js_Array_set      // call function to set array element
+add esp, 8              // clean up extra stack space
+mov ecx, ebx            // (*) created by register allocator
+test eax, eax           // (*) test return value of js_Array_set
+je side_exit_2         // (*) side exit if call failed
 ...
 side_exit_1:
-mov ecx, ebp(-4)
-mov esp, ebp
-jmp epilog</code></pre>
+mov ecx, ebp(-4)        // restore ecx
+mov esp, ebp            // restore esp
+jmp epilog              // jump to ret statement</code></pre>
       <figcaption>Figure 4. x86 snippet for sample program. This is the x86 code compiled from the LIR snippet in Figure 3. Most LIR instructions compile to a single x86 instruction. Instructions marked with (*) would be omitted by an idealized compiler that knew that none of the side exits would ever be taken. The 17 instructions generated by the compiler compare favorably with the 100+ instructions that the interpreter would execute for the same code snippet, including 4 indirect jumps.</figcaption>
     </figure>
     <p>i=2. This is the first iteration of the outer loop. The loop on lines 4-5 becomes hot on its second iteration, so TraceMonkey enters recording mode on line 4. In recording mode, TraceMonkey records the code along the trace in a low-level compiler intermediate representation we call LIR. The LIR trace encodes all the operations performed and the types of all operands. The LIR trace also encodes guards, which are checks that verify that the control flow and types are identical to those observed during trace recording. Thus, on later executions, if and only if all guards are passed, the trace has the required program semantics. TraceMonkey stops recording when execution returns to the loop header or exits the loop. In this case, execution returns to the loop header on line 4. After recording is finished, TraceMonkey compiles the trace to native code using the recorded type information for optimization. The result is a native code fragment that can be entered if the</p>

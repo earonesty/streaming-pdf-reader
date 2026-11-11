@@ -26,7 +26,11 @@ export function reorderBidiLines(spans: TextSpan[]): TextSpan[] {
       const mixedText = reorderMixedRtlCitation(reordered.map((span) => span.text).join(""));
       if (mixedText !== undefined) {
         const first = reordered[0] as TextSpan;
-        output.push({ ...first, text: mixedText, bounds: { ...first.bounds, x: left } });
+        // Citation normalization collapses the line. Retain a URI only when
+        // every source chunk has the same owner; never spread a partial link.
+        const href =
+          new Set(reordered.map((span) => span.href)).size === 1 ? first.href : undefined;
+        output.push({ ...first, href, text: mixedText, bounds: { ...first.bounds, x: left } });
         start = end;
         continue;
       }

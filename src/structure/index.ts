@@ -3,6 +3,7 @@ import { orderReadingColumns } from "./columns.js";
 import { semanticGeometryPage } from "./geometry.js";
 import { inferRuledTables } from "./ruled-tables.js";
 import { inferSemanticBlocks, type SemanticBlock } from "./semantic.js";
+import { attachTablePanels } from "./table-panels.js";
 
 export type { SemanticBlock } from "./semantic.js";
 
@@ -29,6 +30,7 @@ export interface TableCell extends StructureInference {
 }
 
 export interface Table extends StructureInference {
+  caption?: TextLine[];
   type: "table";
   page: number;
   bounds: Rect;
@@ -64,6 +66,7 @@ export function structurePage(page: ExtractedPage, options: StructureOptions = {
     options,
   );
   const tables = [...ruledTables, ...inferredTables];
+  attachTablePanels(page, tables, groupedLines);
   const lines = orderReadingColumns(
     semanticPage,
     groupedLines,

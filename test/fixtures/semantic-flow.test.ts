@@ -36,7 +36,11 @@ describe("semantic flow fixture gate", () => {
           pages
             .flatMap((page) => page.blocks)
             .flatMap((block) => {
-              if (block.type === "table") return tableToRows(block.table).flat();
+              if (block.type === "table")
+                return [
+                  ...(block.table.caption ?? []).map((line) => line.text),
+                  ...tableToRows(block.table).flat(),
+                ];
               if (block.type === "list") return block.items.map((item) => item.text);
               if (block.type === "definitionList") {
                 return block.entries.flatMap((entry) => [entry.term, entry.description]);
@@ -163,7 +167,9 @@ describe("semantic flow fixture gate", () => {
       await source.close();
     }
 
-    expect(html).toContain("<table><tr><th>Tag</th><th>JS Type</th><th>Description</th></tr>");
+    expect(html).toContain(
+      '<table><tr><th scope="col">Tag</th><th scope="col">JS Type</th><th scope="col">Description</th></tr>',
+    );
     expect(html).toContain(
       "<tr><td>110</td><td>boolean null, or undefined</td><td>enumeration for null, undefined, true, false</td></tr>",
     );
@@ -206,7 +212,11 @@ function normalize(value: string): string {
 }
 
 function blockText(block: ReturnType<typeof structurePage>["blocks"][number]): string[] {
-  if (block.type === "table") return tableToRows(block.table).flat();
+  if (block.type === "table")
+    return [
+      ...(block.table.caption ?? []).map((line) => line.text),
+      ...tableToRows(block.table).flat(),
+    ];
   if (block.type === "list") return block.items.map((item) => item.text);
   if (block.type === "definitionList") {
     return block.entries.flatMap((entry) => [entry.term, entry.description]);

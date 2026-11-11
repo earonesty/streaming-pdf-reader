@@ -1,6 +1,6 @@
 {
   "name": "@boxpdf/reader",
-  "version": "0.2.9",
+  "version": "0.2.10",
   "description": "A streaming, memory-bounded PDF reader and structured-data extractor for JavaScript.",
   "keywords": [
     "pdf",
@@ -92,14 +92,21 @@
     "visual:report": "pnpm run build && pnpm --dir packages/html-writer build && pnpm corpus:fetch && node scripts/pdfium-visual-report.mjs",
     "visual:baseline": "pnpm run build && pnpm --dir packages/html-writer build && pnpm corpus:fetch && node scripts/pdfium-visual-report.mjs --write-baseline",
     "visual:gate": "pnpm run build && pnpm --dir packages/html-writer build && pnpm corpus:fetch && node scripts/pdfium-visual-report.mjs --gate",
-    "test": "pnpm run test:quick && pnpm run test:oracle && pnpm run test:memory",
+    "test": "pnpm run test:quick && pnpm run test:oracle && pnpm run test:memory && pnpm run test:semantic-oracle && pnpm run test:semantic-boundaries && node --test scripts/complete-fixture-output.test.mjs",
     "test:coverage": "pnpm run build && pnpm --dir packages/html-writer build && vitest run --coverage",
     "test:quick": "vitest run test/unit test/fixtures",
     "test:oracle": "vitest run test/oracle",
     "test:memory": "pnpm run build && pnpm --dir packages/html-writer build && vitest run test/memory",
     "typecheck": "tsc --noEmit",
     "quality": "pnpm run corpus:check && pnpm run check && pnpm run test && pnpm run test:coverage && pnpm run parity:target && pnpm run poppler:gate && pnpm run build && pnpm run package:check && pnpm --dir packages/html-writer quality && pnpm run release:check",
-    "prepublishOnly": "pnpm run quality"
+    "prepublishOnly": "pnpm run quality",
+    "semantic:gate": "pnpm run build && pnpm --dir packages/html-writer build && node scripts/semantic-oracle-report.mjs --gate",
+    "test:semantic-oracle": "node --test scripts/semantic-oracle.test.mjs scripts/complete-fixtures.test.mjs",
+    "semantic:preview": "node scripts/build-semantic-review.mjs",
+    "fixtures:generate:semantic-boundaries": "node scripts/generate-flow-boundaries.mjs",
+    "test:semantic-boundaries": "vitest run test/semantic-boundaries",
+    "test:semantic-complete": "pnpm build && pnpm --dir packages/html-writer build && node --test scripts/complete-fixture-output.test.mjs",
+    "reproduce:semantic-boundaries": "node scripts/reproduce-semantic-boundaries.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -119,12 +126,15 @@
     "@types/pako": "^2.0.4",
     "@vitest/coverage-v8": "4.1.11",
     "jscpd": "^5.0.16",
+    "marked": "15.0.12",
     "parse5": "^8.0.1",
     "pdfjs-dist": "5.4.54",
     "playwright-core": "^1.62.1",
     "publint": "^0.3.24",
     "sharp": "^0.35.4",
     "tsup": "^8.5.0",
+    "turndown": "7.2.0",
+    "turndown-plugin-gfm": "1.0.2",
     "typescript": "^5.9.2",
     "unpdf": "1.8.1",
     "vitest": "^4.0.0"

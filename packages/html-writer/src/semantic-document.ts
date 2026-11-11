@@ -16,6 +16,13 @@ import {
   type SemanticMedia,
   withoutSemanticMediaSpans,
 } from "./semantic-media.js";
+import {
+  inferTableHeader,
+  panelTableHtml,
+  semanticTableHtml,
+  spanningFooterRow,
+  styledTableRow,
+} from "./semantic-table.js";
 
 export interface SemanticDocumentStats {
   pagesProcessed: number;
@@ -35,6 +42,7 @@ interface BufferedPage {
 }
 
 interface ActiveTable {
+  rawMarkdown?: boolean;
   table: Table;
   header: string[] | undefined;
 }
@@ -86,7 +94,7 @@ export async function writeSemanticDocument(
 
   const closeTable = async () => {
     if (!activeTable) return;
-    await output("</table>", "\n");
+    await output("</table>", activeTable.rawMarkdown ? "</table>\n\n" : "\n");
     activeTable = undefined;
     while (pendingMedia.length > 0) await write(pendingMedia.shift() ?? "");
   };
@@ -208,38 +216,82 @@ export async function writeSemanticDocument(
       }
       if (block.type === "table") {
         const rows = tableToRows(block.table);
-        if (activeTable && tablesContinue(activeTable.table, block.table, page.width)) {
+        if (
+          activeTable &&
+          tablesContinue(activeTable.table, block.table, page.width) &&
+          (!block.table.caption ||
+            block.table.caption.map((line) => line.text).join(" ") ===
+              activeTable.table.caption?.map((line) => line.text).join(" ")) &&
+          (!markdown ||
+            activeTable.rawMarkdown ||
+            !block.table.cells.some((cell) => cell.columnSpan > 1))
+        ) {
           const continuationRows = sameRow(activeTable.header, rows[0]) ? rows.slice(1) : rows;
-          for (const row of continuationRows)
-            await write(markdown ? markdownTableRow(row) : tableRow(row, false));
+          const footerRow = spanningFooterRow(block.table);
+          for (const [index] of continuationRows.entries()) {
+            const row = index + (continuationRows.length < rows.length ? 1 : 0);
+            if (row === footerRow) await write("<tfoot>");
+            await write(
+              styledTableRow(
+                block.table,
+                row,
+                false,
+                defaultColor,
+                markdown && !activeTable.rawMarkdown,
+              ),
+            );
+            if (row === footerRow) await write("</tfoot>");
+          }
           activeTable.table = block.table;
+          if (footerRow !== undefined) await closeTable();
           stats.mergedTables += 1;
           continue;
         }
+        if (block.table.caption || block.table.cells.some((cell) => cell.columnSpan > 1)) {
+          await closeTable();
+          const html = panelTableHtml(block.table, defaultColor).slice(0, -8);
+          await output(html, html);
+          activeTable = {
+            table: block.table,
+            header: inferTableHeader(block.table),
+            rawMarkdown: true,
+          };
+          if (spanningFooterRow(block.table) !== undefined) await closeTable();
+          continue;
+        }
         await closeTable();
-        const header = tableHeader(rows);
-        await output("<table>", markdownTableStart(rows, header));
+        const header = inferTableHeader(block.table);
+        await output("<table>", markdownTableStart(rows, header, block.table, defaultColor));
         const markdownRows = markdown ? (header ? rows.slice(1) : rows) : rows;
-        for (const [index, row] of markdownRows.entries())
+        for (const [index] of markdownRows.entries())
           await write(
-            markdown ? markdownTableRow(row) : tableRow(row, Boolean(header && index === 0)),
+            styledTableRow(
+              block.table,
+              index + (markdown && header ? 1 : 0),
+              Boolean(!markdown && header && index === 0),
+              defaultColor,
+              markdown,
+            ),
           );
         activeTable = { table: block.table, header };
         continue;
       }
       if (activeTable && block.type === "definitionList" && isFinancialSummary(block)) {
         const columns = activeTable.table.columns.length;
+        const htmlFooter = `<tfoot>${block.entries.map((entry) => financialSummaryRow(entry, columns)).join("")}</tfoot>`;
         await output(
-          `<tfoot>${block.entries.map((entry) => financialSummaryRow(entry, columns)).join("")}</tfoot>`,
-          block.entries
-            .map((entry) =>
-              markdownTableRow([
-                entry.term,
-                ...Array(Math.max(0, columns - 2)).fill(""),
-                entry.description,
-              ]),
-            )
-            .join(""),
+          htmlFooter,
+          activeTable.rawMarkdown
+            ? htmlFooter
+            : block.entries
+                .map((entry) =>
+                  markdownTableRow([
+                    entry.term,
+                    ...Array(Math.max(0, columns - 2)).fill(""),
+                    entry.description,
+                  ]),
+                )
+                .join(""),
         );
         await closeTable();
         continue;
@@ -498,16 +550,6 @@ function tablesContinue(previous: Table, next: Table, pageWidth: number): boolea
   );
 }
 
-function tableHeader(rows: string[][]): string[] | undefined {
-  const first = rows[0];
-  if (!first) return undefined;
-  const later = rows.slice(1).flat();
-  return first.every((value) => /\p{L}/u.test(value) && !isNumericValue(value)) &&
-    later.some(isNumericValue)
-    ? first
-    : undefined;
-}
-
 function sameRow(left: string[] | undefined, right: string[] | undefined): boolean {
   return Boolean(
     left &&
@@ -517,16 +559,16 @@ function sameRow(left: string[] | undefined, right: string[] | undefined): boole
   );
 }
 
-function tableRow(row: string[], header: boolean): string {
-  const cell = header ? "th" : "td";
-  return `<tr>${row.map((value) => `<${cell}>${escapeHtml(value)}</${cell}>`).join("")}</tr>`;
-}
-
-function markdownTableStart(rows: string[][], header: string[] | undefined): string {
+function markdownTableStart(
+  rows: string[][],
+  header: string[] | undefined,
+  table?: Table,
+  color = "#000000",
+): string {
   const columns = rows[0]?.length ?? 0;
   if (columns === 0) return "";
   const heading = header ?? Array(columns).fill("");
-  return `${markdownTableRow(heading)}${markdownTableRow(Array(columns).fill("---"), false)}`;
+  return `${table && header ? styledTableRow(table, 0, true, color, true) : markdownTableRow(heading)}${markdownTableRow(Array(columns).fill("---"), false)}`;
 }
 
 function markdownTableRow(row: string[], shouldEscape = true): string {
@@ -564,11 +606,7 @@ function semanticBlockHtml(block: SemanticBlock, defaultColor = "#000000"): stri
   if (block.type === "insetGroup") {
     return `<div class="pdf-semantic-inset" style="margin-inline-start:${block.indentEm}em">${block.blocks.map((item) => semanticBlockHtml(item, defaultColor)).join("")}</div>`;
   }
-  if (block.type === "table") {
-    const rows = tableToRows(block.table);
-    const header = tableHeader(rows);
-    return `<table>${rows.map((row, index) => tableRow(row, Boolean(header && index === 0))).join("")}</table>`;
-  }
+  if (block.type === "table") return semanticTableHtml(block.table, defaultColor);
   if (block.type === "heading")
     return `<h${block.level}>${semanticTextHtml(block.text, block.lines, defaultColor, false)}</h${block.level}>`;
   if (block.type === "paragraph")
@@ -629,9 +667,16 @@ function semanticBlockMarkdown(block: SemanticBlock, defaultColor = "#000000"): 
   }
   if (block.type === "table") {
     const rows = tableToRows(block.table);
-    const header = tableHeader(rows);
-    return `${markdownTableStart(rows, header)}${(header ? rows.slice(1) : rows)
-      .map((row) => markdownTableRow(row))
+    if (block.table.caption || block.table.cells.some((cell) => cell.columnSpan > 1))
+      return `${panelTableHtml(block.table, defaultColor)}\n\n`;
+    const header = inferTableHeader(block.table);
+    return `${markdownTableStart(rows, header, block.table, defaultColor)}${(header
+      ? rows.slice(1)
+      : rows
+    )
+      .map((_, index) =>
+        styledTableRow(block.table, index + (header ? 1 : 0), false, defaultColor, true),
+      )
       .join("")}\n`;
   }
   if (block.type === "heading") {
@@ -665,7 +710,14 @@ function semanticBlockMarkdown(block: SemanticBlock, defaultColor = "#000000"): 
     ];
     return `## Items ordered\n\n${markdownTableStart(rows, rows[0])}${rows
       .slice(1)
-      .map((row) => markdownTableRow(row))
+      .map((row) =>
+        markdownTableRow(
+          row.map((cell, index) =>
+            index === 0 ? `**${escapeMarkdownTableCell(cell)}**` : escapeMarkdownTableCell(cell),
+          ),
+          false,
+        ),
+      )
       .join("")}\n`;
   }
   if (block.type === "sectionGroup") {

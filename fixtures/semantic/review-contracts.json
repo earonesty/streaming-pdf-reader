@@ -1,0 +1,439 @@
+{
+  "schemaVersion": 1,
+  "method": "Focused contracts from existing regression assertions; municipal pages visually inspected. These are not full-document ideal targets.",
+  "fixtures": [
+    {
+      "id": "dekalb-oracle-tax-page",
+      "pdf": "../../test/fixtures/dekalb-oracle-tax-page.pdf",
+      "challenge": "PR #20: columns painted separately must remain coherent tax rows",
+      "checks": [
+        {
+          "kind": "row",
+          "cells": [
+            "HASAN NAJAM",
+            "2018",
+            "2123-0037",
+            "F",
+            "7.62",
+            "5.07",
+            "0.38",
+            "0.00",
+            "0.00",
+            "13.07",
+            "10/01/2018",
+            "DO"
+          ],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/production-semantic-regressions.test.ts and visual review of source page 1"
+          }
+        },
+        {
+          "kind": "tableRows",
+          "min": 40,
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/production-semantic-regressions.test.ts and visual review of source page 1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "lauderhill-goveasy-case",
+      "pdf": "../../test/fixtures/lauderhill-goveasy-case.pdf",
+      "challenge": "PR #20: label/value case information alongside a ruled violations table",
+      "checks": [
+        {
+          "kind": "sequence",
+          "values": [
+            "Case Overview",
+            "Property/Incident Information",
+            "Documents Issued",
+            "Violations"
+          ],
+          "verification": {
+            "basis": "source-reviewed",
+            "evidence": "Lauderhill PDF page 1 visually reviewed; case information precedes Documents Issued and Violations; Notes is one wrapped field."
+          }
+        },
+        {
+          "kind": "row",
+          "cells": ["Ordinance/Regulation", "Section", "Description", "Date Complied"],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/production-semantic-regressions.test.ts and visual review of source page 1"
+          }
+        },
+        {
+          "kind": "rowContains",
+          "cells": [
+            "Code of Ordinance - Chapter 12",
+            "Section 12-33(d)",
+            "Any person engaging in or managing any business",
+            "Not in Compliance - Reinspection Date: 5/13/2026"
+          ],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/production-semantic-regressions.test.ts and visual review of source page 1"
+          }
+        },
+        {
+          "kind": "labelValue",
+          "label": "Case Status",
+          "value": "Open",
+          "verification": {
+            "basis": "source-reviewed",
+            "evidence": "Lauderhill PDF page 1 visually reviewed; case information precedes Documents Issued and Violations; Notes is one wrapped field."
+          }
+        },
+        {
+          "kind": "labelValue",
+          "label": "Notes",
+          "value": "Our records INDICATE that you do not currently have a Certificate of Use License or have a delinquent balance.",
+          "verification": {
+            "basis": "source-reviewed",
+            "evidence": "Lauderhill PDF page 1 visually reviewed; case information precedes Documents Issued and Violations; Notes is one wrapped field."
+          }
+        }
+      ]
+    },
+    {
+      "id": "staug-embedded-ocr-page",
+      "pdf": "../../test/fixtures/staug-embedded-ocr-page.pdf",
+      "challenge": "PR #20: OCR prose and speaker turns, with no control characters",
+      "checks": [
+        {
+          "kind": "sequence",
+          "values": [
+            "Mr. Sweeny: Members, it is 2 o'clock",
+            "order. I first ask everyone here today",
+            "Motion #1:",
+            "Mr. Sweeny: Moving on to new business.",
+            "Mr. Ferris: This originated",
+            "Mr. Schneider: Who does the AC work there?",
+            "Mr. Ferris: Their on-site maintenance man."
+          ],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/production-semantic-regressions.test.ts and visual review of source page 1"
+          }
+        },
+        {
+          "kind": "noControls",
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/production-semantic-regressions.test.ts and visual review of source page 1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "pompano-unsafe-structures-sept-2026",
+      "pdf": "../../test/fixtures/pompano-unsafe-structures-sept-2026.pdf",
+      "challenge": "PR #13: agenda case/owner/address/inspector associations despite paint order",
+      "checks": [
+        {
+          "kind": "group",
+          "tag": "li",
+          "values": ["25-08000002", "CANNER, SCOTT F", "1670 NW 1 TERRACE", "C. RIZZUTO"],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/unit/structure.test.ts and visual review of source page 1"
+          }
+        },
+        {
+          "kind": "group",
+          "tag": "li",
+          "values": [
+            "26-08000022",
+            "ELUSMA, FRANCELENE ELUSMA, JOREL",
+            "2511 NE 3 TERRACE",
+            "C. RIZZUTO"
+          ],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/unit/structure.test.ts and visual review of source page 1"
+          }
+        },
+        {
+          "kind": "sequence",
+          "values": ["OLD BUSINESS", "25-08000002", "NEW BUSINESS", "26-08000022", "ADJOURNMENT"],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/unit/structure.test.ts and visual review of source page 1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "atlantic-beach-page-150",
+      "pdf": "../../test/fixtures/atlantic-beach-page-150.pdf",
+      "challenge": "Word spacing and prose survive layout inference",
+      "checks": [
+        {
+          "kind": "sequence",
+          "values": [
+            "Sec. 24-164 Swimming Pools (c) Fences:",
+            "All swimming pools and any ornamental pool with a depth",
+            "The Code Enforcement Board may levy fines",
+            "You have the right to obtain an attorney"
+          ],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/unit/structure.test.ts and visual review of source page 1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "derby-rotated-register",
+      "pdf": "../../test/fixtures/derby-rotated-register.pdf",
+      "challenge": "PR #18: rotated register preserves long text in its associated row",
+      "checks": [
+        {
+          "kind": "rowContains",
+          "cells": ["Address / location", "Issue Date", "Service Date", "Summary of Breach"],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/unit/structure.test.ts and visual review of source page 1"
+          }
+        },
+        {
+          "kind": "rowContains",
+          "cells": ["Land at 76-78 Osmaston Road, Derby", "01/10/1996", "The following"],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/unit/structure.test.ts and visual review of source page 1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "research-paper-regressions",
+      "pdf": "research-paper.pdf",
+      "challenge": "Two presentation columns, title hierarchy, abstract, figures, and captions; existing research regressions applied to final output",
+      "checks": [
+        {
+          "kind": "sequence",
+          "values": [
+            "Trace-based Just-in-Time Type Specialization for Dynamic Languages",
+            "Abstract",
+            "Dynamic languages such as JavaScript",
+            "Categories and Subject Descriptors",
+            "General Terms",
+            "Keywords",
+            "1. Introduction",
+            "Dynamic languages such as JavaScript, Python, and Ruby",
+            "and is used for the application logic",
+            "Hence, recording and compiling a trace speculates",
+            "This paper makes the following contributions",
+            "The remainder of this paper is organized as follows",
+            "2. Overview: Example Tracing Run"
+          ],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "row",
+          "cells": ["Tag", "JS Type", "Description"],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "row",
+          "cells": [
+            "110",
+            "boolean null, or undefined",
+            "enumeration for null, undefined, true, false"
+          ],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "group",
+          "tag": "li",
+          "values": ["The implementation does not currently trace recursion"],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "contains",
+          "value": "3d-raytrace",
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "contains",
+          "value": "date-format-tofte",
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "contains",
+          "value": "access-fannkuch",
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "mediaCaption",
+          "caption": "Figure 2.",
+          "media": "svg",
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "mediaCaption",
+          "caption": "Figure 5.",
+          "media": "svg",
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "mediaCaption",
+          "caption": "Figure 6.",
+          "media": "svg",
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "mediaCaption",
+          "caption": "Figure 7.",
+          "media": "svg",
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "mediaCaption",
+          "caption": "Figure 10.",
+          "media": "svg",
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "mediaCaption",
+          "caption": "Figure 11.",
+          "media": "svg",
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "mediaCaption",
+          "caption": "Figure 12.",
+          "media": "svg",
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "flowParagraph",
+          "values": ["client-side web programming and is used for the application logic"],
+          "verification": {
+            "basis": "source-reviewed",
+            "evidence": "PDF pages 1\u20132 inspected for column/page continuation; docs/semantic-regression-review.md records the exact seams."
+          }
+        },
+        {
+          "kind": "sequence",
+          "values": [
+            "subsequent loop iterations",
+            "Hence, recording and compiling a trace speculates"
+          ],
+          "verification": {
+            "basis": "source-reviewed",
+            "evidence": "PDF pages 1\u20132 inspected for column/page continuation; docs/semantic-regression-review.md records the exact seams."
+          }
+        }
+      ]
+    },
+    {
+      "id": "scicap-paper-regressions",
+      "pdf": "scicap-paper.pdf",
+      "challenge": "Independent two-column paper with raster diagrams, multi-line captions, tables, and references; existing research regressions applied to final output",
+      "checks": [
+        {
+          "kind": "sequence",
+          "values": [
+            "SCICAP: Generating Captions for Scientific Figures",
+            "Abstract",
+            "Researchers use figures to communicate rich, complex information",
+            "1 Introduction",
+            "2 Related Work"
+          ],
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "mediaCaption",
+          "caption": "Figure 1:",
+          "media": "img",
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "mediaCaption",
+          "caption": "Figure 2:",
+          "media": "img",
+          "verification": {
+            "basis": "existing-regression",
+            "evidence": "test/fixtures/semantic-flow.test.ts, test/fixtures/semantic-media-association.test.ts and fixtures/semantic/manifest.json"
+          }
+        },
+        {
+          "kind": "flowParagraph",
+          "values": ["trained on informative, high-quality captions can suggest better captions"],
+          "verification": {
+            "basis": "source-reviewed",
+            "evidence": "PDF pages 1\u20132 inspected for column/page continuation; docs/semantic-regression-review.md records the exact seams."
+          }
+        },
+        {
+          "kind": "flowParagraph",
+          "values": ["One of the few prior works attempting to caption", "They created FigCAP"],
+          "verification": {
+            "basis": "source-reviewed",
+            "evidence": "PDF pages 1\u20132 inspected for column/page continuation; docs/semantic-regression-review.md records the exact seams."
+          }
+        },
+        {
+          "kind": "flowParagraph",
+          "values": ["is based on the arXiv dataset"],
+          "verification": {
+            "basis": "source-reviewed",
+            "evidence": "PDF pages 1\u20132 inspected for column/page continuation; docs/semantic-regression-review.md records the exact seams."
+          }
+        }
+      ]
+    }
+  ]
+}

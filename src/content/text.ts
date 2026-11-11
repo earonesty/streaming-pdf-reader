@@ -16,6 +16,7 @@ import { textFillColor } from "./color.js";
 import { componentColor } from "./color-space.js";
 import { resolveExtendedGraphicsState } from "./extgstate.js";
 import { loadFonts } from "./font-loader.js";
+import { attachPageLinks } from "./links.js";
 import {
   collapseZeroPaddedSingleByteCodes,
   containsTextShowingOperator,
@@ -81,6 +82,7 @@ export async function extractPageText(
     }
   }
   visualSpans?.push(...spans.map(asVisualSpan));
+  await attachPageLinks(reader, page, spans);
   return reorderBidiLines(spans);
 }
 function asVisualSpan(span: TextSpan): TextSpan {

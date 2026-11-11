@@ -205,3 +205,14 @@ pnpm test:oracle
 pnpm test:memory
 pnpm quality
 ```
+
+### Semantic review tooling
+
+The [semantic oracle review](docs/semantic-oracle-review.md) documents accepted
+representations and strict checks. The [regression review set](docs/semantic-regression-review.md)
+covers municipal documents and research papers, including column-to-single-flow
+continuity. Run `pnpm semantic:report`; use `pnpm semantic:gate` to fail on evidence-backed focused checks.
+Whole-document draft differences are advisory.
+The review guide explains how to generate a full-document preview with current
+and oracle Markdown side by side. These review gates remain opt-in while findings
+are being triaged.

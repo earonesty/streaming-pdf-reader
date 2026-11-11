@@ -1100,7 +1100,7 @@ describe("HTML writer", () => {
     );
 
     expect(html.match(/<table>/g)).toHaveLength(1);
-    expect(html).toContain("<th>Item</th><th>Total</th>");
+    expect(html).toContain('<th scope="col">Item</th><th scope="col">Total</th>');
     expect(html).toContain("<td>Review</td><td>$100</td>");
     expect(html).not.toContain("Page 1 of 2");
     expect(html).not.toContain("Page 2 of 2");

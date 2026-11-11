@@ -12,6 +12,8 @@ export interface SourceRef {
 }
 
 export interface TextSpan {
+  /** Safe external URI associated with this text fragment by a PDF link annotation. */
+  href?: string | undefined;
   text: string;
   hasLeadingSpace?: boolean | undefined;
   /** Signed PDF text-space displacement immediately before this span; positive advances. */

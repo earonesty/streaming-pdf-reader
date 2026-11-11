@@ -1,8 +1,12 @@
 {
   "schemaVersion": 1,
-  "method": "Context-free visual review of rendered PDF pages; no extractor output was shown to the author.",
+  "method": "Historical provenance: context-free visual review of rendered PDF pages; no extractor output was shown to the author. This process was recorded by the original authors, not independently audited; whole-document references remain drafts.",
   "fixtures": [
-    { "id": "research-paper", "pdf": "../research-paper.pdf", "html": "research-paper.html" },
+    {
+      "id": "research-paper",
+      "pdf": "../research-paper.pdf",
+      "html": "research-paper.html"
+    },
     {
       "id": "acme-studio-invoice",
       "pdf": "../acme-studio-invoice.pdf",
@@ -13,16 +17,31 @@
       "pdf": "../multipage-invoice.pdf",
       "html": "multipage-invoice.html"
     },
-    { "id": "receipt", "pdf": "../receipt.pdf", "html": "receipt.html" },
     {
-      "id": "order-confirmation",
-      "pdf": "../order-confirmation.pdf",
-      "html": "order-confirmation.html"
+      "id": "receipt",
+      "pdf": "../receipt.pdf",
+      "html": "receipt.html"
     },
-    { "id": "resume", "pdf": "../resume.pdf", "html": "resume.html" },
-    { "id": "itinerary", "pdf": "../itinerary.pdf", "html": "itinerary.html" },
-    { "id": "boarding-pass", "pdf": "../boarding-pass.pdf", "html": "boarding-pass.html" },
-    { "id": "rich-content", "pdf": "../rich-content.pdf", "html": "rich-content.html" },
-    { "id": "hanging-indent", "pdf": "../hanging-indent.pdf", "html": "hanging-indent.html" }
-  ]
+    {
+      "id": "resume",
+      "pdf": "../resume.pdf",
+      "html": "resume.html"
+    },
+    {
+      "id": "itinerary",
+      "pdf": "../itinerary.pdf",
+      "html": "itinerary.html"
+    },
+    {
+      "id": "boarding-pass",
+      "pdf": "../boarding-pass.pdf",
+      "html": "boarding-pass.html"
+    },
+    {
+      "id": "hanging-indent",
+      "pdf": "../hanging-indent.pdf",
+      "html": "hanging-indent.html"
+    }
+  ],
+  "status": "draft"
 }
