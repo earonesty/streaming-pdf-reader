@@ -68,11 +68,16 @@ export function structurePage(page: ExtractedPage, options: StructureOptions = {
   const proseTables = inferredTables.filter(isProseColumnTable);
   let tables = [...ruledTables, ...inferredTables.filter((table) => !proseTables.includes(table))];
   const lineFromSpans = (spans: TextSpan[]) => textLines([spans])[0] as TextLine;
-  let twoColumnEvidence = false;
-  if (proseTables.length) {
-    const trial = orderReadingColumns(semanticPage, groupedLines, tables, lineFromSpans, true);
-    twoColumnEvidence = trial !== groupedLines;
-    if (!twoColumnEvidence) tables = [...ruledTables, ...inferredTables];
+  let remainingProse = proseTables;
+  while (remainingProse.length) {
+    const reordered = new Set<TextSpan>();
+    orderReadingColumns(semanticPage, groupedLines, tables, lineFromSpans, true, reordered);
+    const retained = remainingProse.filter((table) =>
+      table.cells.some((cell) => cell.spans.some((span) => !reordered.has(span))),
+    );
+    if (!retained.length) break;
+    tables = [...tables, ...retained];
+    remainingProse = remainingProse.filter((table) => !retained.includes(table));
   }
   // Establish all ownership once, after deciding which tables survive.
   attachTablePanels(page, tables, groupedLines);
@@ -81,7 +86,7 @@ export function structurePage(page: ExtractedPage, options: StructureOptions = {
     groupedLines,
     tables,
     lineFromSpans,
-    twoColumnEvidence,
+    remainingProse.length > 0,
   );
   return {
     page: semanticPage.number,

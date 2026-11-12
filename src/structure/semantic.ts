@@ -1,6 +1,6 @@
 import type { Table, TextLine } from "./index.js";
 import { groupInsetBlocks } from "./inset.js";
-import { joinText } from "./text-join.js";
+import { joinText, joinWrappedText } from "./text-join.js";
 
 export type SemanticBlock =
   | { type: "heading"; level: 1 | 2 | 3 | 4; text: string; lines: TextLine[] }
@@ -160,7 +160,7 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
           if (endsSentence(itemLines.at(-1)) && startsEmphasizedLead(continuation)) break;
           cursor += 1;
           itemLines.push(continuation);
-          text = joinText(text, continuation.text);
+          text = joinLineText(text, continuation);
         }
         items.push({ text, lines: itemLines });
         cursor += 1;
@@ -183,7 +183,7 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
       )
         break;
       paragraphLines.push(next);
-      text = joinText(text, next.text);
+      text = joinLineText(text, next);
       index += 1;
     }
     blocks.push({ type: "paragraph", text, lines: paragraphLines });
@@ -463,7 +463,7 @@ function definitionRun(
       }
       const last = entries.at(-1);
       if (!last) break;
-      last.description = joinText(last.description, continuation.text);
+      last.description = joinLineText(last.description, continuation);
       cursor += 1;
     }
   }
@@ -523,4 +523,10 @@ function isContinuation(
   const sameFlow =
     Math.abs(previous.bounds.x - next.bounds.x) <= Math.max(18, previous.bounds.height * 1.5);
   return verticalGap >= -3 && verticalGap <= Math.max(12, previous.bounds.height * 1.2) && sameFlow;
+}
+
+function joinLineText(previous: string, next: TextLine): string {
+  return next.reasons.includes("reading-column-start")
+    ? joinWrappedText(previous, next.text)
+    : joinText(previous, next.text);
 }

@@ -142,3 +142,45 @@ it("preserves standalone dashes and normal short words in new wrapped joins", as
   expect(joinWrappedText("-", "item")).toBe("- item");
   expect(joinWrappedText("internationalization", "is.")).toBe("internationalization is.");
 });
+it("retains a prose table outside another accepted reading band", () => {
+  const page: ExtractedPage = { number: 1, width: 650, height: 750, rotate: 0, spans: [] };
+  for (let row = 0; row < 4; row++) {
+    for (const x of [30, 230]) {
+      const value = span(
+        x === 30 && row === 3
+          ? "The unfinished sentence keeps going here"
+          : "the ordinary prose contains many words. More",
+        x,
+        650 - row * 18,
+      );
+      value.bounds.width = 150;
+      page.spans.push(value);
+    }
+    for (let column = 0; column < 3; column++) {
+      const value = span("separate column region", 30 + column * 200, 350 - row * 45 - column * 12);
+      value.bounds.width = 120;
+      page.spans.push(value);
+    }
+  }
+  page.spans.sort((a, b) => b.bounds.y - a.bounds.y || a.bounds.x - b.bounds.x);
+  const result = structurePage(page);
+  expect(result.tables).toHaveLength(1);
+  expect(result.tables[0]?.cells).toHaveLength(8);
+  expect(result.lines.some((value) => value.reasons.includes("reading-column-start"))).toBe(true);
+});
+it.each([
+  ["internationalization", "is.", "internationalization is."],
+  ["govern-", "ment", "government"],
+])("joins a column seam only with explicit word-break evidence: %s", (left, right, expected) => {
+  const blocks = inferSemanticBlocks(
+    [
+      line([span("This prose begins a connected idea", 20, 130)]),
+      line([span("and continues through this column", 20, 115)]),
+      line([span(left, 20, 100)]),
+      line([span(right, 300, 200)], ["reading-column-start"]),
+    ],
+    [],
+  );
+  expect(blocks).toHaveLength(1);
+  expect(blocks[0]).toMatchObject({ type: "paragraph", text: expect.stringContaining(expected) });
+});

@@ -20,6 +20,7 @@ export function orderReadingColumns(
   tables: Table[],
   lineFromSpans: (spans: TextSpan[]) => TextLine,
   twoColumnEvidence = false,
+  reorderedSpans?: Set<TextSpan>,
 ): TextLine[] {
   const tableSpans = new Set(tables.flatMap((table) => table.cells.flatMap((cell) => cell.spans)));
   const candidates = lines
@@ -60,6 +61,7 @@ export function orderReadingColumns(
     if (region.length === 0) return;
     const columns = starts.map(() => [] as TextLine[]);
     for (const line of region) {
+      for (const span of line.spans) reorderedSpans?.add(span);
       for (const segment of splitLineAtColumns(line, starts, lineFromSpans)) {
         columns[nearestColumn(segment.bounds.x, starts)]?.push(segment);
       }

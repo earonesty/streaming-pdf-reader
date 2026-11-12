@@ -35,6 +35,7 @@ export function styledTableRow(
   header: boolean,
   color: string,
   markdown: boolean,
+  rowGroupStart = 0,
 ): string {
   const cells = table.cells.filter((cell) => cell.row === row).sort((a, b) => a.column - b.column);
   const columns = Math.max(
@@ -58,6 +59,7 @@ export function styledTableRow(
       if (
         table.cells.some(
           (previous) =>
+            previous.row >= rowGroupStart &&
             previous.row < row &&
             previous.row + previous.rowSpan > row &&
             column >= previous.column &&
@@ -83,7 +85,7 @@ export function panelTableHtml(table: Table, color: string): string {
   result += "<tbody>";
   for (let row = header ? 1 : 0; row <= last - (footer ? 1 : 0); row++) {
     // Descriptive first-column labels in a comparison matrix identify each row.
-    let html = styledTableRow(table, row, false, color, false);
+    let html = styledTableRow(table, row, false, color, false, header ? 1 : 0);
     const cells = table.cells.filter((cell) => cell.row === row);
     if (
       header &&
@@ -96,7 +98,7 @@ export function panelTableHtml(table: Table, color: string): string {
     result += html;
   }
   result += "</tbody>";
-  if (footer) result += `<tfoot>${styledTableRow(table, last, false, color, false)}</tfoot>`;
+  if (footer) result += `<tfoot>${styledTableRow(table, last, false, color, false, last)}</tfoot>`;
   return `${result}</table>`;
 }
 

@@ -113,3 +113,16 @@ it("does not insert a cell into a position occupied by a rowspan", () => {
   expect(html).toContain("<tr><td>4</td></tr>");
   expect(html).not.toContain("<tr><td></td><td>4</td></tr>");
 });
+it("pads tbody positions when a header rowspan is clipped by its row group", () => {
+  const input = table([
+    ["Category", "Amount"],
+    ["Unused", "10"],
+  ]);
+  const header = input.cells[0];
+  if (!header) throw new Error("missing cell");
+  header.rowSpan = 2;
+  input.cells = input.cells.filter((cell) => !(cell.row === 1 && cell.column === 0));
+  const html = [...markdownTableChunks(input, "#000000")].join("");
+  expect(html).toContain('<thead><tr><th scope="col" rowspan="2">Category</th>');
+  expect(html).toContain("<tbody><tr><td></td><td>10</td></tr></tbody>");
+});
