@@ -7,11 +7,6 @@ import { writeHtmlDocument, writeMarkdownDocument } from "../../packages/html-wr
 import { openPdf } from "../../src/index.js";
 import { fileSource } from "../../src/node.js";
 
-// These unresolved flow defects are outside the links/table release. Keep their
-// assertions executable with pnpm reproduce:semantic-boundaries; remove each
-// skip when its converter fix lands. Controls below always run.
-const knownFlowDefect = process.env.BOXPDF_REPRODUCE_FLOW_DEFECTS === "1" ? it : it.skip;
-
 type Node = DefaultTreeAdapterMap["node"];
 const root = new URL("../../fixtures/semantic/boundaries/", import.meta.url);
 function tag(node: Node): string {
@@ -64,12 +59,18 @@ function requireParagraph(document: Node, phrase: string) {
 }
 
 describe.each(["html", "markdown"] as const)("bounded semantic flow: %s", (format) => {
-  knownFlowDefect.each(["column-plain.pdf", "column-asides.pdf"])(
+  it.each(["column-plain.pdf", "column-asides.pdf", "column-code.pdf"])(
     "joins a sentence across columns in %s",
     async (name) => {
       const document = await output(name, format);
       requireParagraph(document, "captions can suggest better descriptions");
       expect(nodes(document, "table")).toHaveLength(0);
+      if (name === "column-code.pdf") {
+        expect(nodes(document, "pre").map((node) => text(node).replace(/\n$/, ""))).toEqual([
+          "// load values from the record\nfor (const value of values) {\n  emit(value);\n}",
+        ]);
+        expect(normalize(text(document)).match(/load values from the record/g)).toHaveLength(1);
+      }
       if (name === "column-asides.pdf") {
         expect(normalize(text(document))).toContain(
           "Additional source information belongs in a footnote.",
@@ -81,7 +82,7 @@ describe.each(["html", "markdown"] as const)("bounded semantic flow: %s", (forma
       }
     },
   );
-  knownFlowDefect.each([1, 3])(
+  it.each([1, 3])(
     "joins page continuation with lookahead %i without merging a new paragraph",
     async (lookahead) => {
       const document = await output("page-furniture.pdf", format, lookahead);
@@ -92,7 +93,7 @@ describe.each(["html", "markdown"] as const)("bounded semantic flow: %s", (forma
       expect(next).not.toBe(continuation);
     },
   );
-  knownFlowDefect("keeps a complete wrapped Notes value before the next section", async () => {
+  it("keeps a complete wrapped Notes value before the next section", async () => {
     const document = await output("wrapped-notes.pdf", format);
     // Either a description value or ordinary paragraph is acceptable, but the
     // sentence may not be split merely because its visual line wrapped.
@@ -131,6 +132,8 @@ describe.each(["html", "markdown"] as const)("bounded semantic flow: %s", (forma
 it("keeps every boundary fixture below 20 KB and at most two pages", async () => {
   for (const name of [
     "column-plain.pdf",
+    "column-code.pdf",
+    "spanning-rows.pdf",
     "column-asides.pdf",
     "page-furniture.pdf",
     "wrapped-notes.pdf",

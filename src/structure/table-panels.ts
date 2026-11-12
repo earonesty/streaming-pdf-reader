@@ -38,7 +38,9 @@ export function attachTablePanels(page: ExtractedPage, tables: Table[], lines: T
       (line) => contains(panel, line.bounds) && !line.spans.some((span) => assigned.has(span)),
     );
     const above = extras.filter((line) => line.bounds.y >= table.bounds.y + table.bounds.height);
-    const below = extras.filter((line) => line.bounds.y + line.bounds.height <= table.bounds.y);
+    const below = extras
+      .filter((line) => line.bounds.y + line.bounds.height <= table.bounds.y)
+      .sort((a, b) => b.bounds.y - a.bounds.y);
     if (
       above.length === 1 &&
       above[0]?.spans.every((span) => /bold/i.test(span.fontFamily ?? ""))
@@ -46,15 +48,37 @@ export function attachTablePanels(page: ExtractedPage, tables: Table[], lines: T
       table.caption = above;
       for (const span of above[0].spans) assigned.add(span);
     }
-    // A single wide line inside the same panel is a spanning footer,
+    // A wide line with up to three tightly aligned continuation lines is a footer,
     // not a cell in whichever column its final inline run happens to reach.
     if (
-      below.length === 1 &&
+      below.length >= 1 &&
+      below.length <= 4 &&
+      below.every(
+        (line, index) =>
+          index === 0 ||
+          (Math.abs(line.bounds.x - (below[0]?.bounds.x ?? 0)) <= 4 &&
+            Math.abs(line.bounds.height - (below[0]?.bounds.height ?? 0)) <= 1 &&
+            (below[index - 1]?.bounds.y ?? 0) - line.bounds.y - line.bounds.height >= -1 &&
+            (below[index - 1]?.bounds.y ?? 0) - line.bounds.y - line.bounds.height <=
+              line.bounds.height * 0.8),
+      ) &&
       below[0] &&
       below[0].bounds.width > table.bounds.width * 0.6 &&
       separatedFooter(page, table, below[0])
     ) {
-      const line = below[0];
+      const first = below[0];
+      const last = below.at(-1) as TextLine;
+      const line = {
+        ...first,
+        text: below.map((item) => item.text).join(" "),
+        spans: below.flatMap((item) => item.spans),
+        bounds: {
+          x: first.bounds.x,
+          y: last.bounds.y,
+          width: Math.max(...below.map((item) => item.bounds.width)),
+          height: first.bounds.y + first.bounds.height - last.bounds.y,
+        },
+      };
       table.cells.push({
         row: Math.max(...table.cells.map((cell) => cell.row)) + 1,
         column: 0,

@@ -11,6 +11,7 @@ interface ReadingColumnLayout {
 
 interface ColumnCandidate {
   bounds: Rect;
+  text: string;
 }
 
 export function orderReadingColumns(
@@ -18,17 +19,29 @@ export function orderReadingColumns(
   lines: TextLine[],
   tables: Table[],
   lineFromSpans: (spans: TextSpan[]) => TextLine,
+  twoColumnEvidence = false,
 ): TextLine[] {
   const tableSpans = new Set(tables.flatMap((table) => table.cells.flatMap((cell) => cell.spans)));
   const candidates = lines
     .filter((line) => !line.spans.some((span) => tableSpans.has(span)))
     .flatMap((line) => columnCandidates(line, page.width));
-  const layout = sustainedColumnLayout(candidates, page.width);
-  // Two-region pages remain deliberately conservative because label/value
-  // sections and borderless two-column tables are geometrically ambiguous.
-  // Three or four sustained regions are rare and provide much stronger
-  // presentation-column evidence once known tables have been excluded.
-  if (!layout || layout.starts.length < 3 || layout.starts.length > MAX_READING_COLUMNS)
+  const bodyHeight = median(candidates.map((candidate) => candidate.bounds.height));
+  const bodyCandidates = candidates.filter(
+    (candidate) =>
+      candidate.bounds.height >= bodyHeight * 0.9 && candidate.bounds.height <= bodyHeight * 1.1,
+  );
+  const originalLayout = sustainedColumnLayout(candidates, page.width);
+  const layout =
+    originalLayout && originalLayout.starts.length >= 3
+      ? originalLayout
+      : sustainedColumnLayout(bodyCandidates, page.width);
+  if (!layout || layout.starts.length > MAX_READING_COLUMNS) return lines;
+  if (layout.starts.length === 2 && !twoColumnEvidence) return lines;
+  if (
+    layout.starts.length === 2 &&
+    candidates.filter((candidate) => candidate.text.trim().split(/\s+/).length >= 5).length <
+      candidates.length * 0.7
+  )
     return lines;
   const { starts } = layout;
 
@@ -51,10 +64,12 @@ export function orderReadingColumns(
         columns[nearestColumn(segment.bounds.x, starts)]?.push(segment);
       }
     }
-    for (const column of columns) {
+    for (const [index, column] of columns.entries()) {
       column.sort(
         (left, right) => right.bounds.y - left.bounds.y || left.bounds.x - right.bounds.x,
       );
+      if (index > 0 && column[0])
+        column[0] = { ...column[0], reasons: [...column[0].reasons, "reading-column-start"] };
       output.push(...column);
     }
     region = [];
@@ -90,7 +105,10 @@ function columnCandidates(line: TextLine, pageWidth: number): ColumnCandidate[] 
     if (run && gap < minimumRunGap) run.push(span);
     else runs.push([span]);
   }
-  return runs.map((run) => ({ bounds: union(run.map((span) => span.bounds)) }));
+  return runs.map((run) => ({
+    bounds: union(run.map((span) => span.bounds)),
+    text: run.map((span) => span.text).join(" "),
+  }));
 }
 
 function sustainedColumnLayout(
@@ -188,4 +206,27 @@ function union(rectangles: Rect[]): Rect {
   const right = Math.max(...rectangles.map((rect) => rect.x + rect.width));
   const top = Math.max(...rectangles.map((rect) => rect.y + rect.height));
   return { x: left, y: bottom, width: right - left, height: top - bottom };
+}
+
+/** Long, sustained, unruled prose in both columns is not a data matrix. */
+export function isProseColumnTable(table: Table): boolean {
+  if (table.columns.length !== 2 || table.cells.length < 8) return false;
+  const left = table.cells.filter((cell) => cell.column === 0).sort((a, b) => a.row - b.row);
+  const right = table.cells.filter((cell) => cell.column === 1).sort((a, b) => a.row - b.row);
+  if (
+    /[.!?:]$/u.test(left.at(-1)?.text.trim() ?? "") ||
+    !/^\p{Ll}/u.test(right[0]?.text.trim() ?? "")
+  )
+    return false;
+  return [0, 1].every((column) => {
+    const cells = table.cells.filter((cell) => cell.column === column);
+    return (
+      cells.filter((cell) => cell.text.trim().split(/\s+/).length >= 5).length >=
+        cells.length * 0.75 &&
+      cells.some((cell) => /[.!?]/.test(cell.text)) &&
+      cells.every((cell) =>
+        cell.spans.every((span) => !/bold|mono|courier/i.test(span.fontFamily ?? "")),
+      )
+    );
+  });
 }

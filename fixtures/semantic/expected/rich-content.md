@@ -8,30 +8,11 @@ Long tokens still hard-break inside the paragraph: **supercalifragilisticexpiali
 
 Normal body text resumes at the outer measure after the inset block.
 
-<table>
-      <caption>Plan comparison</caption>
-      <thead>
-        <tr>
-          <th scope="col">Feature</th>
-          <th scope="col">Basic</th>
-          <th scope="col">Pro</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <th scope="row">Inline text in a cell with <strong>bold</strong> and <strong><a href="https://example.com">link</a></strong></th>
-          <td>Yes</td>
-          <td><strong>Yes</strong></td>
-        </tr>
-        <tr>
-          <th scope="row">Priority review</th>
-          <td>No</td>
-          <td><strong>Included</strong></td>
-        </tr>
-      </tbody>
-      <tfoot>
-        <tr>
-          <td colspan="3">Footer cell spans all columns and keeps <strong>mixed inline content</strong> together.</td>
-        </tr>
-      </tfoot>
-    </table>
+**Plan comparison**
+
+| Feature | Basic | Pro |
+| --- | --- | --- |
+| Inline text in a cell with **bold** and **[link](https://example.com)** | Yes | **Yes** |
+| Priority review | No | **Included** |
+
+_Footer cell spans all columns and keeps **mixed inline content** together._

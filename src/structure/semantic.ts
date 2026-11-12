@@ -308,6 +308,21 @@ function tableDefinitions(table: Table): Array<{ term: string; description: stri
     const row = rows[cell.row];
     if (row) row[cell.column] = cell.text;
   }
+  const wrappedLabels =
+    !table.reasons.includes("horizontal-row-rules") &&
+    table.cells.some(
+      (cell) => cell.column === 1 && new Set(cell.spans.map((span) => span.bounds.y)).size > 1,
+    ) &&
+    table.cells.every((cell) =>
+      cell.column === 0
+        ? cell.text.length <= 40 && cell.spans.length > 0 && cell.spans.every(isBold)
+        : cell.spans.every((span) => !isBold(span)),
+    );
+  if (rows.length >= 2 && wrappedLabels)
+    return rows.map(([term, description]) => ({
+      term: term ?? "",
+      description: description ?? "",
+    }));
   if (
     rows.length < 2 ||
     !table.cells.some((cell) =>
@@ -492,6 +507,15 @@ function isContinuation(
   next: TextLine | undefined,
 ): next is TextLine {
   if (!previous || !next) return false;
+  if (
+    next.reasons.includes("reading-column-start") &&
+    next.bounds.x > previous.bounds.x &&
+    next.bounds.y > previous.bounds.y &&
+    !endsSentence(previous) &&
+    /^\p{Ll}/u.test(next.text.trim()) &&
+    Math.abs(previous.bounds.height - next.bounds.height) <= 1
+  )
+    return true;
   const verticalGap = previous.bounds.y - (next.bounds.y + next.bounds.height);
   const sameFlow =
     Math.abs(previous.bounds.x - next.bounds.x) <= Math.max(18, previous.bounds.height * 1.5);

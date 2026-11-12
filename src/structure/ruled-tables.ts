@@ -23,7 +23,9 @@ export function inferRuledTables(page: ExtractedPage, lines: TextLine[]): Table[
   const columns =
     ruledColumns.length >= 2 ? ruledColumns : headerColumnStarts(bands[0]?.lines ?? []);
   if (columns.length < 2) return [];
-  const cells = bands.flatMap((band, row) => rowCells(band.lines, row, columns));
+  const cells = bands.flatMap((band, row) =>
+    rowCells(band.lines, row, columns, page.paths ?? [], band.bottom, band.top),
+  );
   if (cells.length < columns.length + 1) return [];
   return [
     {
@@ -172,7 +174,57 @@ function headerColumnStarts(lines: TextLine[]): number[] {
   return merged;
 }
 
-function rowCells(lines: TextLine[], row: number, columns: number[]): TableCell[] {
+function rowCells(
+  lines: TextLine[],
+  row: number,
+  columns: number[],
+  paths: VectorPath[],
+  bottom: number,
+  top: number,
+): TableCell[] {
+  const ordered = [...lines].sort((a, b) => b.bounds.y - a.bounds.y);
+  const first = ordered[0];
+  const lastColumn = columns.at(-1) ?? Infinity;
+  const crossesColumns = first?.spans.some(
+    (span) =>
+      span.bounds.x < (columns[1] ?? 0) &&
+      span.bounds.x + span.bounds.width > (columns[1] ?? Infinity),
+  );
+  const hasDivider = paths.some((path) => {
+    if (!path.stroke || (path.strokeOpacity ?? 1) === 0) return false;
+    const segment = simpleLineSegment(path.d);
+    return (
+      segment &&
+      Math.abs(segment.x1 - segment.x2) <= 1 &&
+      segment.x1 > (columns[0] ?? 0) + 4 &&
+      segment.x1 <= lastColumn + 2 &&
+      Math.max(segment.y1, segment.y2) > bottom + 1 &&
+      Math.min(segment.y1, segment.y2) < top - 1
+    );
+  });
+  if (
+    row > 0 &&
+    first &&
+    crossesColumns &&
+    !hasDivider &&
+    ordered.length <= 4 &&
+    ordered.every((line) => Math.abs(line.bounds.x - first.bounds.x) <= 4)
+  ) {
+    const spans = ordered.flatMap((line) => line.spans);
+    return [
+      {
+        row,
+        column: 0,
+        rowSpan: 1,
+        columnSpan: columns.length,
+        text: ordered.map((line) => line.text).join(" "),
+        spans,
+        bounds: union(spans.map((span) => span.bounds)),
+        confidence: 0.98,
+        reasons: ["full-width-ruled-band"],
+      },
+    ];
+  }
   const cellLines = columns.map(() => [] as TextSpan[][]);
   for (const line of lines) {
     const grouped = columns.map(() => [] as TextSpan[]);

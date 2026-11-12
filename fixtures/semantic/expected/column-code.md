@@ -1,0 +1,10 @@
+# Column continuation
+
+Readers follow the left column first. This paragraph describes a single connected idea using ordinary words and consistent spacing. It continues below without a new heading or a change of topic. The final sentence explains why captions can suggest better descriptions when the whole sentence remains together. The reader should reach this text only after the left column. Neither an extra column nor a page shape should insert a paragraph boundary inside the sentence. This ends the opening paragraph.
+
+```
+// load values from the record
+for (const value of values) {
+  emit(value);
+}
+```

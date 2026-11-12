@@ -8,6 +8,7 @@ import {
 } from "@boxpdf/reader/structure";
 import type { ImageEncodingOptions } from "./raster-encoding.js";
 import { clearMediaCaptionAssociations } from "./semantic-caption.js";
+import { continuesPageParagraph } from "./semantic-flow.js";
 import { dominantTextColor, semanticTextHtml, semanticTextMarkdown } from "./semantic-inline.js";
 import {
   type HtmlImageAsset,
@@ -23,6 +24,7 @@ import {
   spanningFooterRow,
   styledTableRow,
 } from "./semantic-table.js";
+import { canStreamMarkdownTable, markdownTableChunks } from "./semantic-table-markdown.js";
 
 export interface SemanticDocumentStats {
   pagesProcessed: number;
@@ -43,6 +45,7 @@ interface BufferedPage {
 
 interface ActiveTable {
   rawMarkdown?: boolean;
+  headerTable?: Table;
   table: Table;
   header: string[] | undefined;
 }
@@ -72,10 +75,12 @@ export async function writeSemanticDocument(
   let headerHasParagraph = false;
   let contentStarted = false;
   let employmentOpen = false;
+  let paragraphOpen = false;
   let pendingParagraph:
     | {
         block: Extract<SemanticBlock, { type: "paragraph" }>;
         height: number;
+        page: number;
         defaultColor: string;
       }
     | undefined;
@@ -108,7 +113,20 @@ export async function writeSemanticDocument(
 
   const flushPendingParagraph = async () => {
     if (!pendingParagraph) return;
-    await write(semanticBlockOutput(pendingParagraph.block, pendingParagraph.defaultColor, format));
+    if (paragraphOpen) {
+      await write(
+        inlineText(
+          pendingParagraph.block.text,
+          pendingParagraph.block.lines,
+          pendingParagraph.defaultColor,
+        ),
+      );
+      await output("</p>", "\n\n");
+      paragraphOpen = false;
+    } else
+      await write(
+        semanticBlockOutput(pendingParagraph.block, pendingParagraph.defaultColor, format),
+      );
     pendingParagraph = undefined;
   };
 
@@ -177,6 +195,24 @@ export async function writeSemanticDocument(
         stats.suppressedFurniture += 1;
         continue;
       }
+      if (
+        pendingParagraph &&
+        pendingParagraph.page + 1 === page.structured.page &&
+        block.type === "paragraph" &&
+        continuesPageParagraph(pendingParagraph.block, block, pendingParagraph.height, page.height)
+      ) {
+        if (!paragraphOpen) await output("<p>");
+        await write(
+          `${inlineText(
+            pendingParagraph.block.text,
+            pendingParagraph.block.lines,
+            pendingParagraph.defaultColor,
+          )} `,
+        );
+        paragraphOpen = true;
+        pendingParagraph = { block, height: page.height, page: page.structured.page, defaultColor };
+        continue;
+      }
       await flushPendingParagraph();
       if (employmentOpen && block.type !== "list") await closeEmployment();
       if (!contentStarted && !headerOpen && block.type === "heading" && block.level === 1) {
@@ -188,7 +224,13 @@ export async function writeSemanticDocument(
         continue;
       }
       if (headerOpen) {
-        if (block.type === "paragraph") {
+        if (
+          block.type === "paragraph" &&
+          !(
+            (block.lines.at(-1)?.bounds.y ?? Infinity) <= page.height * 0.25 &&
+            !/[.!?][”"')\]]?$/u.test(block.text.trim())
+          )
+        ) {
           const tag = isContactBlock(block) ? "address" : "p";
           await output(
             `<${tag}>${inlineText(block.text, block.lines, defaultColor)}</${tag}>`,
@@ -216,6 +258,44 @@ export async function writeSemanticDocument(
       }
       if (block.type === "table") {
         const rows = tableToRows(block.table);
+        if (markdown && canStreamMarkdownTable(block.table)) {
+          const continues =
+            activeTable &&
+            !activeTable.rawMarkdown &&
+            tablesContinue(activeTable.table, block.table, page.width) &&
+            (!block.table.caption ||
+              block.table.caption.map((line) => line.text).join(" ") ===
+                activeTable.table.caption?.map((line) => line.text).join(" "));
+          const headerTable =
+            continues && activeTable ? (activeTable.headerTable ?? activeTable.table) : block.table;
+          const header =
+            continues && activeTable ? activeTable.header : inferTableHeader(block.table);
+          if (!continues) await closeTable();
+          for (const chunk of markdownTableChunks(
+            block.table,
+            defaultColor,
+            headerTable,
+            Boolean(continues),
+            header,
+          ))
+            await write(chunk);
+          if (continues) stats.mergedTables += 1;
+          activeTable = {
+            table: block.table,
+            header,
+            ...(header
+              ? {
+                  headerTable: {
+                    ...headerTable,
+                    cells: headerTable.cells.filter((cell) => cell.row === 0),
+                    caption: [],
+                  },
+                }
+              : {}),
+          };
+          if (spanningFooterRow(block.table) !== undefined) await closeTable();
+          continue;
+        }
         if (
           activeTable &&
           tablesContinue(activeTable.table, block.table, page.width) &&
@@ -326,7 +406,7 @@ export async function writeSemanticDocument(
           );
           continue;
         }
-        pendingParagraph = { block, height: page.height, defaultColor };
+        pendingParagraph = { block, height: page.height, page: page.structured.page, defaultColor };
         continue;
       }
       if (block.type === "employment") {
@@ -377,7 +457,11 @@ export async function writeSemanticDocument(
   if (headerOpen) await output("</header>");
   await closeTable();
   await closeEmployment();
-  if (pendingParagraph && isFooterParagraph(pendingParagraph.block, pendingParagraph.height)) {
+  if (
+    !paragraphOpen &&
+    pendingParagraph &&
+    isFooterParagraph(pendingParagraph.block, pendingParagraph.height)
+  ) {
     await closeSections();
     await output(
       `<footer>${semanticBlockHtml(pendingParagraph.block, pendingParagraph.defaultColor)}</footer>`,
@@ -481,7 +565,8 @@ function isTitledRecord(block: Extract<SemanticBlock, { type: "paragraph" }>): b
 }
 
 function isUnmarkedList(block: Extract<SemanticBlock, { type: "paragraph" }>): boolean {
-  if (block.lines.length < 3) return false;
+  if (block.lines.length < 3 || block.lines.some((line) => /^\p{Ll}/u.test(line.text.trim())))
+    return false;
   const first = block.lines[0];
   if (!first) return false;
   const aligned = block.lines.every(
@@ -666,19 +751,9 @@ function semanticBlockMarkdown(block: SemanticBlock, defaultColor = "#000000"): 
       .join("\n")}\n\n`;
   }
   if (block.type === "table") {
-    const rows = tableToRows(block.table);
-    if (block.table.caption || block.table.cells.some((cell) => cell.columnSpan > 1))
-      return `${panelTableHtml(block.table, defaultColor)}\n\n`;
-    const header = inferTableHeader(block.table);
-    return `${markdownTableStart(rows, header, block.table, defaultColor)}${(header
-      ? rows.slice(1)
-      : rows
-    )
-      .map((_, index) =>
-        styledTableRow(block.table, index + (header ? 1 : 0), false, defaultColor, true),
-      )
-      .join("")}\n`;
+    return `${[...markdownTableChunks(block.table, defaultColor)].join("")}\n`;
   }
+
   if (block.type === "heading") {
     return `${"#".repeat(block.level)} ${semanticTextMarkdown(block.text, block.lines, defaultColor, false)}\n\n`;
   }

@@ -134,3 +134,8 @@ Rich-content and order-confirmation now pass complete expected HTML and Markdown
 The broad corpus comparison caught trailing-column loss in DeKalb during implementation. Column counts now include actual cells, and an end-to-end HTML/Markdown test protects the complete HASAN NAJAM row including its trailing DO value. All previously passing municipal contracts still pass. Derby loses 24 duplicate header rows through continued-table header suppression; every data row is retained unchanged. Research-paper checks are unchanged; SciCap gains links. Existing column/page continuation and wrapped Notes failures remain for subsequent work.
 
 Regression checks include cropped/rotated PDF URI annotations, unsafe URI rejection, adjacent unlinked text, and removal of enclosure evidence keeping nearby text outside a table. URI support currently covers HTTP(S) and mailto actions. This does not implement internal PDF destinations or arbitrary annotation shapes.
+
+
+## Semantic flow follow-up
+
+The formerly skipped Notes/column/page reproductions now run, with complete Notes and column/code fixtures and a new wrapped spanning-row fixture. Markdown splits at full-width rows, emits italic content, and repeats established headers when rows resume; HTML preserves spans. This supersedes the initial release's raw-HTML-only treatment of spanning tables and its known-flow skips. See [the decision record](semantic-flow-and-markdown.md) for evidence, precise limits and the regression review.
