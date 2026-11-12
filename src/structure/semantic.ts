@@ -513,8 +513,8 @@ function isContinuation(
     next.bounds.x > previous.bounds.x &&
     next.bounds.y > previous.bounds.y &&
     !endsSentence(previous) &&
-    !previous.spans.some(isMonospaced) &&
-    !next.spans.some(isMonospaced) &&
+    monospacedRatio(previous) < 0.8 &&
+    monospacedRatio(next) < 0.8 &&
     /^\p{Ll}/u.test(next.text.trim()) &&
     Math.abs(previous.bounds.height - next.bounds.height) <= 1
   )

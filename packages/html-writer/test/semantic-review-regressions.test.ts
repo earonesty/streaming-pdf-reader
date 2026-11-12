@@ -302,3 +302,41 @@ it("repeats established Markdown headers after a page-ending spanning row", asyn
   expect(output.match(/\| Item \| Qty \|/g)).toHaveLength(2);
   expect(output).not.toContain("|  |  |");
 });
+it("does not carry split-table headings across a media caption", async () => {
+  const second = continuationPage(2);
+  second.spans = second.spans.filter((s) => s.bounds.y !== 210);
+  second.spans.push(span("Gadget", 20, 170), span("3", 180, 170));
+  const caption = span("Figure 1. An unrelated diagram.", 20, 240, {
+    fontFamily: "Caption-Italic",
+  });
+  caption.bounds.width = 180;
+  second.spans.unshift(caption);
+  second.images = [
+    {
+      width: 1,
+      height: 1,
+      format: "rgb",
+      data: Uint8Array.of(255, 0, 0),
+      transform: [180, 0, 0, 30, 20, 255],
+    },
+  ];
+  let html = "",
+    markdown = "";
+  await writeHtmlDocument(
+    [continuationPage(1, true), second],
+    (chunk) => {
+      html += chunk;
+    },
+    { profile: "semantic", imageOptions: "embedded" },
+  );
+  await writeMarkdownDocument(
+    [continuationPage(1, true), second],
+    (chunk) => {
+      markdown += chunk;
+    },
+    { imageOptions: "embedded" },
+  );
+  expect(html).toContain("<figcaption>");
+  expect(markdown.match(/\| Item \| Qty \|/g)).toHaveLength(1);
+  expect(markdown).toContain("|  |  |");
+});

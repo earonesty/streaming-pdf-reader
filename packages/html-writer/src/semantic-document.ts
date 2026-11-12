@@ -8,7 +8,7 @@ import {
 } from "@boxpdf/reader/structure";
 import type { ImageEncodingOptions } from "./raster-encoding.js";
 import { clearMediaCaptionAssociations } from "./semantic-caption.js";
-import { continuesPageParagraph, pageContinuationTail } from "./semantic-flow.js";
+import { continuesPageParagraph, pageContinuationTail, trimPageHyphen } from "./semantic-flow.js";
 import { dominantTextColor, semanticTextHtml, semanticTextMarkdown } from "./semantic-inline.js";
 import {
   type HtmlImageAsset,
@@ -191,7 +191,10 @@ export async function writeSemanticDocument(
         emittedMedia.add(associatedMedia);
         emittedAsCaption = true;
       }
-      if (emittedAsCaption) continue;
+      if (emittedAsCaption) {
+        splitHeader = undefined;
+        continue;
+      }
       if (isRepeatedFurniture(block, page, repeatedFurniture)) {
         stats.suppressedFurniture += 1;
         continue;
@@ -208,7 +211,9 @@ export async function writeSemanticDocument(
         await write(
           `${inlineText(
             tail.text,
-            pendingParagraph.block.lines,
+            tail.text === pendingParagraph.block.text
+              ? pendingParagraph.block.lines
+              : trimPageHyphen(pendingParagraph.block.lines),
             pendingParagraph.defaultColor,
           )}${tail.separator}`,
         );

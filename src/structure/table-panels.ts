@@ -1,6 +1,6 @@
 import type { ExtractedPage, Rect } from "../types.js";
 import type { Table, TextLine } from "./index.js";
-import { joinText } from "./text-join.js";
+import { joinWrappedText } from "./text-join.js";
 
 /** Attach caption/footer only when a closed, stroked panel encloses the table. */
 export function attachTablePanels(page: ExtractedPage, tables: Table[], lines: TextLine[]): void {
@@ -77,7 +77,7 @@ export function attachTablePanels(page: ExtractedPage, tables: Table[], lines: T
       const last = below.at(-1) as TextLine;
       const line = {
         ...first,
-        text: below.map((item) => item.text).reduce(joinText),
+        text: below.map((item) => item.text).reduce(joinWrappedText),
         spans: below.flatMap((item) => item.spans),
         bounds: {
           x: Math.min(...below.map((item) => item.bounds.x)),

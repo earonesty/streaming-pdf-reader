@@ -65,21 +65,24 @@ export function structurePage(page: ExtractedPage, options: StructureOptions = {
     groupedLines.filter((line) => !line.spans.some((span) => ruledSpans.has(span))),
     options,
   );
-  const tables = [...ruledTables, ...inferredTables.filter((table) => !isProseColumnTable(table))];
+  const proseTables = inferredTables.filter(isProseColumnTable);
+  let tables = [...ruledTables, ...inferredTables.filter((table) => !proseTables.includes(table))];
+  const lineFromSpans = (spans: TextSpan[]) => textLines([spans])[0] as TextLine;
+  let twoColumnEvidence = false;
+  if (proseTables.length) {
+    const trial = orderReadingColumns(semanticPage, groupedLines, tables, lineFromSpans, true);
+    twoColumnEvidence = trial !== groupedLines;
+    if (!twoColumnEvidence) tables = [...ruledTables, ...inferredTables];
+  }
+  // Establish all ownership once, after deciding which tables survive.
   attachTablePanels(page, tables, groupedLines);
   const lines = orderReadingColumns(
     semanticPage,
     groupedLines,
     tables,
-    (spans) => textLines([spans])[0] as TextLine,
-    inferredTables.some(isProseColumnTable),
+    lineFromSpans,
+    twoColumnEvidence,
   );
-  // Rejecting a table is safe only when a column traversal actually replaced it.
-  if (lines === groupedLines) {
-    const restored = inferredTables.filter(isProseColumnTable);
-    attachTablePanels(page, restored, groupedLines);
-    tables.push(...restored);
-  }
   return {
     page: semanticPage.number,
     lines,

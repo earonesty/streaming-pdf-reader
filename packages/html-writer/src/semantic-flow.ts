@@ -1,4 +1,4 @@
-import type { SemanticBlock } from "@boxpdf/reader/structure";
+import type { SemanticBlock, TextLine } from "@boxpdf/reader/structure";
 
 type Paragraph = Extract<SemanticBlock, { type: "paragraph" }>;
 
@@ -31,9 +31,25 @@ export function continuesPageParagraph(
 
 /** Match within-page dehyphenation without accumulating prior-page text. */
 export function pageContinuationTail(text: string): { text: string; separator: string } {
-  if (/[-‐‑]$/u.test(text)) {
+  if (/\S[-‐‑]$/u.test(text)) {
     const terminal = /([^\s]+)[-‐‑]$/u.exec(text)?.[1] ?? "";
     return { text: /[-‐‑\d]/u.test(terminal) ? text : text.slice(0, -1), separator: "" };
   }
   return { text, separator: " " };
+}
+
+export function trimPageHyphen(lines: TextLine[]): TextLine[] {
+  return lines.map((line, index) =>
+    index !== lines.length - 1
+      ? line
+      : {
+          ...line,
+          text: line.text.replace(/[-‐‑]$/u, ""),
+          spans: line.spans.map((span, index) =>
+            index !== line.spans.length - 1
+              ? span
+              : { ...span, text: span.text.replace(/[-‐‑]$/u, "") },
+          ),
+        },
+  );
 }

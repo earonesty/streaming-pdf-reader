@@ -23,7 +23,7 @@ Rich-content's complete Markdown expectation deliberately changes from raw HTML 
 
 The formerly skipped ten Notes/column/page assertions now run normally. The control fixture still protects distinct paragraphs and real tables. New column-code coverage checks one-flow prose, exact code indentation and no duplicated comment. Spanning-rows covers wrapped middle content, header repetition, a wrapped footer and a following paragraph. Complete, independently authored HTML and Markdown targets cover spanning-rows, column-code and wrapped-notes as well as the existing rich-content and product fixtures. Fixtures can cover many interacting features; their manifests list those features, and targeted assertions aid diagnosis.
 
-The critical real-document corpus is a regression guide, not a complete oracle. The changes solve the bounded reproductions; they do not claim to fix every corresponding seam in the original municipal or research PDFs. In the current corpus comparison, existing output changes only for the accepted rich-content Markdown representation; new complete fixtures appear as new documents. Existing research code, Figure 2 styling, product output and municipal table checks remain active.
+The critical real-document corpus is a regression guide, not a complete oracle. The changes solve the bounded reproductions; they do not claim to fix every corresponding seam in the original municipal or research PDFs. In the current corpus comparison, existing output changes for the accepted rich-content Markdown representation and retention of four standalone dashes previously dropped from the research paper; new complete fixtures appear as new documents. Existing research code, Figure 2 styling, product output and municipal table checks remain active.
 
 During development, broad two-column reordering disrupted a research list and broad recognition of repeated PDF move commands altered unrelated table inference. Those expansions were removed. The new inference rules use the existing supported ruled-path representation; general path normalization remains separate work.
 
@@ -31,7 +31,7 @@ During development, broad two-column reordering disrupted a research list and br
 
 Verified review findings tightened the bounded implementation:
 
-- If height-filtered column traversal cannot be established, retain the inferred table instead of emitting interleaved prose. Candidate word counts use the existing geometry-aware span joiner. Code cannot be consumed at a paragraph's column seam.
+- If height-filtered column traversal cannot be established, retain the inferred table instead of emitting interleaved prose. Candidate word counts use the existing geometry-aware span joiner. Code lines must not be joined across a paragraph's column seam; inline monospace text does not by itself make a prose line code.
 - Full-width ruled bands use contiguous combined line geometry with the same column-start tolerance as ordinary cells. Separate later-column values keep their cells. Divider scans are gated by the cheap spanning checks.
 - Wrapped footer candidates reject list markers and intervening rules. Their bounds cover all joined lines. Wrapped words and page seams use the established lexical/nonlexical hyphen policy.
 - A page-ending Markdown spanning row closes the table but may carry only its header row to an adjacent, matching, headerless fragment. That fragment starts a new table with the established headers. Intervening content or a new header prevents inheritance.
@@ -39,3 +39,5 @@ Verified review findings tightened the bounded implementation:
 - Preview entries are deduplicated, stale skip messaging and environment wiring are removed, and complete-fixture documentation explicitly describes the Markdown-specific italic boundary marker.
 
 Deliberately retained limits: a four-line inference ceiling avoids treating arbitrary regions as a single spanning paragraph; broadening it needs further evidence. Sentence-ending punctuation alone does not imply a new paragraph, so it does not break a geometrically coherent wrapped footer. The Notes rule remains based on combined borderless/short-bold-label/unbold-wrapped-value evidence; we did not add vocabulary-specific labels or turn arbitrary bold first columns into definitions. The complete fixture and ruled/header counterexamples define its current scope.
+
+Second review: standalone dashes are retained; the older short-tail repair stays confined to its existing paragraph path, while new footer joins use explicit hyphen evidence only. Panel ownership is computed once after table fallback decisions. Media captions clear carried table headers. Page-seam hyphen trimming updates semantic span metadata so inline formatting survives.

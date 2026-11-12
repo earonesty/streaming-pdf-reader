@@ -87,3 +87,37 @@ it.each([
   expect(html).toContain(expected);
   expect(html).not.toContain("govern- ment");
 });
+it("retains standalone dashes at a page seam", async () => {
+  const { pageContinuationTail } = await import("../src/semantic-flow.js");
+  expect(pageContinuationTail("Option A -")).toEqual({ text: "Option A -", separator: " " });
+});
+it.each(["html", "markdown"] as const)(
+  "preserves the last linked bold span while dehyphenating %s",
+  async (format) => {
+    const first = page(1),
+      second = page(2),
+      last = first.spans.at(-1),
+      head = second.spans[0];
+    if (!last || !head) throw new Error("missing spans");
+    last.text = "govern-";
+    last.fontFamily = "Times-Bold";
+    last.href = "https://example.com";
+    head.text = "ment";
+    head.fontFamily = "Times-Bold";
+    let output = "";
+    const { writeMarkdownDocument } = await import("../src/index.js");
+    await (format === "html" ? writeHtmlDocument : writeMarkdownDocument)(
+      [first, second],
+      (chunk) => {
+        output += chunk;
+      },
+      { profile: "semantic", semanticLookaheadPages: 1 },
+    );
+    expect(output).toContain(
+      format === "html"
+        ? '<strong><a href="https://example.com">govern</a></strong>'
+        : "**[govern](<https://example.com>)**",
+    );
+    expect(output).not.toContain("govern-");
+  },
+);

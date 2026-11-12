@@ -117,3 +117,28 @@ it("does not absorb an independent later-column value into a spanning band", () 
     ["42", 1],
   ]);
 });
+it("retains inline code in a prose continuation at a marked column seam", () => {
+  const next = [
+    span("the", 300, 200),
+    span("values", 325, 200, 10, "Courier"),
+    span("continue here.", 365, 200),
+  ];
+  const lines = [
+    line([span("This prose begins a connected idea", 20, 130)]),
+    line([span("and continues through this column", 20, 115)]),
+    line([span("before its unfinished boundary", 20, 100)]),
+    line(next, ["reading-column-start"]),
+  ];
+  const blocks = inferSemanticBlocks(lines, []);
+  expect(blocks).toHaveLength(1);
+  expect(blocks[0]).toMatchObject({
+    type: "paragraph",
+    text: expect.stringContaining("boundary the values continue here."),
+  });
+});
+it("preserves standalone dashes and normal short words in new wrapped joins", async () => {
+  const { joinWrappedText } = await import("../../src/structure/text-join.js");
+  expect(joinWrappedText("Option A -", "Option B")).toBe("Option A - Option B");
+  expect(joinWrappedText("-", "item")).toBe("- item");
+  expect(joinWrappedText("internationalization", "is.")).toBe("internationalization is.");
+});

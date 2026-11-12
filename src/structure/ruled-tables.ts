@@ -1,6 +1,6 @@
 import type { ExtractedPage, Rect, TextSpan, VectorFill, VectorPath } from "../types.js";
 import type { Table, TableCell, TextLine } from "./index.js";
-import { joinText } from "./text-join.js";
+import { joinWrappedText } from "./text-join.js";
 
 /** Infer tables whose horizontal rules define rows even when columns have no borders. */
 export function inferRuledTables(page: ExtractedPage, lines: TextLine[]): Table[] {
@@ -231,7 +231,7 @@ function rowCells(
         column: 0,
         rowSpan: 1,
         columnSpan: columns.length,
-        text: ordered.map((line) => line.text).reduce(joinText),
+        text: ordered.map((line) => line.text).reduce(joinWrappedText),
         spans,
         bounds: union(spans.map((span) => span.bounds)),
         confidence: 0.98,
