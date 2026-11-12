@@ -1,5 +1,6 @@
 import type { ExtractedPage, Rect, TextSpan, VectorFill, VectorPath } from "../types.js";
 import type { Table, TableCell, TextLine } from "./index.js";
+import { joinWrappedText } from "./text-join.js";
 
 /** Infer tables whose horizontal rules define rows even when columns have no borders. */
 export function inferRuledTables(page: ExtractedPage, lines: TextLine[]): Table[] {
@@ -23,7 +24,9 @@ export function inferRuledTables(page: ExtractedPage, lines: TextLine[]): Table[
   const columns =
     ruledColumns.length >= 2 ? ruledColumns : headerColumnStarts(bands[0]?.lines ?? []);
   if (columns.length < 2) return [];
-  const cells = bands.flatMap((band, row) => rowCells(band.lines, row, columns));
+  const cells = bands.flatMap((band, row) =>
+    rowCells(band.lines, row, columns, page.paths ?? [], band.bottom, band.top),
+  );
   if (cells.length < columns.length + 1) return [];
   return [
     {
@@ -172,7 +175,70 @@ function headerColumnStarts(lines: TextLine[]): number[] {
   return merged;
 }
 
-function rowCells(lines: TextLine[], row: number, columns: number[]): TableCell[] {
+function rowCells(
+  lines: TextLine[],
+  row: number,
+  columns: number[],
+  paths: VectorPath[],
+  bottom: number,
+  top: number,
+): TableCell[] {
+  const ordered = [...lines].sort((a, b) => b.bounds.y - a.bounds.y);
+  const first = ordered[0];
+  const lastColumn = columns.at(-1) ?? Infinity;
+  const crossesColumns = ordered.some(
+    (line) =>
+      columnIndex(line.bounds.x, columns) === 0 &&
+      line.bounds.x + line.bounds.width > (columns[1] ?? Infinity) &&
+      // A wide gap is evidence of separate cells, not fragmented prose.
+      [...line.spans]
+        .sort((a, b) => a.bounds.x - b.bounds.x)
+        .every(
+          (span, index, array) =>
+            index === 0 ||
+            span.bounds.x -
+              ((array[index - 1]?.bounds.x ?? 0) + (array[index - 1]?.bounds.width ?? 0)) <=
+              Math.max(3, span.fontSize * 0.6),
+        ),
+  );
+  const hasDivider =
+    row > 0 &&
+    crossesColumns &&
+    paths.some((path) => {
+      if (!path.stroke || (path.strokeOpacity ?? 1) === 0) return false;
+      const segment = simpleLineSegment(path.d);
+      return (
+        segment &&
+        Math.abs(segment.x1 - segment.x2) <= 1 &&
+        segment.x1 > (columns[0] ?? 0) + 4 &&
+        segment.x1 <= lastColumn + 2 &&
+        Math.max(segment.y1, segment.y2) > bottom + 1 &&
+        Math.min(segment.y1, segment.y2) < top - 1
+      );
+    });
+  if (
+    row > 0 &&
+    first &&
+    crossesColumns &&
+    !hasDivider &&
+    ordered.length <= 4 &&
+    ordered.every((line) => Math.abs(line.bounds.x - first.bounds.x) <= 4)
+  ) {
+    const spans = ordered.flatMap((line) => line.spans);
+    return [
+      {
+        row,
+        column: 0,
+        rowSpan: 1,
+        columnSpan: columns.length,
+        text: ordered.map((line) => line.text).reduce(joinWrappedText),
+        spans,
+        bounds: union(spans.map((span) => span.bounds)),
+        confidence: 0.98,
+        reasons: ["full-width-ruled-band"],
+      },
+    ];
+  }
   const cellLines = columns.map(() => [] as TextSpan[][]);
   for (const line of lines) {
     const grouped = columns.map(() => [] as TextSpan[]);

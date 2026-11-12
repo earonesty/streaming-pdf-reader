@@ -13,9 +13,9 @@
         "Long token preservation across visual hard breaks",
         "Inset paragraph grouping without inventing a quotation role in HTML",
         "Return to outer paragraph measure",
-        "Comparison table column and row headers",
+        "Comparison table column headers and HTML row-header roles; native Markdown row associations",
         "Inline emphasis and link inside a cell",
-        "Footer cell spanning all three columns"
+        "Footer cell spanning all three columns in HTML; italic paragraph after the Markdown table"
       ],
       "verification": {
         "basis": "source-reviewed",
@@ -40,6 +40,56 @@
       "verification": {
         "basis": "source-reviewed",
         "evidence": "docs/semantic-oracle-review.md#complete-fixture-promotion-decisions records the source/preview review and accepted order-confirmation relationships; see this fixture\u2019s feature inventory and complete expectations."
+      }
+    },
+    {
+      "id": "spanning-rows",
+      "pdf": "../boundaries/spanning-rows.pdf",
+      "html": "spanning-rows.html",
+      "markdown": "spanning-rows.md",
+      "features": [
+        "Ruled data table with established column headers",
+        "Wrapped full-width content in the middle of a table",
+        "Repeated headers after Markdown spanning-row boundary",
+        "Wrapped full-width footer",
+        "Separate following paragraph",
+        "Complete independent HTML and Markdown expectations"
+      ],
+      "verification": {
+        "basis": "source-reviewed",
+        "evidence": "Generated source geometry and rendered spanning-rows.pdf reviewed; complete targets independently authored from the source text and agreed streaming Markdown policy."
+      }
+    },
+    {
+      "id": "wrapped-notes",
+      "pdf": "../boundaries/wrapped-notes.pdf",
+      "html": "wrapped-notes.html",
+      "markdown": "wrapped-notes.md",
+      "features": [
+        "Bold label/value pairs",
+        "Complete wrapped Notes value",
+        "Adjacent section boundary",
+        "Ruled violation data table"
+      ],
+      "verification": {
+        "basis": "source-reviewed",
+        "evidence": "Explicit source geometry and original fixture text; independently authored complete expectations. The boundary README records the original rendered-page review."
+      }
+    },
+    {
+      "id": "column-code",
+      "pdf": "../boundaries/column-code.pdf",
+      "html": "column-code.html",
+      "markdown": "column-code.md",
+      "features": [
+        "Two-column prose in one reading-order paragraph",
+        "Code after the prose with exact indentation",
+        "Comment appears exactly once",
+        "Complete independent HTML and Markdown targets"
+      ],
+      "verification": {
+        "basis": "source-reviewed",
+        "evidence": "Explicit source geometry and original fixture text; independently authored complete expectations. column-code source additionally rendered and visually inspected."
       }
     }
   ]

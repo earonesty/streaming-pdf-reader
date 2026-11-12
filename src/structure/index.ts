@@ -1,5 +1,5 @@
 import type { ExtractedPage, Rect, TextSpan } from "../types.js";
-import { orderReadingColumns } from "./columns.js";
+import { isProseColumnTable, orderReadingColumns } from "./columns.js";
 import { semanticGeometryPage } from "./geometry.js";
 import { inferRuledTables } from "./ruled-tables.js";
 import { inferSemanticBlocks, type SemanticBlock } from "./semantic.js";
@@ -65,13 +65,28 @@ export function structurePage(page: ExtractedPage, options: StructureOptions = {
     groupedLines.filter((line) => !line.spans.some((span) => ruledSpans.has(span))),
     options,
   );
-  const tables = [...ruledTables, ...inferredTables];
+  const proseTables = inferredTables.filter(isProseColumnTable);
+  let tables = [...ruledTables, ...inferredTables.filter((table) => !proseTables.includes(table))];
+  const lineFromSpans = (spans: TextSpan[]) => textLines([spans])[0] as TextLine;
+  let remainingProse = proseTables;
+  while (remainingProse.length) {
+    const reordered = new Set<TextSpan>();
+    orderReadingColumns(semanticPage, groupedLines, tables, lineFromSpans, true, reordered);
+    const retained = remainingProse.filter((table) =>
+      table.cells.some((cell) => cell.spans.some((span) => !reordered.has(span))),
+    );
+    if (!retained.length) break;
+    tables = [...tables, ...retained];
+    remainingProse = remainingProse.filter((table) => !retained.includes(table));
+  }
+  // Establish all ownership once, after deciding which tables survive.
   attachTablePanels(page, tables, groupedLines);
   const lines = orderReadingColumns(
     semanticPage,
     groupedLines,
     tables,
-    (spans) => textLines([spans])[0] as TextLine,
+    lineFromSpans,
+    remainingProse.length > 0,
   );
   return {
     page: semanticPage.number,

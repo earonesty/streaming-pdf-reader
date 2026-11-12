@@ -4,7 +4,7 @@ import { PDFDocument, StandardFonts } from "@boxpdf/writer";
 const directory = new URL("../fixtures/semantic/boundaries/", import.meta.url);
 await mkdir(directory, { recursive: true });
 const fixedDate = new Date("2000-01-01T00:00:00Z");
-async function document(title) {
+async function document(title, withMono = false) {
   const pdf = await PDFDocument.create();
   pdf.setTitle(title);
   pdf.setCreator("BoxPDF bounded semantic fixtures");
@@ -13,8 +13,9 @@ async function document(title) {
   pdf.setModificationDate(fixedDate);
   const regular = await pdf.embedFont(StandardFonts.TimesRoman);
   const bold = await pdf.embedFont(StandardFonts.TimesRomanBold);
+  const mono = withMono ? await pdf.embedFont(StandardFonts.Courier) : regular;
   function line(page, value, x, y, options = {}) {
-    const font = options.bold ? bold : regular;
+    const font = options.mono ? mono : options.bold ? bold : regular;
     const size = options.size ?? 11;
     const width = options.width ?? 540;
     if (font.widthOfTextAtSize(value, size) > width)
@@ -45,9 +46,11 @@ const right = [
   "should insert a paragraph boundary inside",
   "the sentence. This ends the opening paragraph.",
 ];
-for (const aside of [false, true]) {
+for (const variant of ["plain", "asides", "code"]) {
+  const aside = variant === "asides";
   const { pdf, line } = await document(
     aside ? "Column flow with footnote and figure" : "Plain column continuation",
+    variant === "code",
   );
   const page = pdf.addPage([612, 420]);
   line(page, "Column continuation", 36, 380, { bold: true, size: 18 });
@@ -76,7 +79,17 @@ for (const aside of [false, true]) {
       width: 240,
     });
   }
-  await save(aside ? "column-asides.pdf" : "column-plain.pdf", pdf);
+  if (variant === "code") {
+    [
+      "// load values from the record",
+      "for (const value of values) {",
+      "  emit(value);",
+      "}",
+    ].forEach((text, i) => {
+      line(page, text, 330, 135 - i * 12, { mono: true, size: 9 });
+    });
+  }
+  await save(`column-${variant}.pdf`, pdf);
 }
 {
   const { pdf, line } = await document("Page continuation with running furniture");
@@ -150,4 +163,51 @@ for (const aside of [false, true]) {
   line(page, "42", 312, 208);
   line(page, "Source note: keep this information available.", 36, 160, { size: 9 });
   await save("separation-control.pdf", pdf);
+}
+{
+  const { pdf, line } = await document("Spanning table rows and wrapped footer");
+  const page = pdf.addPage([612, 440]);
+  line(page, "Inventory notes", 36, 395, { bold: true, size: 18 });
+  const rules = [350, 325, 300, 260, 235, 195];
+  for (const y of rules) page.drawSvgPath(`M36 ${-y}L576 ${-y}`, { borderWidth: 0.6 });
+  for (const [top, bottom] of [
+    [350, 300],
+    [260, 235],
+  ])
+    for (const x of [36, 216, 396, 576])
+      page.drawSvgPath(`M${x} ${-bottom}L${x} ${-top}`, { borderWidth: 0.6 });
+  for (const [text, x] of [
+    ["Item", 42],
+    ["Quantity", 222],
+    ["State", 402],
+  ])
+    line(page, text, x, 333, { bold: true });
+  for (const [text, x] of [
+    ["Widget", 42],
+    ["2", 222],
+    ["Ready", 402],
+  ])
+    line(page, text, x, 308);
+  line(
+    page,
+    "This is the stuff in the middle of the table, explaining the next group of items.",
+    42,
+    282,
+  );
+  line(page, "It wraps onto another line without becoming a data row.", 42, 267);
+  for (const [text, x] of [
+    ["Gadget", 42],
+    ["3", 222],
+    ["Pending", 402],
+  ])
+    line(page, text, x, 243);
+  line(
+    page,
+    "All quantities include replacement units and should be checked before dispatch.",
+    42,
+    217,
+  );
+  line(page, "Keep this wrapped footer with the inventory.", 42, 202);
+  line(page, "A separate paragraph remains outside the table.", 36, 165);
+  await save("spanning-rows.pdf", pdf);
 }

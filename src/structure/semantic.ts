@@ -1,5 +1,6 @@
 import type { Table, TextLine } from "./index.js";
 import { groupInsetBlocks } from "./inset.js";
+import { joinText, joinWrappedText } from "./text-join.js";
 
 export type SemanticBlock =
   | { type: "heading"; level: 1 | 2 | 3 | 4; text: string; lines: TextLine[] }
@@ -159,7 +160,7 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
           if (endsSentence(itemLines.at(-1)) && startsEmphasizedLead(continuation)) break;
           cursor += 1;
           itemLines.push(continuation);
-          text = joinText(text, continuation.text);
+          text = joinLineText(text, continuation);
         }
         items.push({ text, lines: itemLines });
         cursor += 1;
@@ -182,7 +183,7 @@ export function inferSemanticBlocks(lines: TextLine[], tables: Table[]): Semanti
       )
         break;
       paragraphLines.push(next);
-      text = joinText(text, next.text);
+      text = joinLineText(text, next);
       index += 1;
     }
     blocks.push({ type: "paragraph", text, lines: paragraphLines });
@@ -308,6 +309,21 @@ function tableDefinitions(table: Table): Array<{ term: string; description: stri
     const row = rows[cell.row];
     if (row) row[cell.column] = cell.text;
   }
+  const wrappedLabels =
+    !table.reasons.includes("horizontal-row-rules") &&
+    table.cells.some(
+      (cell) => cell.column === 1 && new Set(cell.spans.map((span) => span.bounds.y)).size > 1,
+    ) &&
+    table.cells.every((cell) =>
+      cell.column === 0
+        ? cell.text.length <= 40 && cell.spans.length > 0 && cell.spans.every(isBold)
+        : cell.spans.every((span) => !isBold(span)),
+    );
+  if (rows.length >= 2 && wrappedLabels)
+    return rows.map(([term, description]) => ({
+      term: term ?? "",
+      description: description ?? "",
+    }));
   if (
     rows.length < 2 ||
     !table.cells.some((cell) =>
@@ -447,7 +463,7 @@ function definitionRun(
       }
       const last = entries.at(-1);
       if (!last) break;
-      last.description = joinText(last.description, continuation.text);
+      last.description = joinLineText(last.description, continuation);
       cursor += 1;
     }
   }
@@ -492,22 +508,25 @@ function isContinuation(
   next: TextLine | undefined,
 ): next is TextLine {
   if (!previous || !next) return false;
+  if (
+    next.reasons.includes("reading-column-start") &&
+    next.bounds.x > previous.bounds.x &&
+    next.bounds.y > previous.bounds.y &&
+    !endsSentence(previous) &&
+    monospacedRatio(previous) < 0.8 &&
+    monospacedRatio(next) < 0.8 &&
+    /^\p{Ll}/u.test(next.text.trim()) &&
+    Math.abs(previous.bounds.height - next.bounds.height) <= 1
+  )
+    return true;
   const verticalGap = previous.bounds.y - (next.bounds.y + next.bounds.height);
   const sameFlow =
     Math.abs(previous.bounds.x - next.bounds.x) <= Math.max(18, previous.bounds.height * 1.5);
   return verticalGap >= -3 && verticalGap <= Math.max(12, previous.bounds.height * 1.2) && sameFlow;
 }
 
-function joinText(previous: string, next: string): string {
-  if (/[-‐‑]$/u.test(previous)) {
-    const terminal = /([^\s]+)[-‐‑]$/u.exec(previous)?.[1] ?? "";
-    const lexicalHyphen = /[-‐‑\d]/u.test(terminal);
-    return lexicalHyphen
-      ? `${previous}${next.trimStart()}`
-      : `${previous.slice(0, -1)}${next.trimStart()}`;
-  }
-  if (/\S{20,}$/u.test(previous) && /^[a-z]{1,4}[.,;:]?$/u.test(next.trim())) {
-    return `${previous}${next.trim()}`;
-  }
-  return `${previous.trimEnd()} ${next.trimStart()}`;
+function joinLineText(previous: string, next: TextLine): string {
+  return next.reasons.includes("reading-column-start")
+    ? joinWrappedText(previous, next.text)
+    : joinText(previous, next.text);
 }

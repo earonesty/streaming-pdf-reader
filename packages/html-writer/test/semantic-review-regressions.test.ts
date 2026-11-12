@@ -140,13 +140,18 @@ it.each(["html", "markdown"] as const)(
       },
       { profile: "semantic" },
     );
-    expect(output.match(/<table>/g)).toHaveLength(1);
-    expect(output).toContain("<caption>Inventory</caption>");
+    if (format === "html") {
+      expect(output.match(/<table>/g)).toHaveLength(1);
+      expect(output).toContain("<caption>Inventory</caption>");
+    } else {
+      expect(output).toContain("**Inventory**");
+      expect(output.match(/\| Item \| Qty \|/g)).toHaveLength(1);
+    }
     expect(output).toContain("Gadget");
     expect(output).toContain("Spare");
   },
 );
-it("keeps financial summaries as HTML inside a raw Markdown table", async () => {
+it("keeps financial summaries as rows inside a native Markdown table", async () => {
   const first: ExtractedPage = {
     number: 1,
     width: 300,
@@ -177,11 +182,9 @@ it("keeps financial summaries as HTML inside a raw Markdown table", async () => 
   await writeMarkdownDocument([first, totals], (chunk) => {
     output += chunk;
   });
-  expect(output).toContain(
-    '<tfoot><tr><th scope="row">Subtotal</th><td>$20</td></tr><tr><th scope="row">Tax</th><td>$2</td></tr></tfoot>',
-  );
-  expect(output).not.toContain("| Subtotal |");
-  expect(output.match(/<table>/g)).toHaveLength(1);
+  expect(output).toContain("| Subtotal | $20 |");
+  expect(output).toContain("| Tax | $2 |");
+  expect(output).not.toContain("<table>");
 });
 
 it("preserves the rich-content table through the single-page semantic API", async () => {
@@ -252,6 +255,11 @@ it.each(["html", "markdown"] as const)(
       },
       { profile: "semantic" },
     );
+    if (format === "markdown") {
+      expect(output).toContain("\n\n_End of inventory summary_\n\n");
+      expect(output.match(/\| Item \| Qty \|/g)).toHaveLength(2);
+      return;
+    }
     expect(output).toContain(
       '<tfoot><tr><td colspan="2">End of inventory summary</td></tr></tfoot></table>',
     );
@@ -273,13 +281,62 @@ it("places an incoming spanning footer in the continued HTML table", async () =>
     '<tfoot><tr><td colspan="2">End of inventory summary</td></tr></tfoot></table>',
   );
 });
-it("preserves a later spanning footer separately after streamed GFM", async () => {
+it("emits a later spanning footer as italic text after streamed GFM", async () => {
   let output = "";
   await writeMarkdownDocument([continuationPage(1), continuationPage(2, true)], (chunk) => {
     output += chunk;
   });
   expect(output).toContain("| Widget | 2 |");
-  expect(output).toContain(
-    '<tfoot><tr><td colspan="2">End of inventory summary</td></tr></tfoot></table>',
+  expect(output).toContain("\n\n_End of inventory summary_\n\n");
+  expect(output).not.toContain("<table>");
+});
+it("repeats established Markdown headers after a page-ending spanning row", async () => {
+  const next = continuationPage(2);
+  next.spans = next.spans.filter((span) => span.bounds.y !== 210);
+  next.spans.push(span("Gadget", 20, 170), span("3", 180, 170));
+  let output = "";
+  await writeMarkdownDocument([continuationPage(1, true), next], (chunk) => {
+    output += chunk;
+  });
+  expect(output).toContain("_End of inventory summary_\n\n");
+  expect(output.match(/\| Item \| Qty \|/g)).toHaveLength(2);
+  expect(output).not.toContain("|  |  |");
+});
+it("does not carry split-table headings across a media caption", async () => {
+  const second = continuationPage(2);
+  second.spans = second.spans.filter((s) => s.bounds.y !== 210);
+  second.spans.push(span("Gadget", 20, 170), span("3", 180, 170));
+  const caption = span("Figure 1. An unrelated diagram.", 20, 240, {
+    fontFamily: "Caption-Italic",
+  });
+  caption.bounds.width = 180;
+  second.spans.unshift(caption);
+  second.images = [
+    {
+      width: 1,
+      height: 1,
+      format: "rgb",
+      data: Uint8Array.of(255, 0, 0),
+      transform: [180, 0, 0, 30, 20, 255],
+    },
+  ];
+  let html = "",
+    markdown = "";
+  await writeHtmlDocument(
+    [continuationPage(1, true), second],
+    (chunk) => {
+      html += chunk;
+    },
+    { profile: "semantic", imageOptions: "embedded" },
   );
+  await writeMarkdownDocument(
+    [continuationPage(1, true), second],
+    (chunk) => {
+      markdown += chunk;
+    },
+    { imageOptions: "embedded" },
+  );
+  expect(html).toContain("<figcaption>");
+  expect(markdown.match(/\| Item \| Qty \|/g)).toHaveLength(1);
+  expect(markdown).toContain("|  |  |");
 });
