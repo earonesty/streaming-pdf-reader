@@ -55,6 +55,16 @@ export function styledTableRow(
   for (let column = 0; column < columns; column++) {
     const cell = cells.find((cell) => cell.column === column);
     if (!cell) {
+      if (
+        table.cells.some(
+          (previous) =>
+            previous.row < row &&
+            previous.row + previous.rowSpan > row &&
+            column >= previous.column &&
+            column < previous.column + previous.columnSpan,
+        )
+      )
+        continue;
       result += `<${tag}></${tag}>`;
       continue;
     }

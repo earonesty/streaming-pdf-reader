@@ -28,3 +28,12 @@ export function continuesPageParagraph(
     Math.abs((a?.fontSize ?? 0) - (b?.fontSize ?? 0)) <= 0.5
   );
 }
+
+/** Match within-page dehyphenation without accumulating prior-page text. */
+export function pageContinuationTail(text: string): { text: string; separator: string } {
+  if (/[-‐‑]$/u.test(text)) {
+    const terminal = /([^\s]+)[-‐‑]$/u.exec(text)?.[1] ?? "";
+    return { text: /[-‐‑\d]/u.test(terminal) ? text : text.slice(0, -1), separator: "" };
+  }
+  return { text, separator: " " };
+}

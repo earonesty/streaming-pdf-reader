@@ -74,6 +74,12 @@ export function structurePage(page: ExtractedPage, options: StructureOptions = {
     (spans) => textLines([spans])[0] as TextLine,
     inferredTables.some(isProseColumnTable),
   );
+  // Rejecting a table is safe only when a column traversal actually replaced it.
+  if (lines === groupedLines) {
+    const restored = inferredTables.filter(isProseColumnTable);
+    attachTablePanels(page, restored, groupedLines);
+    tables.push(...restored);
+  }
   return {
     page: semanticPage.number,
     lines,

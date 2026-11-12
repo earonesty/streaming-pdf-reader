@@ -121,4 +121,21 @@ it("attaches a tightly wrapped footer only with enclosure and separator evidence
     [line("Footer", 80), line("Continued", 65)],
   );
   expect(control.cells).toHaveLength(1);
+  const divided = create();
+  attachTablePanels(
+    { ...page, paths: [...page.paths, { d: "M15 77L210 77", stroke: "#000000" }] },
+    [divided],
+    [line("Footer", 80), line("Different band", 65)],
+  );
+  expect(divided.cells).toHaveLength(1);
+  const hyphenated = create();
+  attachTablePanels(
+    page,
+    [hyphenated],
+    [line("A note about govern-", 80), line("ment records.", 65)],
+  );
+  expect(hyphenated.cells.at(-1)?.text).toBe("A note about government records.");
+  const bullets = create();
+  attachTablePanels(page, [bullets], [line("• first note", 80), line("• second note", 65)]);
+  expect(bullets.cells).toHaveLength(1);
 });

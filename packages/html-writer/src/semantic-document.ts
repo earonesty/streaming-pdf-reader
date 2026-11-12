@@ -8,7 +8,7 @@ import {
 } from "@boxpdf/reader/structure";
 import type { ImageEncodingOptions } from "./raster-encoding.js";
 import { clearMediaCaptionAssociations } from "./semantic-caption.js";
-import { continuesPageParagraph } from "./semantic-flow.js";
+import { continuesPageParagraph, pageContinuationTail } from "./semantic-flow.js";
 import { dominantTextColor, semanticTextHtml, semanticTextMarkdown } from "./semantic-inline.js";
 import {
   type HtmlImageAsset,
@@ -70,6 +70,7 @@ export async function writeSemanticDocument(
   const seenFurniture = new Set<string>();
   const sectionLevels: number[] = [];
   let activeTable: ActiveTable | undefined;
+  let splitHeader: { table: Table; header: string[]; page: number } | undefined;
   const pendingMedia: string[] = [];
   let headerOpen = false;
   let headerHasParagraph = false;
@@ -195,6 +196,7 @@ export async function writeSemanticDocument(
         stats.suppressedFurniture += 1;
         continue;
       }
+      if (block.type !== "table") splitHeader = undefined;
       if (
         pendingParagraph &&
         pendingParagraph.page + 1 === page.structured.page &&
@@ -202,12 +204,13 @@ export async function writeSemanticDocument(
         continuesPageParagraph(pendingParagraph.block, block, pendingParagraph.height, page.height)
       ) {
         if (!paragraphOpen) await output("<p>");
+        const tail = pageContinuationTail(pendingParagraph.block.text);
         await write(
           `${inlineText(
-            pendingParagraph.block.text,
+            tail.text,
             pendingParagraph.block.lines,
             pendingParagraph.defaultColor,
-          )} `,
+          )}${tail.separator}`,
         );
         paragraphOpen = true;
         pendingParagraph = { block, height: page.height, page: page.structured.page, defaultColor };
@@ -257,7 +260,12 @@ export async function writeSemanticDocument(
         contentStarted = true;
       }
       if (block.type === "table") {
-        const rows = tableToRows(block.table);
+        if (markdown && !canStreamMarkdownTable(block.table)) {
+          await closeTable();
+          splitHeader = undefined;
+          await write(`${panelTableHtml(block.table, defaultColor)}\n\n`);
+          continue;
+        }
         if (markdown && canStreamMarkdownTable(block.table)) {
           const continues =
             activeTable &&
@@ -266,10 +274,23 @@ export async function writeSemanticDocument(
             (!block.table.caption ||
               block.table.caption.map((line) => line.text).join(" ") ===
                 activeTable.table.caption?.map((line) => line.text).join(" "));
+          const ownHeader = inferTableHeader(block.table);
+          const inherited =
+            !continues &&
+            !ownHeader &&
+            !block.table.caption &&
+            splitHeader &&
+            splitHeader.page + 1 === page.structured.page &&
+            tablesContinue(splitHeader.table, block.table, page.width)
+              ? splitHeader
+              : undefined;
           const headerTable =
-            continues && activeTable ? (activeTable.headerTable ?? activeTable.table) : block.table;
+            continues && activeTable
+              ? (activeTable.headerTable ?? activeTable.table)
+              : (inherited?.table ?? block.table);
           const header =
-            continues && activeTable ? activeTable.header : inferTableHeader(block.table);
+            continues && activeTable ? activeTable.header : (inherited?.header ?? ownHeader);
+          splitHeader = undefined;
           if (!continues) await closeTable();
           for (const chunk of markdownTableChunks(
             block.table,
@@ -293,9 +314,14 @@ export async function writeSemanticDocument(
                 }
               : {}),
           };
-          if (spanningFooterRow(block.table) !== undefined) await closeTable();
+          if (spanningFooterRow(block.table) !== undefined) {
+            if (header && activeTable.headerTable)
+              splitHeader = { table: activeTable.headerTable, header, page: page.structured.page };
+            await closeTable();
+          }
           continue;
         }
+        const rows = tableToRows(block.table);
         if (
           activeTable &&
           tablesContinue(activeTable.table, block.table, page.width) &&

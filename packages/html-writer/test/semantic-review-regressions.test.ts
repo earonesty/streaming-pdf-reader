@@ -256,7 +256,7 @@ it.each(["html", "markdown"] as const)(
       { profile: "semantic" },
     );
     if (format === "markdown") {
-      expect(output).toContain("_End of inventory summary_");
+      expect(output).toContain("\n\n_End of inventory summary_\n\n");
       expect(output.match(/\| Item \| Qty \|/g)).toHaveLength(2);
       return;
     }
@@ -287,6 +287,18 @@ it("emits a later spanning footer as italic text after streamed GFM", async () =
     output += chunk;
   });
   expect(output).toContain("| Widget | 2 |");
-  expect(output).toContain("_End of inventory summary_");
+  expect(output).toContain("\n\n_End of inventory summary_\n\n");
   expect(output).not.toContain("<table>");
+});
+it("repeats established Markdown headers after a page-ending spanning row", async () => {
+  const next = continuationPage(2);
+  next.spans = next.spans.filter((span) => span.bounds.y !== 210);
+  next.spans.push(span("Gadget", 20, 170), span("3", 180, 170));
+  let output = "";
+  await writeMarkdownDocument([continuationPage(1, true), next], (chunk) => {
+    output += chunk;
+  });
+  expect(output).toContain("_End of inventory summary_\n\n");
+  expect(output.match(/\| Item \| Qty \|/g)).toHaveLength(2);
+  expect(output).not.toContain("|  |  |");
 });

@@ -1,5 +1,6 @@
 import type { Table, TextLine } from "./index.js";
 import { groupInsetBlocks } from "./inset.js";
+import { joinText } from "./text-join.js";
 
 export type SemanticBlock =
   | { type: "heading"; level: 1 | 2 | 3 | 4; text: string; lines: TextLine[] }
@@ -512,6 +513,8 @@ function isContinuation(
     next.bounds.x > previous.bounds.x &&
     next.bounds.y > previous.bounds.y &&
     !endsSentence(previous) &&
+    !previous.spans.some(isMonospaced) &&
+    !next.spans.some(isMonospaced) &&
     /^\p{Ll}/u.test(next.text.trim()) &&
     Math.abs(previous.bounds.height - next.bounds.height) <= 1
   )
@@ -520,18 +523,4 @@ function isContinuation(
   const sameFlow =
     Math.abs(previous.bounds.x - next.bounds.x) <= Math.max(18, previous.bounds.height * 1.5);
   return verticalGap >= -3 && verticalGap <= Math.max(12, previous.bounds.height * 1.2) && sameFlow;
-}
-
-function joinText(previous: string, next: string): string {
-  if (/[-‐‑]$/u.test(previous)) {
-    const terminal = /([^\s]+)[-‐‑]$/u.exec(previous)?.[1] ?? "";
-    const lexicalHyphen = /[-‐‑\d]/u.test(terminal);
-    return lexicalHyphen
-      ? `${previous}${next.trimStart()}`
-      : `${previous.slice(0, -1)}${next.trimStart()}`;
-  }
-  if (/\S{20,}$/u.test(previous) && /^[a-z]{1,4}[.,;:]?$/u.test(next.trim())) {
-    return `${previous}${next.trim()}`;
-  }
-  return `${previous.trimEnd()} ${next.trimStart()}`;
 }

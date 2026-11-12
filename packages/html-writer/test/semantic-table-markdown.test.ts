@@ -56,7 +56,9 @@ it("retains original headers through a headerless continuation and a split", () 
       ["Item", "Qty"],
     ),
   ].join("");
-  expect(value).toContain("_Middle note_\n\n| Item | Qty |\n| --- | --- |\n| Spare | 4 |");
+  expect(value).toBe(
+    "| Gadget | 3 |\n\n_Middle note_\n\n| Item | Qty |\n| --- | --- |\n| Spare | 4 |\n",
+  );
 });
 it("preserves links and escapes while applying one italic wrapper", () => {
   const input = table([["Item", "Qty"], ["Widget", "2"], ["Use *these* | values"]]);
@@ -76,4 +78,38 @@ it("retains HTML for rowspans that table splitting cannot represent", () => {
   ]);
   if (input.cells[2]) input.cells[2].rowSpan = 2;
   expect([...markdownTableChunks(input, "#000000")].join("")).toContain('rowspan="2"');
+});
+it("suppresses repeated regular headers even when continuation data is nonnumeric", () => {
+  const header = table([
+    ["Item", "Qty"],
+    ["Widget", "2"],
+  ]);
+  const value = [
+    ...markdownTableChunks(
+      table([
+        ["Item", "Qty"],
+        ["Gadget", "Unknown"],
+      ]),
+      "#000000",
+      header,
+      true,
+      ["Item", "Qty"],
+    ),
+  ].join("");
+  expect(value).toBe("| Gadget | Unknown |\n");
+});
+it("does not insert a cell into a position occupied by a rowspan", () => {
+  const input = table([
+    ["Item", "Qty"],
+    ["Widget", "2"],
+    ["Spare", "4"],
+  ]);
+  const spanning = input.cells[2];
+  if (!spanning) throw new Error("missing cell");
+  spanning.rowSpan = 2;
+  input.cells = input.cells.filter((cell) => !(cell.row === 2 && cell.column === 0));
+  const html = [...markdownTableChunks(input, "#000000")].join("");
+  expect(html).toContain('<td rowspan="2">Widget</td>');
+  expect(html).toContain("<tr><td>4</td></tr>");
+  expect(html).not.toContain("<tr><td></td><td>4</td></tr>");
 });

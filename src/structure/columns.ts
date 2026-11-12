@@ -24,7 +24,7 @@ export function orderReadingColumns(
   const tableSpans = new Set(tables.flatMap((table) => table.cells.flatMap((cell) => cell.spans)));
   const candidates = lines
     .filter((line) => !line.spans.some((span) => tableSpans.has(span)))
-    .flatMap((line) => columnCandidates(line, page.width));
+    .flatMap((line) => columnCandidates(line, page.width, lineFromSpans));
   const bodyHeight = median(candidates.map((candidate) => candidate.bounds.height));
   const bodyCandidates = candidates.filter(
     (candidate) =>
@@ -93,7 +93,11 @@ export function orderReadingColumns(
   return output;
 }
 
-function columnCandidates(line: TextLine, pageWidth: number): ColumnCandidate[] {
+function columnCandidates(
+  line: TextLine,
+  pageWidth: number,
+  lineFromSpans: (spans: TextSpan[]) => TextLine,
+): ColumnCandidate[] {
   const spans = [...line.spans].sort((left, right) => left.bounds.x - right.bounds.x);
   const typicalHeight = median(spans.map((span) => span.bounds.height));
   const minimumRunGap = Math.max(8, pageWidth * 0.015, typicalHeight * 1.25);
@@ -107,7 +111,7 @@ function columnCandidates(line: TextLine, pageWidth: number): ColumnCandidate[] 
   }
   return runs.map((run) => ({
     bounds: union(run.map((span) => span.bounds)),
-    text: run.map((span) => span.text).join(" "),
+    text: lineFromSpans(run).text,
   }));
 }
 

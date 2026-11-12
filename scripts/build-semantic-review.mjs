@@ -63,6 +63,7 @@ for (const name of [
   "wrapped-notes",
   "separation-control",
 ]) {
+  if (cases.some((fixture) => fixture.id === name)) continue;
   cases.push({
     id: name,
     pdf: resolve(root, `fixtures/semantic/boundaries/${name}.pdf`),
@@ -170,7 +171,7 @@ for (const fixture of cases) {
   } else item.coverage = "Evidence-backed focused checks — no whole-document draft";
   if (fixture.bounded)
     item.coverage =
-      "Generated bounded fixture — focused HTML and Markdown assertions in test/semantic-boundaries/flow.test.ts. No draft reference. Known flow defects are skipped by default; run pnpm reproduce:semantic-boundaries to execute them. Passing controls remain active; this preview does not run assertions.";
+      "Generated bounded fixture — focused HTML and Markdown assertions in test/semantic-boundaries/flow.test.ts. No draft reference. All boundary assertions and controls run in pnpm test:semantic-boundaries; this preview does not run assertions.";
   if (fixture.complete)
     item.coverage =
       "Complete expected HTML and Markdown — authoritative fixture expectations. Features: " +

@@ -39,8 +39,16 @@ export function* markdownTableChunks(
   }
   const header = knownHeader ?? inferTableHeader(headerTable);
   const ownHeader = inferTableHeader(table);
-  const skipHeader =
-    ownHeader && (!continuing || JSON.stringify(ownHeader) === JSON.stringify(header));
+  const first = table.cells.filter((cell) => cell.row === 0).sort((a, b) => a.column - b.column);
+  const repeatsHeader =
+    header &&
+    first.length === header.length &&
+    first.every(
+      (cell, index) =>
+        cell.columnSpan === 1 &&
+        cell.text.trim().toLowerCase() === header[index]?.trim().toLowerCase(),
+    );
+  const skipHeader = continuing ? repeatsHeader : ownHeader || repeatsHeader;
   const columns = Math.max(
     table.columns.length,
     ...table.cells.map((cell) => cell.column + cell.columnSpan),

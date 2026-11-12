@@ -1,5 +1,6 @@
 import type { ExtractedPage, Rect, TextSpan, VectorFill, VectorPath } from "../types.js";
 import type { Table, TableCell, TextLine } from "./index.js";
+import { joinText } from "./text-join.js";
 
 /** Infer tables whose horizontal rules define rows even when columns have no borders. */
 export function inferRuledTables(page: ExtractedPage, lines: TextLine[]): Table[] {
@@ -185,23 +186,36 @@ function rowCells(
   const ordered = [...lines].sort((a, b) => b.bounds.y - a.bounds.y);
   const first = ordered[0];
   const lastColumn = columns.at(-1) ?? Infinity;
-  const crossesColumns = first?.spans.some(
-    (span) =>
-      span.bounds.x < (columns[1] ?? 0) &&
-      span.bounds.x + span.bounds.width > (columns[1] ?? Infinity),
+  const crossesColumns = ordered.some(
+    (line) =>
+      columnIndex(line.bounds.x, columns) === 0 &&
+      line.bounds.x + line.bounds.width > (columns[1] ?? Infinity) &&
+      // A wide gap is evidence of separate cells, not fragmented prose.
+      [...line.spans]
+        .sort((a, b) => a.bounds.x - b.bounds.x)
+        .every(
+          (span, index, array) =>
+            index === 0 ||
+            span.bounds.x -
+              ((array[index - 1]?.bounds.x ?? 0) + (array[index - 1]?.bounds.width ?? 0)) <=
+              Math.max(3, span.fontSize * 0.6),
+        ),
   );
-  const hasDivider = paths.some((path) => {
-    if (!path.stroke || (path.strokeOpacity ?? 1) === 0) return false;
-    const segment = simpleLineSegment(path.d);
-    return (
-      segment &&
-      Math.abs(segment.x1 - segment.x2) <= 1 &&
-      segment.x1 > (columns[0] ?? 0) + 4 &&
-      segment.x1 <= lastColumn + 2 &&
-      Math.max(segment.y1, segment.y2) > bottom + 1 &&
-      Math.min(segment.y1, segment.y2) < top - 1
-    );
-  });
+  const hasDivider =
+    row > 0 &&
+    crossesColumns &&
+    paths.some((path) => {
+      if (!path.stroke || (path.strokeOpacity ?? 1) === 0) return false;
+      const segment = simpleLineSegment(path.d);
+      return (
+        segment &&
+        Math.abs(segment.x1 - segment.x2) <= 1 &&
+        segment.x1 > (columns[0] ?? 0) + 4 &&
+        segment.x1 <= lastColumn + 2 &&
+        Math.max(segment.y1, segment.y2) > bottom + 1 &&
+        Math.min(segment.y1, segment.y2) < top - 1
+      );
+    });
   if (
     row > 0 &&
     first &&
@@ -217,7 +231,7 @@ function rowCells(
         column: 0,
         rowSpan: 1,
         columnSpan: columns.length,
-        text: ordered.map((line) => line.text).join(" "),
+        text: ordered.map((line) => line.text).reduce(joinText),
         spans,
         bounds: union(spans.map((span) => span.bounds)),
         confidence: 0.98,

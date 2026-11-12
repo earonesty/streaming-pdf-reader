@@ -65,3 +65,25 @@ it.each(["New paragraph starts here.", "• a new list item"])(
     expect(output).toContain(text.startsWith("•") ? "<ul>" : "<p>New paragraph starts here.");
   },
 );
+it.each([
+  ["govern-", "ment", "government"],
+  ["ISO-9001-", "certified", "ISO-9001-certified"],
+])("joins a page-break hyphen without inserting a space: %s", async (left, right, expected) => {
+  const first = page(1),
+    second = page(2);
+  const last = first.spans.at(-1),
+    head = second.spans[0];
+  if (!last || !head) throw new Error("missing spans");
+  last.text = left;
+  head.text = right;
+  let html = "";
+  await writeHtmlDocument(
+    [first, second],
+    (chunk) => {
+      html += chunk;
+    },
+    { profile: "semantic", semanticLookaheadPages: 1 },
+  );
+  expect(html).toContain(expected);
+  expect(html).not.toContain("govern- ment");
+});

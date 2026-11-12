@@ -1,5 +1,6 @@
 import type { ExtractedPage, Rect } from "../types.js";
 import type { Table, TextLine } from "./index.js";
+import { joinText } from "./text-join.js";
 
 /** Attach caption/footer only when a closed, stroked panel encloses the table. */
 export function attachTablePanels(page: ExtractedPage, tables: Table[], lines: TextLine[]): void {
@@ -52,11 +53,17 @@ export function attachTablePanels(page: ExtractedPage, tables: Table[], lines: T
     // not a cell in whichever column its final inline run happens to reach.
     if (
       below.length >= 1 &&
+      below.every((line) => !/^\s*(?:[•●▪◦]|\d+[.)]\s)/u.test(line.text)) &&
       below.length <= 4 &&
       below.every(
         (line, index) =>
           index === 0 ||
-          (Math.abs(line.bounds.x - (below[0]?.bounds.x ?? 0)) <= 4 &&
+          (!separatedFooter(
+            page,
+            { ...table, bounds: { ...table.bounds, y: below[index - 1]?.bounds.y ?? 0 } },
+            line,
+          ) &&
+            Math.abs(line.bounds.x - (below[0]?.bounds.x ?? 0)) <= 4 &&
             Math.abs(line.bounds.height - (below[0]?.bounds.height ?? 0)) <= 1 &&
             (below[index - 1]?.bounds.y ?? 0) - line.bounds.y - line.bounds.height >= -1 &&
             (below[index - 1]?.bounds.y ?? 0) - line.bounds.y - line.bounds.height <=
@@ -70,12 +77,14 @@ export function attachTablePanels(page: ExtractedPage, tables: Table[], lines: T
       const last = below.at(-1) as TextLine;
       const line = {
         ...first,
-        text: below.map((item) => item.text).join(" "),
+        text: below.map((item) => item.text).reduce(joinText),
         spans: below.flatMap((item) => item.spans),
         bounds: {
-          x: first.bounds.x,
+          x: Math.min(...below.map((item) => item.bounds.x)),
           y: last.bounds.y,
-          width: Math.max(...below.map((item) => item.bounds.width)),
+          width:
+            Math.max(...below.map((item) => item.bounds.x + item.bounds.width)) -
+            Math.min(...below.map((item) => item.bounds.x)),
           height: first.bounds.y + first.bounds.height - last.bounds.y,
         },
       };

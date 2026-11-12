@@ -8,7 +8,7 @@ const result = spawnSync(
     "run",
     "test/semantic-boundaries",
   ],
-  { stdio: "inherit", env: { ...process.env, BOXPDF_REPRODUCE_FLOW_DEFECTS: "1" } },
+  { stdio: "inherit" },
 );
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

@@ -13,9 +13,9 @@
         "Long token preservation across visual hard breaks",
         "Inset paragraph grouping without inventing a quotation role in HTML",
         "Return to outer paragraph measure",
-        "Comparison table column and row headers",
+        "Comparison table column headers and HTML row-header roles; native Markdown row associations",
         "Inline emphasis and link inside a cell",
-        "Footer cell spanning all three columns"
+        "Footer cell spanning all three columns in HTML; italic paragraph after the Markdown table"
       ],
       "verification": {
         "basis": "source-reviewed",
@@ -73,7 +73,7 @@
       ],
       "verification": {
         "basis": "source-reviewed",
-        "evidence": "Explicit source geometry and original fixture text; independently authored complete expectations. column-code source additionally rendered and visually inspected."
+        "evidence": "Explicit source geometry and original fixture text; independently authored complete expectations. The boundary README records the original rendered-page review."
       }
     },
     {
