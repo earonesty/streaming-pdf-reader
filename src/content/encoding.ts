@@ -2,6 +2,7 @@ import { Encodings, Font, type IFontNames } from "@pdf-lib/standard-fonts";
 import type { PdfObjectReader } from "../syntax/document.js";
 import { isDict, isName, isStream, type PdfDict, type PdfValue } from "../syntax/values.js";
 import type { EmbeddedFont } from "../types.js";
+import { adobeGlyphList } from "./adobe-glyph-list.js";
 import { findBytes } from "./bytes.js";
 import { embeddedCidUnicodeDecoder, loadCidMetrics } from "./cid.js";
 import { parseTrueTypeMetrics } from "./truetype.js";
@@ -457,9 +458,12 @@ function applyDifferences(
 }
 
 export function glyphNameToUnicode(name: string): string | undefined {
-  const known = glyphNames[name];
-  if (known !== undefined) return known;
   const plainName = name.split(".")[0] as string;
+  // Preserve extraction-friendly overrides such as fi -> "fi" rather than U+FB01.
+  const known = Object.hasOwn(glyphNames, plainName)
+    ? glyphNames[plainName]
+    : adobeGlyphList.get(plainName);
+  if (known !== undefined) return known;
   const syntheticHex = /^G([0-9a-f]{2,6})$/i.exec(plainName)?.[1];
   if (syntheticHex !== undefined) return String.fromCodePoint(Number.parseInt(syntheticHex, 16));
   const syntheticDecimal = /^C(\d{1,7})$/.exec(plainName)?.[1];
